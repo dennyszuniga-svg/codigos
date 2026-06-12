@@ -29,7 +29,7 @@ const codigosEmergencia = {
         concepto: {
             titulo: 'Fuego / Incendio',
             foco: 'Control inicial, comunicacion y evacuacion preventiva',
-            imagen: 'FIRE',
+            escena: 'fire',
             etiquetas: ['Extintores', 'Brigada', 'Bomberos']
         },
         checklist: [
@@ -51,7 +51,7 @@ const codigosEmergencia = {
         concepto: {
             titulo: 'Persona atrapada',
             foco: 'Contencion, comunicacion y rescate asistido',
-            imagen: 'LIFT',
+            escena: 'lift',
             etiquetas: ['Ascensor', 'Mantenimiento', 'Calma']
         },
         checklist: [
@@ -73,7 +73,7 @@ const codigosEmergencia = {
         concepto: {
             titulo: 'Derrame / fuga',
             foco: 'Diluye, dispersa y dirige el control de la zona',
-            imagen: 'GAS',
+            escena: 'spill',
             etiquetas: ['Aislar', 'Medir', 'Ventilar']
         },
         checklist: [
@@ -95,7 +95,7 @@ const codigosEmergencia = {
         concepto: {
             titulo: 'Atencion medica',
             foco: 'Primeros auxilios, estabilizacion y traslado',
-            imagen: 'MED',
+            escena: 'medical',
             etiquetas: ['Paciente', 'Topico', 'Traslado']
         },
         checklist: [
@@ -117,7 +117,7 @@ const codigosEmergencia = {
         concepto: {
             titulo: 'Sismo / evacuacion',
             foco: 'Verifica, restringe accesos y evacua con control',
-            imagen: 'EVAC',
+            escena: 'evac',
             etiquetas: ['Alarma', 'Rutas', 'Punto seguro']
         },
         checklist: [
@@ -139,7 +139,7 @@ const codigosEmergencia = {
         concepto: {
             titulo: 'Riesgo de seguridad',
             foco: 'Rastreo, observacion y contencion del incidente',
-            imagen: 'CCTV',
+            escena: 'security',
             etiquetas: ['Camaras', 'Cerco', 'Autoridad']
         },
         checklist: [
@@ -161,7 +161,7 @@ const codigosEmergencia = {
         concepto: {
             titulo: 'Persona extraviada',
             foco: 'Busqueda coordinada con datos, recorrido y reporte',
-            imagen: 'FIND',
+            escena: 'search',
             etiquetas: ['Datos', 'Busqueda', 'Control']
         },
         checklist: [
@@ -183,7 +183,7 @@ const codigosEmergencia = {
         concepto: {
             titulo: 'Alteracion del orden',
             foco: 'Desescalamiento, separacion y control sin agresion',
-            imagen: 'CALM',
+            escena: 'calm',
             etiquetas: ['Separar', 'Dialogar', 'Aislar']
         },
         checklist: [
@@ -205,7 +205,7 @@ const codigosEmergencia = {
         concepto: {
             titulo: 'Alto riesgo / amenaza',
             foco: 'Acompanar, proteger, tranquilizar y activar apoyo',
-            imagen: 'SAFE',
+            escena: 'shield',
             etiquetas: ['Proteger', 'Acompanamiento', 'Apoyo']
         },
         checklist: [
@@ -564,6 +564,134 @@ function actualizarLamina(codigo, { abrirModal = false } = {}) {
     }
 }
 
+function crearSVG(nombre, atributos = {}) {
+    const elemento = document.createElementNS('http://www.w3.org/2000/svg', nombre);
+
+    Object.entries(atributos).forEach(([clave, valor]) => {
+        elemento.setAttribute(clave, valor);
+    });
+
+    return elemento;
+}
+
+function agregarSVG(padre, nombre, atributos = {}) {
+    const elemento = crearSVG(nombre, atributos);
+    padre.appendChild(elemento);
+    return elemento;
+}
+
+function crearIlustracionConcepto(tipo, color) {
+    const svg = crearSVG('svg', {
+        class: `concept-illustration concept-illustration-${tipo}`,
+        viewBox: '0 0 220 150',
+        role: 'img',
+        'aria-hidden': 'true',
+        focusable: 'false'
+    });
+    const defs = agregarSVG(svg, 'defs');
+    const gradientId = `sceneGradient-${tipo}`;
+    const gradient = agregarSVG(defs, 'linearGradient', {
+        id: gradientId,
+        x1: '0%',
+        y1: '0%',
+        x2: '100%',
+        y2: '100%'
+    });
+
+    agregarSVG(gradient, 'stop', { offset: '0%', 'stop-color': color, 'stop-opacity': '0.22' });
+    agregarSVG(gradient, 'stop', { offset: '100%', 'stop-color': color, 'stop-opacity': '0.04' });
+    agregarSVG(svg, 'rect', { x: '0', y: '0', width: '220', height: '150', rx: '18', fill: `url(#${gradientId})` });
+    agregarSVG(svg, 'circle', { cx: '184', cy: '30', r: '22', fill: color, opacity: '0.12' });
+    agregarSVG(svg, 'circle', { cx: '32', cy: '118', r: '16', fill: color, opacity: '0.10' });
+
+    const strokeBase = {
+        stroke: color,
+        'stroke-width': '8',
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        fill: 'none'
+    };
+    const fillBase = { fill: color };
+    const paleFill = { fill: color, opacity: '0.14' };
+
+    switch (tipo) {
+        case 'fire':
+            agregarSVG(svg, 'path', { d: 'M101 121 C75 107 79 80 99 60 C103 78 118 76 113 47 C143 70 151 102 125 121 Z', fill: color, opacity: '0.92' });
+            agregarSVG(svg, 'path', { d: 'M107 119 C96 108 99 94 111 82 C113 94 124 94 122 78 C137 96 135 113 119 121 Z', fill: '#fff', opacity: '0.72' });
+            agregarSVG(svg, 'rect', { x: '42', y: '75', width: '20', height: '48', rx: '6', ...fillBase });
+            agregarSVG(svg, 'path', { d: 'M52 74 V58 H78', ...strokeBase, 'stroke-width': '6' });
+            agregarSVG(svg, 'path', { d: 'M62 91 H82', ...strokeBase, 'stroke-width': '5' });
+            break;
+        case 'lift':
+            agregarSVG(svg, 'rect', { x: '64', y: '30', width: '92', height: '98', rx: '12', ...paleFill });
+            agregarSVG(svg, 'path', { d: 'M110 34 V126', ...strokeBase, 'stroke-width': '6' });
+            agregarSVG(svg, 'rect', { x: '75', y: '44', width: '70', height: '70', rx: '8', fill: '#fff', opacity: '0.62' });
+            agregarSVG(svg, 'circle', { cx: '94', cy: '70', r: '10', ...fillBase });
+            agregarSVG(svg, 'path', { d: 'M82 103 C86 88 103 88 107 103', ...strokeBase, 'stroke-width': '6' });
+            agregarSVG(svg, 'path', { d: 'M137 62 L148 50 L159 62', ...strokeBase, 'stroke-width': '5' });
+            agregarSVG(svg, 'path', { d: 'M137 98 L148 110 L159 98', ...strokeBase, 'stroke-width': '5' });
+            break;
+        case 'spill':
+            agregarSVG(svg, 'path', { d: 'M83 113 C64 96 78 74 103 41 C128 74 142 96 123 113 C112 123 94 123 83 113 Z', fill: color, opacity: '0.9' });
+            agregarSVG(svg, 'path', { d: 'M125 92 C150 82 170 87 187 104', ...strokeBase, 'stroke-width': '7' });
+            agregarSVG(svg, 'path', { d: 'M128 115 C151 105 171 108 190 122', ...strokeBase, 'stroke-width': '6', opacity: '0.7' });
+            agregarSVG(svg, 'circle', { cx: '54', cy: '102', r: '10', ...paleFill });
+            agregarSVG(svg, 'circle', { cx: '163', cy: '54', r: '8', ...fillBase, opacity: '0.32' });
+            break;
+        case 'medical':
+            agregarSVG(svg, 'circle', { cx: '110', cy: '76', r: '48', ...paleFill });
+            agregarSVG(svg, 'rect', { x: '98', y: '44', width: '24', height: '64', rx: '5', ...fillBase });
+            agregarSVG(svg, 'rect', { x: '78', y: '64', width: '64', height: '24', rx: '5', ...fillBase });
+            agregarSVG(svg, 'path', { d: 'M45 119 H175', ...strokeBase, 'stroke-width': '7' });
+            agregarSVG(svg, 'circle', { cx: '72', cy: '124', r: '8', ...fillBase });
+            agregarSVG(svg, 'circle', { cx: '148', cy: '124', r: '8', ...fillBase });
+            break;
+        case 'evac':
+            agregarSVG(svg, 'rect', { x: '52', y: '38', width: '74', height: '82', rx: '7', ...paleFill });
+            agregarSVG(svg, 'path', { d: 'M70 56 H108 M70 76 H108 M70 96 H92', ...strokeBase, 'stroke-width': '5' });
+            agregarSVG(svg, 'path', { d: 'M126 100 H171', ...strokeBase, 'stroke-width': '8' });
+            agregarSVG(svg, 'path', { d: 'M155 82 L176 100 L155 118', ...strokeBase, 'stroke-width': '8' });
+            agregarSVG(svg, 'circle', { cx: '137', cy: '66', r: '12', ...fillBase });
+            agregarSVG(svg, 'path', { d: 'M137 80 L125 101 M137 80 L154 98', ...strokeBase, 'stroke-width': '6' });
+            break;
+        case 'security':
+            agregarSVG(svg, 'rect', { x: '54', y: '54', width: '76', height: '44', rx: '8', ...fillBase });
+            agregarSVG(svg, 'path', { d: 'M130 65 L176 47 V105 L130 88 Z', fill: color, opacity: '0.38' });
+            agregarSVG(svg, 'circle', { cx: '84', cy: '76', r: '13', fill: '#fff', opacity: '0.88' });
+            agregarSVG(svg, 'path', { d: 'M64 104 L51 125 H107', ...strokeBase, 'stroke-width': '7' });
+            agregarSVG(svg, 'path', { d: 'M152 44 C163 54 170 67 170 82', ...strokeBase, 'stroke-width': '5', opacity: '0.7' });
+            break;
+        case 'search':
+            agregarSVG(svg, 'circle', { cx: '91', cy: '68', r: '34', ...strokeBase, 'stroke-width': '9' });
+            agregarSVG(svg, 'path', { d: 'M116 94 L153 126', ...strokeBase, 'stroke-width': '10' });
+            agregarSVG(svg, 'path', { d: 'M157 38 C178 38 190 54 190 69 C190 91 157 115 157 115 C157 115 124 91 124 69 C124 54 136 38 157 38 Z', ...paleFill });
+            agregarSVG(svg, 'circle', { cx: '157', cy: '68', r: '9', ...fillBase });
+            agregarSVG(svg, 'path', { d: 'M55 114 H95', ...strokeBase, 'stroke-width': '5', opacity: '0.55' });
+            break;
+        case 'calm':
+            agregarSVG(svg, 'circle', { cx: '74', cy: '59', r: '17', ...fillBase });
+            agregarSVG(svg, 'circle', { cx: '146', cy: '59', r: '17', ...fillBase, opacity: '0.72' });
+            agregarSVG(svg, 'path', { d: 'M46 113 C54 89 91 89 101 113', ...strokeBase });
+            agregarSVG(svg, 'path', { d: 'M119 113 C129 89 166 89 174 113', ...strokeBase, opacity: '0.72' });
+            agregarSVG(svg, 'path', { d: 'M110 45 V121', stroke: '#ffffff', 'stroke-width': '10', 'stroke-linecap': 'round' });
+            agregarSVG(svg, 'path', { d: 'M110 45 V121', ...strokeBase, 'stroke-width': '4', opacity: '0.42' });
+            agregarSVG(svg, 'path', { d: 'M84 86 C97 96 123 96 136 86', ...strokeBase, 'stroke-width': '6', opacity: '0.7' });
+            break;
+        case 'shield':
+            agregarSVG(svg, 'path', { d: 'M110 28 L160 48 V78 C160 108 137 126 110 136 C83 126 60 108 60 78 V48 Z', fill: color, opacity: '0.88' });
+            agregarSVG(svg, 'path', { d: 'M84 79 L102 97 L139 58', stroke: '#ffffff', 'stroke-width': '12', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' });
+            agregarSVG(svg, 'circle', { cx: '52', cy: '48', r: '9', ...paleFill });
+            agregarSVG(svg, 'circle', { cx: '170', cy: '112', r: '11', ...paleFill });
+            break;
+        default:
+            agregarSVG(svg, 'circle', { cx: '110', cy: '75', r: '44', ...paleFill });
+            agregarSVG(svg, 'path', { d: 'M83 76 H137 M110 49 V103', ...strokeBase });
+            break;
+    }
+
+    return svg;
+}
+
 function actualizarConceptoVisual(codigo) {
     const contenedor = obtenerElemento('conceptVisual');
     limpiarElemento(contenedor);
@@ -578,7 +706,7 @@ function actualizarConceptoVisual(codigo) {
 
     const concepto = info.concepto;
     const encabezado = document.createElement('div');
-    const icono = document.createElement('div');
+    const escena = document.createElement('div');
     const texto = document.createElement('div');
     const titulo = document.createElement('h3');
     const foco = document.createElement('p');
@@ -589,15 +717,14 @@ function actualizarConceptoVisual(codigo) {
 
     encabezado.className = 'concept-main';
 
-    icono.className = 'concept-symbol';
-    icono.textContent = concepto.imagen;
-    icono.setAttribute('aria-hidden', 'true');
+    escena.className = 'concept-scene';
+    escena.appendChild(crearIlustracionConcepto(concepto.escena, info.color));
 
     titulo.textContent = concepto.titulo;
     foco.textContent = concepto.foco;
 
     texto.append(titulo, foco);
-    encabezado.append(icono, texto);
+    encabezado.append(escena, texto);
 
     etiquetas.className = 'concept-tags';
     concepto.etiquetas.forEach(etiqueta => {

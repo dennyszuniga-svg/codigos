@@ -457,23 +457,28 @@ img:focus-visible {
 
 .concept-main {
     display: grid;
-    grid-template-columns: 92px 1fr;
+    grid-template-columns: minmax(140px, 44%) 1fr;
     align-items: center;
     gap: 16px;
 }
 
-.concept-symbol {
+.concept-scene {
     display: grid;
     place-items: center;
-    width: 92px;
-    min-height: 92px;
+    min-height: 132px;
     border-radius: 8px;
-    background: var(--code-color, #475467);
-    color: #ffffff;
-    font-size: 1.35rem;
-    font-weight: 900;
-    letter-spacing: 0;
-    text-align: center;
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.72)),
+        color-mix(in srgb, var(--code-color, #475467) 10%, #ffffff);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7), 0 10px 22px rgba(16, 24, 40, 0.12);
+    overflow: hidden;
+}
+
+.concept-illustration {
+    display: block;
+    width: 100%;
+    max-width: 240px;
+    height: auto;
 }
 
 .concept-visual h3 {
@@ -833,9 +838,8 @@ img:focus-visible {
         grid-template-columns: 1fr;
     }
 
-    .concept-symbol {
-        width: 100%;
-        min-height: 76px;
+    .concept-scene {
+        min-height: 112px;
     }
 
     #historyList li {
