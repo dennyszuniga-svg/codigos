@@ -398,6 +398,9 @@ function formatearFechaHoraISO(iso) {
 function crearTarjetaCodigo(codigo, info) {
     const article = document.createElement('article');
     const icono = document.createElement('div');
+    const encabezado = document.createElement('div');
+    const tituloGrupo = document.createElement('div');
+    const miniatura = document.createElement('div');
     const titulo = document.createElement('h3');
     const descripcion = document.createElement('p');
     const guia = document.createElement('p');
@@ -412,7 +415,15 @@ function crearTarjetaCodigo(codigo, info) {
     icono.textContent = info.icono;
     icono.setAttribute('aria-hidden', 'true');
 
+    encabezado.className = 'code-card-header';
+    tituloGrupo.className = 'code-title-group';
+    miniatura.className = 'code-thumb';
+    miniatura.appendChild(crearIlustracionConcepto(info.concepto.escena, info.color));
+    miniatura.setAttribute('aria-hidden', 'true');
+
     titulo.textContent = info.nombre;
+    tituloGrupo.append(icono, titulo);
+    encabezado.append(tituloGrupo, miniatura);
 
     descripcion.className = 'code-summary';
     descripcion.textContent = info.descripcion;
@@ -427,7 +438,7 @@ function crearTarjetaCodigo(codigo, info) {
     boton.setAttribute('aria-label', `Activar ${info.nombre} y ver su lamina y checklist`);
     boton.setAttribute('aria-pressed', 'false');
 
-    article.append(icono, titulo, descripcion, guia, boton);
+    article.append(encabezado, descripcion, guia, boton);
     return article;
 }
 
@@ -498,6 +509,9 @@ function actualizarCodigoActivo(codigo) {
     const guia = document.createElement('div');
 
     icono.className = 'active-code-icon';
+    if (info.icono.length > 2) {
+        icono.classList.add('compact');
+    }
     icono.textContent = info.icono;
     icono.style.backgroundColor = info.color;
     icono.setAttribute('aria-hidden', 'true');
@@ -549,11 +563,13 @@ function actualizarLamina(codigo, { abrirModal = false } = {}) {
     if (!info) {
         imagen.src = '';
         imagen.alt = 'Lamina de codigo de emergencia';
+        imagen.hidden = true;
         caption.textContent = 'Activa un codigo para mostrar su lamina de respuesta.';
         botonAbrir.disabled = true;
         return;
     }
 
+    imagen.hidden = false;
     imagen.src = info.image;
     imagen.alt = `${info.nombre} - lamina de emergencia`;
     caption.textContent = `${info.nombre}. ${info.guia}.`;
