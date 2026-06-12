@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Códigos de Emergencia</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚨 Códigos de Emergencia</h1>
+            <p>Sistema de visualización de códigos de emergencia</p>
+        </header>
+
+        <div class="codes-grid">
+            <div class="code-card code-rojo" data-code="rojo">
+                <div class="code-icon">🔥</div>
+                <h2>Código Rojo</h2>
+                <p>Incendio o inflamación de chimeneas</p>
+                <button class="activate-btn" onclick="activarCodigo('rojo')">Activar</button>
+            </div>
+
+            <div class="code-card code-naranja" data-code="naranja">
+                <div class="code-icon">🛗</div>
+                <h2>Código Naranja</h2>
+                <p>Atrapamiento de personas en elevadores</p>
+                <button class="activate-btn" onclick="activarCodigo('naranja')">Activar</button>
+            </div>
+
+            <div class="code-card code-verde-oscuro" data-code="verde-oscuro">
+                <div class="code-icon">⛽</div>
+                <h2>Código 3D</h2>
+                <p>Fugas de gases o derrames de combustibles</p>
+                <button class="activate-btn" onclick="activarCodigo('verde-oscuro')">Activar</button>
+            </div>
+
+            <div class="code-card code-azul" data-code="azul">
+                <div class="code-icon">🏥</div>
+                <h2>Código CAT</h2>
+                <p>Persona necesita atención médica</p>
+                <button class="activate-btn" onclick="activarCodigo('azul')">Activar</button>
+            </div>
+
+            <div class="code-card code-verde" data-code="verde">
+                <div class="code-icon">🌍</div>
+                <h2>Código Verde</h2>
+                <p>Sismos</p>
+                <button class="activate-btn" onclick="activarCodigo('verde')">Activar</button>
+            </div>
+        </div>
+
+        <div class="active-panel" id="activePanel">
+            <h2>Código Activo</h2>
+            <div id="activeCodeDisplay" class="active-code-display">
+                <p>Ningún código activo</p>
+            </div>
+            <button class="desactivate-btn" onclick="desactivarTodos()">Desactivar Todos</button>
+        </div>
+
+        <div class="history-panel">
+            <h2>Historial de Activaciones</h2>
+            <ul id="historyList"></ul>
+            <button class="clear-btn" onclick="limpiarHistorial()">Limpiar Historial</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
