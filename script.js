@@ -33,11 +33,17 @@ const codigosEmergencia = {
             etiquetas: ['Extintores', 'Brigada', 'Bomberos']
         },
         checklist: [
-            'Reporta la emergencia por radio al supervisor e indica la ubicacion exacta.',
-            'Moviliza la brigada contra incendios y lleva extintores al punto.',
-            'Inicia el control del fuego con apoyo cercano y manteniendo distancia segura.',
-            'Mantente en comunicacion con el centro de control y bomberos.',
-            'Si hay lesionados, coordina primeros auxilios y traslado medico.'
+            'Personal de URBAPARK comunica a ECO sobre el lugar y punto de ignicion.',
+            'ECO realiza el comunicado a Charly (Supervisor de Centro de Control).',
+            'Se procede a cerrar la zona.',
+            'Se procede a evacuar clientes.'
+        ],
+        controles: [
+            {
+                id: 'uso-extintor',
+                pregunta: 'Se llego a usar un extintor?',
+                opciones: ['Si', 'No']
+            }
         ]
     },
     naranja: {
@@ -257,12 +263,21 @@ function guardarEstadoLocalStorage(clave, valor) {
 
 function crearEstadoChecklistBase(codigo) {
     const info = codigosEmergencia[codigo];
+    const controles = (info.controles || []).reduce((acumulado, control) => {
+        acumulado[control.id] = {
+            valor: '',
+            actualizadoEn: null
+        };
+        return acumulado;
+    }, {});
+
     return {
         encargado: '',
         pasos: info.checklist.map(() => ({
             completado: false,
             completadoEn: null
-        }))
+        })),
+        controles
     };
 }
 
@@ -311,6 +326,26 @@ function normalizarChecklistGuardado(codigo, valor) {
             completado: Boolean(guardado),
             completadoEn: guardado ? new Date().toISOString() : null
         };
+    });
+
+    const controlesInfo = codigosEmergencia[codigo].controles || [];
+    controlesInfo.forEach(control => {
+        const guardado = valor.controles?.[control.id] || valor.extras?.[control.id] || valor[control.id];
+
+        if (guardado && typeof guardado === 'object') {
+            base.controles[control.id] = {
+                valor: typeof guardado.valor === 'string' ? guardado.valor : '',
+                actualizadoEn: guardado.actualizadoEn || guardado.fechaHora || null
+            };
+            return;
+        }
+
+        if (typeof guardado === 'string') {
+            base.controles[control.id] = {
+                valor: guardado,
+                actualizadoEn: null
+            };
+        }
     });
 
     return base;
@@ -813,6 +848,57 @@ function actualizarChecklistUI(codigo) {
         item.appendChild(etiqueta);
         lista.appendChild(item);
     });
+
+    (info.controles || []).forEach(control => {
+        const item = document.createElement('li');
+        const fieldset = document.createElement('fieldset');
+        const legend = document.createElement('legend');
+        const opciones = document.createElement('div');
+        const timestamp = document.createElement('time');
+        const controlEstado = estado.controles?.[control.id] || { valor: '', actualizadoEn: null };
+
+        item.className = 'checklist-item checklist-control-item';
+        fieldset.className = 'checklist-control-fieldset';
+        legend.className = 'checklist-control-legend';
+        legend.textContent = control.pregunta;
+        opciones.className = 'checklist-choice-group';
+
+        control.opciones.forEach(opcion => {
+            const etiqueta = document.createElement('label');
+            const radio = document.createElement('input');
+            const texto = document.createElement('span');
+            const id = `control-${codigo}-${control.id}-${opcion.toLowerCase()}`;
+
+            etiqueta.className = 'checklist-choice';
+            etiqueta.htmlFor = id;
+
+            radio.type = 'radio';
+            radio.id = id;
+            radio.name = `control-${codigo}-${control.id}`;
+            radio.value = opcion;
+            radio.dataset.codigo = codigo;
+            radio.dataset.controlId = control.id;
+            radio.checked = controlEstado.valor === opcion;
+            radio.setAttribute('aria-label', `${control.pregunta} ${opcion}`);
+
+            texto.textContent = opcion;
+            etiqueta.append(radio, texto);
+            opciones.appendChild(etiqueta);
+        });
+
+        timestamp.className = 'checklist-timestamp checklist-control-timestamp';
+        if (controlEstado.actualizadoEn) {
+            const fechaHoraTexto = formatearFechaHoraISO(controlEstado.actualizadoEn);
+            timestamp.dateTime = controlEstado.actualizadoEn;
+            timestamp.textContent = fechaHoraTexto ? `Registrado ${fechaHoraTexto}` : 'Registrado';
+        } else {
+            timestamp.textContent = 'Pendiente de registro';
+        }
+
+        fieldset.append(legend, opciones, timestamp);
+        item.appendChild(fieldset);
+        lista.appendChild(item);
+    });
 }
 
 function guardarHistorial() {
@@ -926,6 +1012,34 @@ function crearContenidoInforme(codigo) {
             </tr>
         `;
     }).join('');
+    const controlesFilas = (info.controles || []).map(control => {
+        const controlEstado = estado.controles?.[control.id] || { valor: '', actualizadoEn: null };
+        const respuesta = controlEstado.valor || 'Pendiente';
+        const hora = controlEstado.actualizadoEn ? formatearFechaHoraISO(controlEstado.actualizadoEn) : '-';
+
+        return `
+            <tr>
+                <td>${escaparHTML(control.pregunta)}</td>
+                <td>${escaparHTML(respuesta)}</td>
+                <td>${escaparHTML(hora)}</td>
+            </tr>
+        `;
+    }).join('');
+    const seccionControles = controlesFilas
+        ? `
+        <h2>Datos adicionales</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Registro</th>
+                    <th>Respuesta</th>
+                    <th>Fecha y hora</th>
+                </tr>
+            </thead>
+            <tbody>${controlesFilas}</tbody>
+        </table>
+        `
+        : '';
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -1097,6 +1211,7 @@ function crearContenidoInforme(codigo) {
             </thead>
             <tbody>${filas}</tbody>
         </table>
+        ${seccionControles}
     </main>
 </body>
 </html>`;
@@ -1150,6 +1265,22 @@ function actualizarEstadoChecklist(codigo, indice, valor) {
     }
 }
 
+function actualizarControlChecklist(codigo, controlId, valor) {
+    const estado = obtenerEstadoChecklist(codigo);
+
+    if (!estado || !estado.controles || !estado.controles[controlId]) {
+        return;
+    }
+
+    estado.controles[controlId].valor = valor;
+    estado.controles[controlId].actualizadoEn = obtenerFechaHoraActual().iso;
+    guardarChecklistEstado();
+
+    if (codigoActivo === codigo) {
+        actualizarChecklistUI(codigo);
+    }
+}
+
 function reiniciarChecklistActual() {
     if (!codigoActivo) {
         return;
@@ -1160,6 +1291,12 @@ function reiniciarChecklistActual() {
         completado: false,
         completadoEn: null
     }));
+    Object.keys(estado.controles || {}).forEach(controlId => {
+        estado.controles[controlId] = {
+            valor: '',
+            actualizadoEn: null
+        };
+    });
     guardarChecklistEstado();
     actualizarChecklistUI(codigoActivo);
 }
@@ -1314,6 +1451,12 @@ function configurarEventos() {
     });
 
     obtenerElemento('checklistList').addEventListener('change', event => {
+        const radio = event.target.closest('input[type="radio"][data-control-id]');
+        if (radio) {
+            actualizarControlChecklist(radio.dataset.codigo, radio.dataset.controlId, radio.value);
+            return;
+        }
+
         const checkbox = event.target.closest('input[type="checkbox"]');
         if (!checkbox) {
             return;

@@ -648,6 +648,63 @@ img:focus-visible {
     background: #b9f6ca;
 }
 
+.checklist-control-item {
+    background: #ffffff;
+}
+
+.checklist-control-fieldset {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 14px;
+    border: 0;
+}
+
+.checklist-control-legend {
+    padding: 0;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 900;
+    line-height: 1.35;
+}
+
+.checklist-choice-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.checklist-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid #d0d5dd;
+    border-radius: 999px;
+    background: #ffffff;
+    color: var(--text);
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.checklist-choice input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #027a48;
+    cursor: pointer;
+}
+
+.checklist-choice:has(input:checked) {
+    border-color: #039855;
+    background: #ecfdf3;
+    color: #027a48;
+}
+
+.checklist-control-timestamp {
+    display: block;
+}
+
 #historyList {
     display: grid;
     gap: 10px;
