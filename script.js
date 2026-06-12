@@ -26,6 +26,12 @@ const codigosEmergencia = {
         color: '#d92d20',
         icono: 'R',
         image: 'assets/codigo-rojo.png',
+        concepto: {
+            titulo: 'Fuego / Incendio',
+            foco: 'Control inicial, comunicacion y evacuacion preventiva',
+            imagen: 'FIRE',
+            etiquetas: ['Extintores', 'Brigada', 'Bomberos']
+        },
         checklist: [
             'Reporta la emergencia por radio al supervisor e indica la ubicacion exacta.',
             'Moviliza la brigada contra incendios y lleva extintores al punto.',
@@ -42,6 +48,12 @@ const codigosEmergencia = {
         color: '#b54708',
         icono: 'N',
         image: 'assets/codigo-naranja.png',
+        concepto: {
+            titulo: 'Persona atrapada',
+            foco: 'Contencion, comunicacion y rescate asistido',
+            imagen: 'LIFT',
+            etiquetas: ['Ascensor', 'Mantenimiento', 'Calma']
+        },
         checklist: [
             'Reporta la emergencia de atrapamiento y confirma el lugar exacto.',
             'Comunica el Codigo Naranja por radio al supervisor de turno.',
@@ -58,6 +70,12 @@ const codigosEmergencia = {
         color: '#027a48',
         icono: '3D',
         image: 'assets/codigo-3d.png',
+        concepto: {
+            titulo: 'Derrame / fuga',
+            foco: 'Diluye, dispersa y dirige el control de la zona',
+            imagen: 'GAS',
+            etiquetas: ['Aislar', 'Medir', 'Ventilar']
+        },
         checklist: [
             'Reporta la fuga o derrame y activa el Codigo 3D.',
             'Cierra accesos y aleja a las personas del area afectada.',
@@ -74,6 +92,12 @@ const codigosEmergencia = {
         color: '#175cd3',
         icono: 'CAT',
         image: 'assets/codigo-cat.png',
+        concepto: {
+            titulo: 'Atencion medica',
+            foco: 'Primeros auxilios, estabilizacion y traslado',
+            imagen: 'MED',
+            etiquetas: ['Paciente', 'Topico', 'Traslado']
+        },
         checklist: [
             'Comunica la emergencia medica al centro de control.',
             'Atiende a la persona con calma y verifica su estado inicial.',
@@ -90,6 +114,12 @@ const codigosEmergencia = {
         color: '#039855',
         icono: 'V',
         image: 'assets/codigo-verde.png',
+        concepto: {
+            titulo: 'Sismo / evacuacion',
+            foco: 'Verifica, restringe accesos y evacua con control',
+            imagen: 'EVAC',
+            etiquetas: ['Alarma', 'Rutas', 'Punto seguro']
+        },
         checklist: [
             'Comunica el evento sismico y activa la alarma.',
             'Mantiene la posicion hasta que termine el movimiento.',
@@ -106,6 +136,12 @@ const codigosEmergencia = {
         color: '#3b4cc0',
         icono: 'CROC',
         image: 'assets/codigo-croc.png',
+        concepto: {
+            titulo: 'Riesgo de seguridad',
+            foco: 'Rastreo, observacion y contencion del incidente',
+            imagen: 'CCTV',
+            etiquetas: ['Camaras', 'Cerco', 'Autoridad']
+        },
         checklist: [
             'Comunica el incidente y activa el Codigo CROC.',
             'Rastrea o identifica al sospechoso mediante camaras y observacion.',
@@ -122,6 +158,12 @@ const codigosEmergencia = {
         color: '#111827',
         icono: 'ADAM',
         image: 'assets/codigo-adam.png',
+        concepto: {
+            titulo: 'Persona extraviada',
+            foco: 'Busqueda coordinada con datos, recorrido y reporte',
+            imagen: 'FIND',
+            etiquetas: ['Datos', 'Busqueda', 'Control']
+        },
         checklist: [
             'Recibe el reporte de la persona extraviada y calma al familiar.',
             'Solicita datos completos, descripcion y ultimo lugar visto.',
@@ -138,6 +180,12 @@ const codigosEmergencia = {
         color: '#a855f7',
         icono: 'CLM',
         image: 'assets/codigo-calma.png',
+        concepto: {
+            titulo: 'Alteracion del orden',
+            foco: 'Desescalamiento, separacion y control sin agresion',
+            imagen: 'CALM',
+            etiquetas: ['Separar', 'Dialogar', 'Aislar']
+        },
         checklist: [
             'Comunica la alteracion del orden al supervisor de turno.',
             'Atiende el punto de forma inmediata y sin confrontar.',
@@ -154,6 +202,12 @@ const codigosEmergencia = {
         color: '#7c6f64',
         icono: 'CAP',
         image: 'assets/codigo-capta.png',
+        concepto: {
+            titulo: 'Alto riesgo / amenaza',
+            foco: 'Acompanar, proteger, tranquilizar y activar apoyo',
+            imagen: 'SAFE',
+            etiquetas: ['Proteger', 'Acompanamiento', 'Apoyo']
+        },
         checklist: [
             'Identifica a la persona de alto riesgo y comunica su ubicacion.',
             'Acompana a distancia prudente sin perderla de vista.',
@@ -510,6 +564,52 @@ function actualizarLamina(codigo, { abrirModal = false } = {}) {
     }
 }
 
+function actualizarConceptoVisual(codigo) {
+    const contenedor = obtenerElemento('conceptVisual');
+    limpiarElemento(contenedor);
+
+    const info = codigo ? codigosEmergencia[codigo] : null;
+
+    if (!info) {
+        contenedor.className = 'concept-visual';
+        contenedor.appendChild(crearMensajeVacio('Activa un codigo para ver su imagen conceptual.', 'concept-empty'));
+        return;
+    }
+
+    const concepto = info.concepto;
+    const encabezado = document.createElement('div');
+    const icono = document.createElement('div');
+    const texto = document.createElement('div');
+    const titulo = document.createElement('h3');
+    const foco = document.createElement('p');
+    const etiquetas = document.createElement('div');
+
+    contenedor.className = `concept-visual concept-${codigo}`;
+    contenedor.style.setProperty('--code-color', info.color);
+
+    encabezado.className = 'concept-main';
+
+    icono.className = 'concept-symbol';
+    icono.textContent = concepto.imagen;
+    icono.setAttribute('aria-hidden', 'true');
+
+    titulo.textContent = concepto.titulo;
+    foco.textContent = concepto.foco;
+
+    texto.append(titulo, foco);
+    encabezado.append(icono, texto);
+
+    etiquetas.className = 'concept-tags';
+    concepto.etiquetas.forEach(etiqueta => {
+        const chip = document.createElement('span');
+        chip.textContent = etiqueta;
+        etiquetas.appendChild(chip);
+    });
+
+    contenedor.append(encabezado, etiquetas);
+    contenedor.setAttribute('aria-label', `Concepto de ${info.nombre}: ${concepto.titulo}`);
+}
+
 function actualizarChecklistUI(codigo) {
     const lista = obtenerElemento('checklistList');
     const intro = obtenerElemento('checklistIntro');
@@ -655,6 +755,250 @@ function limpiarHistorial() {
     actualizarHistorialUI();
 }
 
+function escaparHTML(valor) {
+    return String(valor ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function crearContenidoInforme(codigo) {
+    const info = codigosEmergencia[codigo];
+    const estado = obtenerEstadoChecklist(codigo);
+    const generacion = obtenerFechaHoraActual();
+    const ultimaActivacion = historial.find(entrada => entrada.codigo === codigo);
+    const total = info.checklist.length;
+    const completadas = estado.pasos.filter(paso => paso.completado).length;
+    const porcentaje = total > 0 ? Math.round((completadas / total) * 100) : 0;
+    const encargado = estado.encargado || ultimaActivacion?.encargado || 'Pendiente';
+    const fechaActivacion = ultimaActivacion
+        ? `${ultimaActivacion.fecha || ''} ${ultimaActivacion.hora || ''}`.trim()
+        : 'Sin activacion registrada';
+
+    const filas = info.checklist.map((paso, indice) => {
+        const pasoEstado = estado.pasos[indice] || { completado: false, completadoEn: null };
+        const estadoTexto = pasoEstado.completado ? 'Completado' : 'Pendiente';
+        const hora = pasoEstado.completadoEn ? formatearFechaHoraISO(pasoEstado.completadoEn) : '-';
+
+        return `
+            <tr>
+                <td>${indice + 1}</td>
+                <td>${escaparHTML(paso)}</td>
+                <td>${estadoTexto}</td>
+                <td>${escaparHTML(hora)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    return `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informe ${escaparHTML(info.nombre)}</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 28px;
+            color: #101828;
+            font-family: Arial, sans-serif;
+            background: #f8fafc;
+        }
+
+        main {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 28px;
+            border: 1px solid #d0d5dd;
+            border-top: 10px solid ${info.color};
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        h1,
+        h2 {
+            margin: 0;
+        }
+
+        h1 {
+            color: ${info.color};
+            font-size: 30px;
+        }
+
+        h2 {
+            margin-top: 26px;
+            font-size: 20px;
+        }
+
+        .meta,
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .box {
+            padding: 14px;
+            border: 1px solid #eaecf0;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+
+        .label {
+            display: block;
+            color: #475467;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .value {
+            display: block;
+            margin-top: 6px;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .concept {
+            margin-top: 20px;
+            padding: 18px;
+            border-radius: 8px;
+            background: ${info.color};
+            color: #ffffff;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 14px;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border: 1px solid #d0d5dd;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #eef2f6;
+        }
+
+        .actions {
+            margin-bottom: 18px;
+            text-align: right;
+        }
+
+        button {
+            min-height: 40px;
+            padding: 9px 14px;
+            border: 0;
+            border-radius: 6px;
+            background: #101828;
+            color: #ffffff;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        @media print {
+            body {
+                padding: 0;
+                background: #ffffff;
+            }
+
+            main {
+                border: 0;
+                border-top: 8px solid ${info.color};
+            }
+
+            .actions {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="actions">
+            <button type="button" onclick="window.print()">Imprimir / guardar PDF</button>
+        </div>
+        <h1>${escaparHTML(info.nombre)}</h1>
+        <p>${escaparHTML(info.descripcion)}</p>
+        <section class="meta">
+            <div class="box">
+                <span class="label">Fecha y hora de activacion</span>
+                <span class="value">${escaparHTML(fechaActivacion)}</span>
+            </div>
+            <div class="box">
+                <span class="label">Encargado</span>
+                <span class="value">${escaparHTML(encargado)}</span>
+            </div>
+            <div class="box">
+                <span class="label">Generado</span>
+                <span class="value">${escaparHTML(`${generacion.fecha} ${generacion.hora}`)}</span>
+            </div>
+            <div class="box">
+                <span class="label">Avance</span>
+                <span class="value">${completadas} de ${total} (${porcentaje}%)</span>
+            </div>
+        </section>
+        <section class="concept">
+            <strong>${escaparHTML(info.concepto.titulo)}</strong>
+            <p>${escaparHTML(info.concepto.foco)}</p>
+        </section>
+        <h2>Checklist operativo</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Paso</th>
+                    <th>Actividad</th>
+                    <th>Estado</th>
+                    <th>Fecha y hora</th>
+                </tr>
+            </thead>
+            <tbody>${filas}</tbody>
+        </table>
+    </main>
+</body>
+</html>`;
+}
+
+function descargarInforme(codigo, html) {
+    const nombreCodigo = codigo.replace(/[^a-z0-9-]/gi, '-');
+    const fecha = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+
+    enlace.href = url;
+    enlace.download = `informe-${nombreCodigo}-${fecha}.html`;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    URL.revokeObjectURL(url);
+}
+
+function generarInformeActual() {
+    if (!codigoActivo) {
+        return;
+    }
+
+    const html = crearContenidoInforme(codigoActivo);
+    const ventana = window.open('', '_blank');
+
+    if (ventana) {
+        ventana.document.open();
+        ventana.document.write(html);
+        ventana.document.close();
+    }
+
+    descargarInforme(codigoActivo, html);
+}
+
 function actualizarEstadoChecklist(codigo, indice, valor) {
     const estado = obtenerEstadoChecklist(codigo);
 
@@ -746,7 +1090,13 @@ function actualizarInterfazCodigo(codigo) {
     actualizarCodigoActivo(codigo);
     actualizarEncargadoUI(codigo);
     actualizarLamina(codigo);
+    actualizarConceptoVisual(codigo);
     actualizarChecklistUI(codigo);
+
+    const botonInforme = obtenerElemento('generateReport');
+    if (botonInforme) {
+        botonInforme.disabled = !codigo;
+    }
 }
 
 function activarCodigo(codigo, opciones = {}) {
@@ -774,7 +1124,13 @@ function desactivarTodos() {
     actualizarCodigoActivo(null);
     actualizarEncargadoUI(null);
     actualizarLamina(null);
+    actualizarConceptoVisual(null);
     actualizarChecklistUI(null);
+
+    const botonInforme = obtenerElemento('generateReport');
+    if (botonInforme) {
+        botonInforme.disabled = true;
+    }
 }
 
 function configurarEventos() {
@@ -792,6 +1148,7 @@ function configurarEventos() {
     obtenerElemento('deactivateAll').addEventListener('click', desactivarTodos);
     obtenerElemento('clearHistory').addEventListener('click', limpiarHistorial);
     obtenerElemento('resetChecklist').addEventListener('click', reiniciarChecklistActual);
+    obtenerElemento('generateReport').addEventListener('click', generarInformeActual);
 
     obtenerElemento('responsibleName').addEventListener('input', event => {
         if (!codigoActivo) {

@@ -53,6 +53,9 @@
                         <h2 id="imageTitle">Lamina del codigo</h2>
                         <button class="clear-btn" type="button" id="openImageView" disabled>Ver en grande</button>
                     </div>
+                    <div id="conceptVisual" class="concept-visual" aria-live="polite">
+                        <p>Activa un codigo para ver su imagen conceptual.</p>
+                    </div>
                     <figure class="code-figure">
                         <img id="codeImage" src="" alt="Lamina de codigo de emergencia" />
                         <figcaption id="codeImageCaption">
@@ -79,7 +82,10 @@
             <section class="history-panel" aria-labelledby="historyTitle">
                 <div class="panel-heading">
                     <h2 id="historyTitle">Historial de activaciones</h2>
-                    <button class="clear-btn" type="button" id="clearHistory">Limpiar historial</button>
+                    <div class="panel-actions">
+                        <button class="clear-btn" type="button" id="generateReport" disabled>Generar informe</button>
+                        <button class="clear-btn" type="button" id="clearHistory">Limpiar historial</button>
+                    </div>
                 </div>
                 <ul id="historyList" aria-live="polite" aria-label="Historial reciente"></ul>
             </section>
