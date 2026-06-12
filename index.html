@@ -3,65 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Códigos de Emergencia</title>
+    <title>Codigos de Emergencia</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🚨 Códigos de Emergencia</h1>
-            <p>Sistema de visualización de códigos de emergencia</p>
+        <header class="app-header">
+            <div>
+                <p class="eyebrow">Panel operativo</p>
+                <h1>Codigos de Emergencia</h1>
+                <p>Sistema de activacion, seguimiento y consulta de las laminas de respuesta</p>
+            </div>
+            <span class="status-chip" aria-label="Sistema listo">Operativo</span>
         </header>
 
-        <div class="codes-grid">
-            <div class="code-card code-rojo" data-code="rojo">
-                <div class="code-icon">🔥</div>
-                <h2>Código Rojo</h2>
-                <p>Incendio o inflamación de chimeneas</p>
-                <button class="activate-btn" onclick="activarCodigo('rojo')">Activar</button>
-            </div>
+        <main>
+            <section>
+                <div class="section-heading">
+                    <h2>Codigos disponibles</h2>
+                    <p>Selecciona un codigo para activarlo, registrar el evento y ver su imagen.</p>
+                </div>
+                <div id="codesGrid" class="codes-grid" aria-label="Codigos disponibles"></div>
+            </section>
 
-            <div class="code-card code-naranja" data-code="naranja">
-                <div class="code-icon">🛗</div>
-                <h2>Código Naranja</h2>
-                <p>Atrapamiento de personas en elevadores</p>
-                <button class="activate-btn" onclick="activarCodigo('naranja')">Activar</button>
-            </div>
+            <section class="detail-grid">
+                <section class="active-panel" aria-labelledby="activeTitle">
+                    <div class="panel-heading">
+                        <h2 id="activeTitle">Codigo activo</h2>
+                        <button class="desactivate-btn" type="button" id="deactivateAll">Desactivar todos</button>
+                    </div>
+                    <div id="activeCodeDisplay" class="active-code-display" aria-live="polite" aria-atomic="true">
+                        <p>Ningun codigo activo</p>
+                    </div>
+                    <div class="responsible-field">
+                        <label for="responsibleName">Encargado</label>
+                        <input
+                            id="responsibleName"
+                            type="text"
+                            autocomplete="name"
+                            placeholder="Escribe el nombre del encargado"
+                            disabled
+                        />
+                        <p id="responsibleHint">Registra quien queda a cargo de la activacion actual.</p>
+                    </div>
+                </section>
 
-            <div class="code-card code-verde-oscuro" data-code="verde-oscuro">
-                <div class="code-icon">⛽</div>
-                <h2>Código 3D</h2>
-                <p>Fugas de gases o derrames de combustibles</p>
-                <button class="activate-btn" onclick="activarCodigo('verde-oscuro')">Activar</button>
-            </div>
+                <section class="image-panel" aria-labelledby="imageTitle">
+                    <div class="panel-heading">
+                        <h2 id="imageTitle">Lamina del codigo</h2>
+                        <button class="clear-btn" type="button" id="openImageView" disabled>Ver en grande</button>
+                    </div>
+                    <figure class="code-figure">
+                        <img id="codeImage" src="" alt="Lamina de codigo de emergencia" />
+                        <figcaption id="codeImageCaption">
+                            Activa un codigo para mostrar su lamina de respuesta.
+                        </figcaption>
+                    </figure>
+                </section>
 
-            <div class="code-card code-azul" data-code="azul">
-                <div class="code-icon">🏥</div>
-                <h2>Código CAT</h2>
-                <p>Persona necesita atención médica</p>
-                <button class="activate-btn" onclick="activarCodigo('azul')">Activar</button>
-            </div>
+                <section class="checklist-panel" aria-labelledby="checklistTitle">
+                    <div class="panel-heading">
+                        <h2 id="checklistTitle">Checklist operativo</h2>
+                        <button class="clear-btn" type="button" id="resetChecklist" disabled>Reiniciar lista</button>
+                    </div>
+                    <p id="checklistIntro" class="checklist-intro" aria-live="polite">
+                        Activa un codigo para ver las actividades a completar.
+                    </p>
+                    <div class="checklist-progress" aria-hidden="true">
+                        <span id="checklistProgressText">0 de 0</span>
+                    </div>
+                    <ul id="checklistList" class="checklist-list" aria-label="Lista de tareas del codigo activo"></ul>
+                </section>
+            </section>
 
-            <div class="code-card code-verde" data-code="verde">
-                <div class="code-icon">🌍</div>
-                <h2>Código Verde</h2>
-                <p>Sismos</p>
-                <button class="activate-btn" onclick="activarCodigo('verde')">Activar</button>
-            </div>
-        </div>
+            <section class="history-panel" aria-labelledby="historyTitle">
+                <div class="panel-heading">
+                    <h2 id="historyTitle">Historial de activaciones</h2>
+                    <button class="clear-btn" type="button" id="clearHistory">Limpiar historial</button>
+                </div>
+                <ul id="historyList" aria-live="polite" aria-label="Historial reciente"></ul>
+            </section>
+        </main>
+    </div>
 
-        <div class="active-panel" id="activePanel">
-            <h2>Código Activo</h2>
-            <div id="activeCodeDisplay" class="active-code-display">
-                <p>Ningún código activo</p>
-            </div>
-            <button class="desactivate-btn" onclick="desactivarTodos()">Desactivar Todos</button>
-        </div>
-
-        <div class="history-panel">
-            <h2>Historial de Activaciones</h2>
-            <ul id="historyList"></ul>
-            <button class="clear-btn" onclick="limpiarHistorial()">Limpiar Historial</button>
+    <div class="modal" id="codeModal" aria-hidden="true">
+        <div class="modal-backdrop" data-close-modal></div>
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+            <button class="modal-close" type="button" aria-label="Cerrar vista ampliada" data-close-modal>&times;</button>
+            <h2 id="modalTitle">Lamina del codigo</h2>
+            <p id="modalSubtitle" class="modal-subtitle"></p>
+            <img id="modalImage" src="" alt="" />
         </div>
     </div>
 
