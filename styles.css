@@ -150,40 +150,16 @@ img:focus-visible {
 
 .code-card-header {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 88px;
-    align-items: start;
+    grid-template-columns: 78px minmax(0, 1fr);
+    align-items: center;
     gap: 12px;
-}
-
-.code-title-group {
-    display: grid;
-    gap: 10px;
-    min-width: 0;
-}
-
-.code-icon {
-    display: inline-grid;
-    place-items: center;
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    color: #ffffff;
-    font-size: 1.35rem;
-    font-weight: 900;
-}
-
-.code-azul .code-icon,
-.code-croc .code-icon,
-.code-adam .code-icon,
-.code-capta .code-icon {
-    font-size: 0.95rem;
 }
 
 .code-thumb {
     display: grid;
     place-items: center;
-    width: 88px;
-    min-height: 76px;
+    width: 78px;
+    min-height: 70px;
     border: 1px solid color-mix(in srgb, currentColor 12%, #ffffff);
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.82);
@@ -192,8 +168,8 @@ img:focus-visible {
 }
 
 .code-thumb .concept-illustration {
-    width: 116px;
-    max-width: 116px;
+    width: 108px;
+    max-width: 108px;
     transform: scale(1.08);
 }
 
@@ -228,7 +204,6 @@ img:focus-visible {
     border-top-color: #d92d20;
 }
 
-.code-rojo .code-icon,
 .code-rojo.active {
     background: #d92d20;
 }
@@ -237,7 +212,6 @@ img:focus-visible {
     border-top-color: #b54708;
 }
 
-.code-naranja .code-icon,
 .code-naranja.active {
     background: #b54708;
 }
@@ -246,7 +220,6 @@ img:focus-visible {
     border-top-color: #027a48;
 }
 
-.code-verde-oscuro .code-icon,
 .code-verde-oscuro.active {
     background: #027a48;
 }
@@ -255,7 +228,6 @@ img:focus-visible {
     border-top-color: #175cd3;
 }
 
-.code-azul .code-icon,
 .code-azul.active {
     background: #175cd3;
 }
@@ -264,7 +236,6 @@ img:focus-visible {
     border-top-color: #039855;
 }
 
-.code-verde .code-icon,
 .code-verde.active {
     background: #039855;
 }
@@ -273,7 +244,6 @@ img:focus-visible {
     border-top-color: #3b4cc0;
 }
 
-.code-croc .code-icon,
 .code-croc.active {
     background: #3b4cc0;
 }
@@ -282,7 +252,6 @@ img:focus-visible {
     border-top-color: #111827;
 }
 
-.code-adam .code-icon,
 .code-adam.active {
     background: #111827;
 }
@@ -291,7 +260,6 @@ img:focus-visible {
     border-top-color: #a855f7;
 }
 
-.code-calma .code-icon,
 .code-calma.active {
     background: #a855f7;
 }
@@ -300,7 +268,6 @@ img:focus-visible {
     border-top-color: #7c6f64;
 }
 
-.code-capta .code-icon,
 .code-capta.active {
     background: #7c6f64;
 }

@@ -397,9 +397,7 @@ function formatearFechaHoraISO(iso) {
 
 function crearTarjetaCodigo(codigo, info) {
     const article = document.createElement('article');
-    const icono = document.createElement('div');
     const encabezado = document.createElement('div');
-    const tituloGrupo = document.createElement('div');
     const miniatura = document.createElement('div');
     const titulo = document.createElement('h3');
     const descripcion = document.createElement('p');
@@ -411,19 +409,13 @@ function crearTarjetaCodigo(codigo, info) {
     article.setAttribute('role', 'group');
     article.setAttribute('aria-label', info.nombre);
 
-    icono.className = 'code-icon';
-    icono.textContent = info.icono;
-    icono.setAttribute('aria-hidden', 'true');
-
     encabezado.className = 'code-card-header';
-    tituloGrupo.className = 'code-title-group';
     miniatura.className = 'code-thumb';
     miniatura.appendChild(crearIlustracionConcepto(info.concepto.escena, info.color));
     miniatura.setAttribute('aria-hidden', 'true');
 
     titulo.textContent = info.nombre;
-    tituloGrupo.append(icono, titulo);
-    encabezado.append(tituloGrupo, miniatura);
+    encabezado.append(miniatura, titulo);
 
     descripcion.className = 'code-summary';
     descripcion.textContent = info.descripcion;
