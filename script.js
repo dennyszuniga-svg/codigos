@@ -650,12 +650,22 @@ function guardarEncargadoActual(codigo, nombre) {
     estado.encargado = nombre;
     guardarChecklistEstado();
 
-    if (historial.length > 0 && historial[0].codigo === codigo) {
+    if (historial.length > 0 && historial[0].codigo === codigo && !historial[0].cerradoEn) {
         historial[0].encargado = nombre;
         guardarHistorial();
         actualizarHistorialUI();
         actualizarResumenUI();
     }
+}
+
+function estaChecklistCompleto(codigo, estado = obtenerEstadoChecklist(codigo)) {
+    const pasos = obtenerPasosChecklist(codigo, estado);
+
+    if (!estado || pasos.length === 0) {
+        return false;
+    }
+
+    return estado.pasos.length === pasos.length && estado.pasos.every(paso => paso.completado);
 }
 
 function actualizarHistorialActual(codigo, cambios) {
@@ -765,11 +775,13 @@ function actualizarEncargadoUI(codigo) {
     modo.value = estado.modo || 'real';
     prioridad.disabled = Boolean(estado.cerradoEn);
     prioridad.value = estado.prioridad || 'media';
-    finalizar.disabled = Boolean(estado.cerradoEn);
+    finalizar.disabled = Boolean(estado.cerradoEn) || !estaChecklistCompleto(codigo, estado);
     input.setAttribute('aria-describedby', 'responsibleHint');
     hint.textContent = estado.cerradoEn
-        ? `Codigo finalizado: ${formatearFechaHoraISO(estado.cerradoEn)}.`
-        : 'Registra quien queda a cargo de la activacion actual.';
+        ? `Codigo finalizado: ${formatearFechaHoraISO(estado.cerradoEn)}`
+        : estaChecklistCompleto(codigo, estado)
+            ? 'Checklist completo. Ya puedes finalizar y registrar el historial.'
+            : 'Completa todas las tareas para habilitar el cierre y registrar el historial.';
 }
 
 function actualizarLamina(codigo, { abrirModal = false } = {}) {
@@ -1144,6 +1156,7 @@ function agregarAlHistorial(codigo, encargado) {
     const info = codigosEmergencia[codigo];
     const tiempo = obtenerFechaHoraActual();
     const estado = obtenerEstadoChecklist(codigo);
+    const cerradoEn = estado?.cerradoEn || tiempo.iso;
 
     historial.unshift({
         codigo,
@@ -1155,7 +1168,7 @@ function agregarAlHistorial(codigo, encargado) {
         modo: estado?.modo || 'real',
         prioridad: estado?.prioridad || 'media',
         activadoEn: estado?.activadoEn || tiempo.iso,
-        cerradoEn: null
+        cerradoEn
     });
 
     historial = historial.slice(0, MAX_HISTORIAL);
@@ -1171,7 +1184,7 @@ function actualizarHistorialUI() {
     if (historial.length === 0) {
         const itemVacio = document.createElement('li');
         itemVacio.className = 'history-empty';
-        itemVacio.textContent = 'Sin activaciones registradas';
+        itemVacio.textContent = 'Sin codigos finalizados registrados';
         lista.appendChild(itemVacio);
         return;
     }
@@ -1225,7 +1238,7 @@ function actualizarResumenUI() {
     limpiarElemento(contenedor);
 
     const hoy = dateFormatter.format(new Date());
-    const activacionesHoy = historial.filter(entrada => entrada.fecha === hoy).length;
+    const registrosHoy = historial.filter(entrada => entrada.fecha === hoy).length;
     const cerradas = historial.filter(entrada => entrada.cerradoEn);
     const duraciones = cerradas
         .map(entrada => {
@@ -1245,7 +1258,7 @@ function actualizarResumenUI() {
     const ultimoCodigo = historial[0]?.nombre || 'Sin registros';
 
     [
-        ['Activaciones hoy', String(activacionesHoy), 'Eventos registrados en la fecha actual'],
+        ['Registros hoy', String(registrosHoy), 'Codigos finalizados en la fecha actual'],
         ['Codigo activo', codigoActivoTexto, 'Estado operativo en pantalla'],
         ['Ultimo registro', ultimoCodigo, historial[0]?.cerradoEn ? 'Finalizado' : historial[0] ? 'En curso' : 'Pendiente'],
         ['Promedio cierre', promedioMs ? formatearDuracionMs(promedioMs) : 'Sin cierres', `${cerradas.length} codigo(s) finalizado(s)`]
@@ -1634,6 +1647,7 @@ function actualizarEstadoChecklist(codigo, indice, valor) {
 
     if (codigoActivo === codigo) {
         actualizarChecklistUI(codigo);
+        actualizarEncargadoUI(codigo);
     }
 }
 
@@ -1667,6 +1681,7 @@ function actualizarControlChecklist(codigo, controlId, valor) {
 
     if (codigoActivo === codigo) {
         actualizarChecklistUI(codigo);
+        actualizarEncargadoUI(codigo);
     }
 }
 
@@ -1681,10 +1696,18 @@ function finalizarCodigoActual() {
         return;
     }
 
+    if (!estaChecklistCompleto(codigoActivo, estado)) {
+        const hint = obtenerElemento('responsibleHint');
+        if (hint) {
+            hint.textContent = 'Antes de finalizar, completa todas las tareas del checklist.';
+        }
+        return;
+    }
+
     const tiempo = obtenerFechaHoraActual();
     estado.cerradoEn = tiempo.iso;
     guardarChecklistEstado();
-    actualizarHistorialActual(codigoActivo, { cerradoEn: tiempo.iso });
+    agregarAlHistorial(codigoActivo, estado.encargado || obtenerNombreEncargadoActual());
     actualizarEncargadoUI(codigoActivo);
     actualizarCodigoActivo(codigoActivo);
     actualizarResumenUI();
@@ -1853,10 +1876,10 @@ function activarCodigo(codigo, opciones = {}) {
 
     const encargado = obtenerNombreEncargadoActual();
     guardarEncargadoActual(codigo, encargado);
-    agregarAlHistorial(codigo, encargado);
     reproducirSonidoAlerta();
     anunciarCodigo(codigo);
     desplazarseALamina();
+    actualizarResumenUI();
 
     if (opciones.abrirModal) {
         abrirModalCodigo(codigo);
