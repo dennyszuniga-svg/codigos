@@ -184,11 +184,10 @@ const codigosEmergencia = {
             etiquetas: ['Datos', 'Busqueda', 'Control']
         },
         checklist: [
-            'Recibe el reporte de la persona extraviada y calma al familiar.',
-            'Solicita datos completos, descripcion y ultimo lugar visto.',
-            'Recorre el area junto al familiar y al equipo asignado.',
-            'Comunica avances al centro de control de forma continua.',
-            'Reporta si la busqueda no tiene exito dentro del plazo.'
+            'Anfitrion comunica a ECO la activacion del Codigo ADAM, entregando detalles de la persona extraviada.',
+            'Anfitrion permanece con la persona extraviada en un punto visible por camaras y mantiene comunicacion calmada.',
+            'ECO se acerca al punto y acompana a la persona extraviada hacia el modulo mas cercano.',
+            'ECO realiza la entrega de la persona extraviada a Charly, dejando constancia del cierre de atencion.'
         ]
     },
     calma: {
