@@ -1382,6 +1382,10 @@ function actualizarEstadoChecklist(codigo, indice, valor) {
     estado.pasos[indice].completadoEn = valor ? obtenerFechaHoraActual().iso : null;
     guardarChecklistEstado();
 
+    if (valor) {
+        reproducirSonidoAprobado();
+    }
+
     if (codigoActivo === codigo) {
         actualizarChecklistUI(codigo);
     }
@@ -1429,28 +1433,83 @@ function reiniciarChecklistActual() {
     actualizarChecklistUI(codigoActivo);
 }
 
-function reproducirSonidoAlerta() {
+function obtenerAudioContexto() {
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
 
         if (!AudioContext) {
+            return null;
+        }
+
+        if (!window.__codigosAudioContext) {
+            window.__codigosAudioContext = new AudioContext();
+        }
+
+        if (window.__codigosAudioContext.state === 'suspended') {
+            window.__codigosAudioContext.resume();
+        }
+
+        return window.__codigosAudioContext;
+    } catch (error) {
+        console.warn('No se pudo preparar el audio:', error);
+        return null;
+    }
+}
+
+function reproducirTono(frecuencia, duracion = 0.2, volumen = 0.18, tipo = 'sine', retraso = 0) {
+    try {
+        const audioContext = obtenerAudioContexto();
+
+        if (!audioContext) {
             return;
         }
 
-        const audioContext = new AudioContext();
+        const inicio = audioContext.currentTime + retraso;
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
 
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
-        oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
-        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.35);
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.35);
+        oscillator.frequency.setValueAtTime(frecuencia, inicio);
+        oscillator.type = tipo;
+        gainNode.gain.setValueAtTime(0.0001, inicio);
+        gainNode.gain.exponentialRampToValueAtTime(volumen, inicio + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, inicio + duracion);
+        oscillator.start(inicio);
+        oscillator.stop(inicio + duracion + 0.02);
     } catch (error) {
         console.warn('No se pudo reproducir el sonido:', error);
+    }
+}
+
+function reproducirSonidoAlerta() {
+    reproducirTono(760, 0.22, 0.18, 'sine');
+    reproducirTono(980, 0.28, 0.14, 'sine', 0.16);
+}
+
+function reproducirSonidoAprobado() {
+    reproducirTono(660, 0.12, 0.12, 'triangle');
+    reproducirTono(920, 0.18, 0.14, 'triangle', 0.1);
+}
+
+function anunciarCodigo(codigo) {
+    const info = codigosEmergencia[codigo];
+
+    if (!info || !window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+        return;
+    }
+
+    try {
+        window.speechSynthesis.cancel();
+
+        const mensaje = new SpeechSynthesisUtterance(`Iniciando ${info.nombre}`);
+        mensaje.lang = 'es-PE';
+        mensaje.rate = 0.95;
+        mensaje.pitch = 1;
+        mensaje.volume = 1;
+        window.speechSynthesis.speak(mensaje);
+    } catch (error) {
+        console.warn('No se pudo anunciar el codigo:', error);
     }
 }
 
@@ -1511,6 +1570,7 @@ function activarCodigo(codigo, opciones = {}) {
     guardarEncargadoActual(codigo, encargado);
     agregarAlHistorial(codigo, encargado);
     reproducirSonidoAlerta();
+    anunciarCodigo(codigo);
     desplazarseALamina();
 
     if (opciones.abrirModal) {
