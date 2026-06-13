@@ -162,11 +162,10 @@ const codigosEmergencia = {
             etiquetas: ['Camaras', 'Cerco', 'Autoridad']
         },
         checklist: [
-            'Comunica el incidente y activa el Codigo CROC.',
-            'Rastrea o identifica al sospechoso mediante camaras y observacion.',
-            'Observa movimientos y comparte la ubicacion con el equipo.',
-            'Contiene la situacion cerrando accesos y evitando la dispersion.',
-            'Dirige al sospechoso hacia las autoridades o el punto definido.'
+            'Anfitrion comunica al grupo via radial un presunto C10, indicando vestimenta y ultimo lugar donde fue visualizado.',
+            'ECO comunica a Charly los detalles del presunto C10 y la referencia de ubicacion.',
+            'Anfitriones se posicionan en ascensores y puertas de emergencia para reforzar puntos de salida.',
+            'Anfitriones realizan seguimiento visual y comunican desplazamientos sin perder contacto operativo.'
         ]
     },
     adam: {
