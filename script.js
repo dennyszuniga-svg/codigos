@@ -668,6 +668,10 @@ function estaChecklistCompleto(codigo, estado = obtenerEstadoChecklist(codigo)) 
     return estado.pasos.length === pasos.length && estado.pasos.every(paso => paso.completado);
 }
 
+function tieneEncargadoRegistrado(estado) {
+    return Boolean(estado?.encargado && estado.encargado.trim());
+}
+
 function actualizarHistorialActual(codigo, cambios) {
     const entrada = historial.find(item => item.codigo === codigo && !item.cerradoEn);
 
@@ -775,11 +779,13 @@ function actualizarEncargadoUI(codigo) {
     modo.value = estado.modo || 'real';
     prioridad.disabled = Boolean(estado.cerradoEn);
     prioridad.value = estado.prioridad || 'media';
-    finalizar.disabled = Boolean(estado.cerradoEn) || !estaChecklistCompleto(codigo, estado);
+    finalizar.disabled = Boolean(estado.cerradoEn) || !estaChecklistCompleto(codigo, estado) || !tieneEncargadoRegistrado(estado);
     input.setAttribute('aria-describedby', 'responsibleHint');
     hint.textContent = estado.cerradoEn
         ? `Codigo finalizado: ${formatearFechaHoraISO(estado.cerradoEn)}`
-        : estaChecklistCompleto(codigo, estado)
+        : !tieneEncargadoRegistrado(estado)
+            ? 'Obligatorio: coloca el nombre de la persona a cargo para poder finalizar.'
+            : estaChecklistCompleto(codigo, estado)
             ? 'Checklist completo. Ya puedes finalizar y registrar el historial.'
             : 'Completa todas las tareas para habilitar el cierre y registrar el historial.';
 }
@@ -1704,6 +1710,18 @@ function finalizarCodigoActual() {
         return;
     }
 
+    if (!tieneEncargadoRegistrado(estado)) {
+        const hint = obtenerElemento('responsibleHint');
+        const input = obtenerElemento('responsibleName');
+        if (hint) {
+            hint.textContent = 'Antes de finalizar, coloca el nombre de la persona a cargo.';
+        }
+        if (input) {
+            input.focus();
+        }
+        return;
+    }
+
     const tiempo = obtenerFechaHoraActual();
     estado.cerradoEn = tiempo.iso;
     guardarChecklistEstado();
@@ -1943,6 +1961,7 @@ function configurarEventos() {
         }
 
         guardarEncargadoActual(codigoActivo, event.target.value.trim());
+        actualizarEncargadoUI(codigoActivo);
     });
 
     obtenerElemento('responsibleName').addEventListener('change', event => {
@@ -1951,6 +1970,7 @@ function configurarEventos() {
         }
 
         guardarEncargadoActual(codigoActivo, event.target.value.trim());
+        actualizarEncargadoUI(codigoActivo);
     });
 
     obtenerElemento('openImageView').addEventListener('click', () => {
