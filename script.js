@@ -204,11 +204,10 @@ const codigosEmergencia = {
             etiquetas: ['Separar', 'Dialogar', 'Aislar']
         },
         checklist: [
-            'Comunica la alteracion del orden al supervisor de turno.',
-            'Atiende el punto de forma inmediata y sin confrontar.',
-            'Lidera la intervencion sin agredir ni responder con violencia.',
-            'Mantiene la calma y separa a las partes involucradas.',
-            'Aisla la zona y deriva a las personas por accesos distintos.'
+            'Anfitrion comunica a ECO los detalles de la situacion y la ubicacion exacta.',
+            'ECO se acerca, aborda la situacion y busca apaciguar a las personas involucradas.',
+            'Si la situacion escala, ECO solicita apoyo de Charly o Tango para contener y calmar el punto.',
+            'A la llegada de Tango, ECO y anfitriones se retiran del punto manteniendo el control operativo.'
         ]
     },
     capta: {
