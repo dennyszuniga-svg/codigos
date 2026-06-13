@@ -61,11 +61,9 @@ const codigosEmergencia = {
             etiquetas: ['Ascensor', 'Mantenimiento', 'Calma']
         },
         checklist: [
-            'Reporta la emergencia de atrapamiento y confirma el lugar exacto.',
-            'Comunica el Codigo Naranja por radio al supervisor de turno.',
-            'Moviliza tecnico de mantenimiento y servicio de emergencias si corresponde.',
-            'Mantiene contacto verbal con las personas atrapadas para tranquilizarlas.',
-            'Libera a las personas con maniobras seguras y apoyo especializado.'
+            'Anfitrion comunica a ECO el atrapamiento de personas dentro del ascensor, escalera o travolator.',
+            'ECO se dirige al punto e informa de inmediato a Charly para activar al proveedor de ascensores.',
+            'Mantener comunicacion calmada con los clientes, informar que la ayuda esta en camino y contener la situacion.'
         ]
     },
     'verde-oscuro': {
