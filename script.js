@@ -140,11 +140,12 @@ const codigosEmergencia = {
             etiquetas: ['Alarma', 'Rutas', 'Punto seguro']
         },
         checklist: [
-            'Comunica el evento sismico y activa la alarma.',
-            'Mantiene la posicion hasta que termine el movimiento.',
-            'Verifica personas heridas o atrapadas e informa al control.',
-            'Restringe accesos y distribuye al personal hacia rutas seguras.',
-            'Evacua segun indicaciones y valida las instalaciones.'
+            'ECO lanza el Codigo Verde y alerta a todo el equipo de URBAPARK.',
+            'Anfitriones se acercan a los ascensores para evacuar y orientar a los clientes.',
+            'Anfitrion de modulo evacua a los clientes y cierra su caja con llave.',
+            'Rondas evacuan a los clientes y los direccionan hacia las puertas de emergencia.',
+            'Fortaleza apertura plumillas y bloquea accesos para facilitar la evacuacion.',
+            'Japibici evacua por la escalera de emergencia y direcciona a los clientes por la ruta segura.'
         ]
     },
     croc: {
