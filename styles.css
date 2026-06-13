@@ -705,6 +705,28 @@ img:focus-visible {
     display: block;
 }
 
+.checklist-note {
+    display: grid;
+    gap: 6px;
+    padding: 14px;
+    border: 2px solid #f79009;
+    border-radius: 8px;
+    background: #fffaeb;
+    color: #7a2e0e;
+    line-height: 1.35;
+}
+
+.checklist-note strong {
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.checklist-note span {
+    font-weight: 900;
+}
+
 #historyList {
     display: grid;
     gap: 10px;

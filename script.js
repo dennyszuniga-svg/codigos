@@ -119,12 +119,11 @@ const codigosEmergencia = {
             etiquetas: ['Paciente', 'Topico', 'Traslado']
         },
         checklist: [
-            'Comunica la emergencia medica al centro de control.',
-            'Atiende a la persona con calma y verifica su estado inicial.',
-            'Traslada o acompana al paciente segun el nivel de condicion.',
-            'Mantiene despejada el area para la atencion y el traslado.',
-            'Coordina apoyo medico si la situacion lo exige.'
-        ]
+            'Anfitrion comunica por radio a ECO la situacion y ubicacion del cliente.',
+            'ECO informa de inmediato a Charly la activacion del Codigo CAT.',
+            'Anfitrion observa de forma constante y mantiene comunicacion de soporte con el cliente.'
+        ],
+        notaChecklist: 'NO SE ACERCA NI CONTENEMOS. VISION CONSTANTE Y COMUNICACION DE SOPORTE AL CLIENTE.'
     },
     verde: {
         nombre: 'Codigo Verde',
@@ -990,6 +989,19 @@ function actualizarChecklistUI(codigo) {
     controles
         .filter(control => control.posicion !== 'antes')
         .forEach(agregarControl);
+
+    if (info.notaChecklist) {
+        const item = document.createElement('li');
+        const etiqueta = document.createElement('strong');
+        const texto = document.createElement('span');
+
+        item.className = 'checklist-note';
+        etiqueta.textContent = 'Nota operativa';
+        texto.textContent = info.notaChecklist;
+
+        item.append(etiqueta, texto);
+        lista.appendChild(item);
+    }
 }
 
 function guardarHistorial() {
@@ -1132,6 +1144,14 @@ function crearContenidoInforme(codigo) {
         </table>
         `
         : '';
+    const seccionNota = info.notaChecklist
+        ? `
+        <section class="note">
+            <strong>Nota operativa</strong>
+            <p>${escaparHTML(info.notaChecklist)}</p>
+        </section>
+        `
+        : '';
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -1209,6 +1229,19 @@ function crearContenidoInforme(codigo) {
             border-radius: 8px;
             background: ${info.color};
             color: #ffffff;
+        }
+
+        .note {
+            margin-top: 18px;
+            padding: 16px;
+            border: 2px solid #f79009;
+            border-radius: 8px;
+            background: #fffaeb;
+        }
+
+        .note strong {
+            color: #93370d;
+            text-transform: uppercase;
         }
 
         table {
@@ -1291,6 +1324,7 @@ function crearContenidoInforme(codigo) {
             <strong>${escaparHTML(info.concepto.titulo)}</strong>
             <p>${escaparHTML(info.concepto.foco)}</p>
         </section>
+        ${seccionNota}
         <h2>Checklist operativo</h2>
         <table>
             <thead>
