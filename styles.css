@@ -744,6 +744,66 @@ img:focus-visible {
     color: #98a2b3;
 }
 
+.checklist-evidence {
+    display: grid;
+    gap: 10px;
+    margin: 0 14px 14px 76px;
+    padding: 12px;
+    border: 1px dashed #b8d7e8;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.checklist-evidence-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.photo-capture-btn,
+.remove-photo-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--brand-blue);
+    color: #ffffff;
+    cursor: pointer;
+    font-weight: 900;
+}
+
+.photo-capture-btn input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.remove-photo-btn {
+    width: fit-content;
+    background: #b42318;
+}
+
+.photo-status {
+    color: var(--muted);
+    font-size: 0.88rem;
+    font-weight: 800;
+}
+
+.photo-preview {
+    display: block;
+    width: min(180px, 100%);
+    max-height: 140px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
 .checklist-timestamp,
 .checklist-timestamp-date {
     color: #475467;
@@ -844,6 +904,41 @@ img:focus-visible {
     max-height: 360px;
     overflow-y: auto;
     list-style: none;
+}
+
+.history-filters {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 14px;
+    border: 1px solid #d9edf7;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.history-filters label {
+    display: grid;
+    gap: 6px;
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 900;
+}
+
+.history-filters input,
+.history-filters select {
+    min-height: 42px;
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid #b8d7e8;
+    border-radius: 6px;
+    background: #ffffff;
+    color: var(--text);
+    font: inherit;
+}
+
+.history-filter-search {
+    grid-column: span 2;
 }
 
 #historyList li {
@@ -1029,8 +1124,13 @@ img:focus-visible {
     }
 
     .summary-grid,
-    .operation-fields {
+    .operation-fields,
+    .history-filters {
         grid-template-columns: 1fr;
+    }
+
+    .history-filter-search {
+        grid-column: auto;
     }
 
     .code-card {
@@ -1064,6 +1164,10 @@ img:focus-visible {
         grid-template-columns: auto 34px 1fr;
         gap: 10px;
         padding: 12px;
+    }
+
+    .checklist-evidence {
+        margin: 0 12px 12px;
     }
 
     .concept-main {

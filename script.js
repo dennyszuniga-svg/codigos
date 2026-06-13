@@ -250,6 +250,13 @@ const ordenCodigos = ['rojo', 'naranja', 'verde-oscuro', 'azul', 'verde', 'croc'
 let historial = [];
 let checklistEstado = {};
 let codigoActivo = null;
+let filtrosHistorial = {
+    fecha: '',
+    codigo: '',
+    modo: '',
+    prioridad: '',
+    texto: ''
+};
 
 function obtenerElemento(id) {
     return document.getElementById(id);
@@ -301,7 +308,8 @@ function crearEstadoChecklistBase(codigo) {
         pasos: info.checklist.map(() => ({
             completado: false,
             completadoEn: null,
-            observacion: ''
+            observacion: '',
+            foto: null
         })),
         controles
     };
@@ -332,7 +340,8 @@ function crearPasosEstado(cantidad) {
     return Array.from({ length: cantidad }, () => ({
         completado: false,
         completadoEn: null,
-        observacion: ''
+        observacion: '',
+        foto: null
     }));
 }
 
@@ -351,14 +360,16 @@ function sincronizarPasosChecklist(codigo, estado, reiniciar = false) {
             return {
                 completado: Boolean(guardado.completado),
                 completadoEn: guardado.completadoEn || null,
-                observacion: typeof guardado.observacion === 'string' ? guardado.observacion : ''
+                observacion: typeof guardado.observacion === 'string' ? guardado.observacion : '',
+                foto: guardado.foto && typeof guardado.foto === 'object' ? guardado.foto : null
             };
         }
 
         return {
             completado: Boolean(guardado),
             completadoEn: guardado ? new Date().toISOString() : null,
-            observacion: ''
+            observacion: '',
+            foto: null
         };
     });
 }
@@ -431,14 +442,16 @@ function normalizarChecklistGuardado(codigo, valor) {
             return {
                 completado: Boolean(guardado.completado ?? guardado.checked ?? guardado.estado),
                 completadoEn: guardado.completadoEn || guardado.checkedAt || guardado.fechaHora || null,
-                observacion: typeof guardado.observacion === 'string' ? guardado.observacion : ''
+                observacion: typeof guardado.observacion === 'string' ? guardado.observacion : '',
+                foto: guardado.foto && typeof guardado.foto === 'object' ? guardado.foto : null
             };
         }
 
         return {
             completado: Boolean(guardado),
             completadoEn: guardado ? new Date().toISOString() : null,
-            observacion: ''
+            observacion: '',
+            foto: null
         };
     });
     sincronizarPasosChecklist(codigo, base);
@@ -1090,6 +1103,11 @@ function actualizarChecklistUI(codigo) {
         const texto = document.createElement('span');
         const timestamp = document.createElement('time');
         const observacion = document.createElement('textarea');
+        const evidencia = document.createElement('div');
+        const evidenciaAcciones = document.createElement('div');
+        const fotoLabel = document.createElement('label');
+        const fotoInput = document.createElement('input');
+        const fotoEstado = document.createElement('span');
 
         const pasoEstado = estado.pasos[indice] || { completado: false, completadoEn: null };
 
@@ -1133,6 +1151,42 @@ function actualizarChecklistUI(codigo) {
         contenido.append(texto, timestamp, observacion);
         etiqueta.append(checkbox, numero, contenido);
         item.appendChild(etiqueta);
+
+        evidencia.className = 'checklist-evidence';
+        evidenciaAcciones.className = 'checklist-evidence-actions';
+        fotoLabel.className = 'photo-capture-btn';
+        fotoLabel.textContent = pasoEstado.foto ? 'Cambiar foto' : 'Tomar foto';
+        fotoInput.type = 'file';
+        fotoInput.accept = 'image/*';
+        fotoInput.capture = 'environment';
+        fotoInput.dataset.codigo = codigo;
+        fotoInput.dataset.index = String(indice);
+        fotoInput.setAttribute('aria-label', `${info.nombre}: tomar foto del paso ${indice + 1}`);
+        fotoLabel.appendChild(fotoInput);
+
+        fotoEstado.className = 'photo-status';
+        fotoEstado.textContent = pasoEstado.foto ? 'Foto adjunta' : 'Sin foto adjunta';
+        evidenciaAcciones.append(fotoLabel, fotoEstado);
+        evidencia.appendChild(evidenciaAcciones);
+
+        if (pasoEstado.foto?.dataUrl) {
+            const preview = document.createElement('img');
+            const quitar = document.createElement('button');
+
+            preview.className = 'photo-preview';
+            preview.src = pasoEstado.foto.dataUrl;
+            preview.alt = `Evidencia fotografica del paso ${indice + 1}`;
+
+            quitar.className = 'remove-photo-btn';
+            quitar.type = 'button';
+            quitar.dataset.codigo = codigo;
+            quitar.dataset.index = String(indice);
+            quitar.textContent = 'Quitar foto';
+
+            evidencia.append(preview, quitar);
+        }
+
+        item.appendChild(evidencia);
         lista.appendChild(item);
     });
 
@@ -1186,6 +1240,7 @@ function agregarAlHistorial(codigo, encargado) {
 function actualizarHistorialUI() {
     const lista = obtenerElemento('historyList');
     limpiarElemento(lista);
+    const entradasFiltradas = filtrarHistorial();
 
     if (historial.length === 0) {
         const itemVacio = document.createElement('li');
@@ -1195,7 +1250,15 @@ function actualizarHistorialUI() {
         return;
     }
 
-    historial.forEach(entrada => {
+    if (entradasFiltradas.length === 0) {
+        const itemVacio = document.createElement('li');
+        itemVacio.className = 'history-empty';
+        itemVacio.textContent = 'Sin resultados para los filtros seleccionados';
+        lista.appendChild(itemVacio);
+        return;
+    }
+
+    entradasFiltradas.forEach(entrada => {
         const li = document.createElement('li');
         const fecha = document.createElement('span');
         const detalle = document.createElement('span');
@@ -1232,6 +1295,99 @@ function actualizarHistorialUI() {
         li.append(fecha, detalle, encargado);
         lista.appendChild(li);
     });
+}
+
+function obtenerFechaFiltroHistorial(entrada) {
+    const fuente = entrada.cerradoEn || entrada.activadoEn;
+
+    if (!fuente) {
+        return '';
+    }
+
+    const fecha = new Date(fuente);
+
+    if (Number.isNaN(fecha.getTime())) {
+        return '';
+    }
+
+    const year = fecha.getFullYear();
+    const month = String(fecha.getMonth() + 1).padStart(2, '0');
+    const day = String(fecha.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function filtrarHistorial() {
+    const texto = filtrosHistorial.texto.trim().toLowerCase();
+
+    return historial.filter(entrada => {
+        if (filtrosHistorial.fecha && obtenerFechaFiltroHistorial(entrada) !== filtrosHistorial.fecha) {
+            return false;
+        }
+
+        if (filtrosHistorial.codigo && entrada.codigo !== filtrosHistorial.codigo) {
+            return false;
+        }
+
+        if (filtrosHistorial.modo && entrada.modo !== filtrosHistorial.modo) {
+            return false;
+        }
+
+        if (filtrosHistorial.prioridad && entrada.prioridad !== filtrosHistorial.prioridad) {
+            return false;
+        }
+
+        if (!texto) {
+            return true;
+        }
+
+        const contenido = [
+            entrada.nombre,
+            entrada.descripcion,
+            entrada.encargado,
+            etiquetasModo[entrada.modo],
+            etiquetasPrioridad[entrada.prioridad]
+        ].join(' ').toLowerCase();
+
+        return contenido.includes(texto);
+    });
+}
+
+function poblarFiltroCodigos() {
+    const select = obtenerElemento('historyFilterCode');
+
+    if (!select) {
+        return;
+    }
+
+    ordenCodigos.forEach(codigo => {
+        const option = document.createElement('option');
+        option.value = codigo;
+        option.textContent = codigosEmergencia[codigo].nombre;
+        select.appendChild(option);
+    });
+}
+
+function actualizarFiltrosHistorial() {
+    filtrosHistorial = {
+        fecha: obtenerElemento('historyFilterDate')?.value || '',
+        codigo: obtenerElemento('historyFilterCode')?.value || '',
+        modo: obtenerElemento('historyFilterMode')?.value || '',
+        prioridad: obtenerElemento('historyFilterPriority')?.value || '',
+        texto: obtenerElemento('historyFilterText')?.value || ''
+    };
+
+    actualizarHistorialUI();
+}
+
+function limpiarFiltrosHistorial() {
+    ['historyFilterDate', 'historyFilterCode', 'historyFilterMode', 'historyFilterPriority', 'historyFilterText'].forEach(id => {
+        const elemento = obtenerElemento(id);
+        if (elemento) {
+            elemento.value = '';
+        }
+    });
+
+    actualizarFiltrosHistorial();
 }
 
 function actualizarResumenUI() {
@@ -1328,6 +1484,9 @@ function crearContenidoInforme(codigo) {
         const estadoTexto = pasoEstado.completado ? 'Completado' : 'Pendiente';
         const hora = pasoEstado.completadoEn ? formatearFechaHoraISO(pasoEstado.completadoEn) : '-';
         const observacion = pasoEstado.observacion || '-';
+        const foto = pasoEstado.foto?.dataUrl
+            ? `<img class="evidence-photo" src="${pasoEstado.foto.dataUrl}" alt="Evidencia fotografica del paso ${indice + 1}">`
+            : '-';
 
         return `
             <tr>
@@ -1336,6 +1495,7 @@ function crearContenidoInforme(codigo) {
                 <td>${estadoTexto}</td>
                 <td>${escaparHTML(hora)}</td>
                 <td>${escaparHTML(observacion)}</td>
+                <td>${foto}</td>
             </tr>
         `;
     }).join('');
@@ -1501,6 +1661,15 @@ function crearContenidoInforme(codigo) {
             background: #eef2f6;
         }
 
+        .evidence-photo {
+            display: block;
+            width: 120px;
+            max-height: 90px;
+            object-fit: cover;
+            border: 1px solid #d0d5dd;
+            border-radius: 6px;
+        }
+
         .actions {
             margin-bottom: 18px;
             text-align: right;
@@ -1594,6 +1763,7 @@ function crearContenidoInforme(codigo) {
                     <th>Estado</th>
                     <th>Fecha y hora</th>
                     <th>Observacion</th>
+                    <th>Foto</th>
                 </tr>
             </thead>
             <tbody>${filas}</tbody>
@@ -1668,6 +1838,51 @@ function actualizarObservacionChecklist(codigo, indice, valor) {
     guardarChecklistEstado();
 }
 
+function comprimirFoto(file, maxDimension = 960, calidad = 0.72) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onerror = () => reject(new Error('No se pudo leer la foto.'));
+        reader.onload = () => {
+            const imagen = new Image();
+
+            imagen.onerror = () => reject(new Error('No se pudo procesar la foto.'));
+            imagen.onload = () => {
+                const escala = Math.min(1, maxDimension / Math.max(imagen.width, imagen.height));
+                const ancho = Math.max(1, Math.round(imagen.width * escala));
+                const alto = Math.max(1, Math.round(imagen.height * escala));
+                const canvas = document.createElement('canvas');
+                const contexto = canvas.getContext('2d');
+
+                canvas.width = ancho;
+                canvas.height = alto;
+                contexto.drawImage(imagen, 0, 0, ancho, alto);
+                resolve(canvas.toDataURL('image/jpeg', calidad));
+            };
+
+            imagen.src = reader.result;
+        };
+
+        reader.readAsDataURL(file);
+    });
+}
+
+function actualizarFotoChecklist(codigo, indice, foto) {
+    const estado = obtenerEstadoChecklist(codigo);
+
+    if (!estado || !estado.pasos[indice]) {
+        return;
+    }
+
+    estado.pasos[indice].foto = foto;
+    guardarChecklistEstado();
+
+    if (codigoActivo === codigo) {
+        actualizarChecklistUI(codigo);
+        actualizarEncargadoUI(codigo);
+    }
+}
+
 function actualizarControlChecklist(codigo, controlId, valor) {
     const estado = obtenerEstadoChecklist(codigo);
 
@@ -1740,7 +1955,8 @@ function reiniciarChecklistActual() {
     estado.pasos = estado.pasos.map(() => ({
         completado: false,
         completadoEn: null,
-        observacion: ''
+        observacion: '',
+        foto: null
     }));
     Object.keys(estado.controles || {}).forEach(controlId => {
         estado.controles[controlId] = {
@@ -1969,6 +2185,11 @@ function configurarEventos() {
     obtenerElemento('resetChecklist').addEventListener('click', reiniciarChecklistActual);
     obtenerElemento('generateReport').addEventListener('click', generarInformeActual);
     obtenerElemento('finishCode').addEventListener('click', finalizarCodigoActual);
+    ['historyFilterDate', 'historyFilterCode', 'historyFilterMode', 'historyFilterPriority'].forEach(id => {
+        obtenerElemento(id).addEventListener('change', actualizarFiltrosHistorial);
+    });
+    obtenerElemento('historyFilterText').addEventListener('input', actualizarFiltrosHistorial);
+    obtenerElemento('clearHistoryFilters').addEventListener('click', limpiarFiltrosHistorial);
     obtenerElemento('operationMode').addEventListener('change', event => {
         if (!codigoActivo) {
             return;
@@ -2048,6 +2269,44 @@ function configurarEventos() {
         );
     });
 
+    obtenerElemento('checklistList').addEventListener('change', async event => {
+        const fotoInput = event.target.closest('input[type="file"][data-index]');
+        if (!fotoInput || !fotoInput.files || fotoInput.files.length === 0) {
+            return;
+        }
+
+        try {
+            const file = fotoInput.files[0];
+            const dataUrl = await comprimirFoto(file);
+            actualizarFotoChecklist(
+                fotoInput.dataset.codigo,
+                Number(fotoInput.dataset.index),
+                {
+                    dataUrl,
+                    nombre: file.name || 'foto-evidencia.jpg',
+                    tomadaEn: obtenerFechaHoraActual().iso
+                }
+            );
+        } catch (error) {
+            console.warn('No se pudo adjuntar la foto:', error);
+        } finally {
+            fotoInput.value = '';
+        }
+    });
+
+    obtenerElemento('checklistList').addEventListener('click', event => {
+        const quitarFoto = event.target.closest('button.remove-photo-btn');
+        if (!quitarFoto) {
+            return;
+        }
+
+        actualizarFotoChecklist(
+            quitarFoto.dataset.codigo,
+            Number(quitarFoto.dataset.index),
+            null
+        );
+    });
+
     obtenerElemento('checklistList').addEventListener('click', event => {
         if (event.target.closest('textarea[data-index]')) {
             event.stopPropagation();
@@ -2092,6 +2351,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     renderizarCodigos();
+    poblarFiltroCodigos();
     historial = cargarHistorial();
     checklistEstado = cargarChecklistEstado();
     configurarEventos();

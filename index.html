@@ -123,6 +123,41 @@
                         <button class="clear-btn" type="button" id="clearHistory">Limpiar historial</button>
                     </div>
                 </div>
+                <div class="history-filters" aria-label="Filtros del historial">
+                    <label>
+                        Fecha
+                        <input id="historyFilterDate" type="date">
+                    </label>
+                    <label>
+                        Codigo
+                        <select id="historyFilterCode">
+                            <option value="">Todos</option>
+                        </select>
+                    </label>
+                    <label>
+                        Modo
+                        <select id="historyFilterMode">
+                            <option value="">Todos</option>
+                            <option value="real">Emergencia real</option>
+                            <option value="simulacro">Simulacro</option>
+                        </select>
+                    </label>
+                    <label>
+                        Prioridad
+                        <select id="historyFilterPriority">
+                            <option value="">Todas</option>
+                            <option value="baja">Baja</option>
+                            <option value="media">Media</option>
+                            <option value="alta">Alta</option>
+                            <option value="critica">Critica</option>
+                        </select>
+                    </label>
+                    <label class="history-filter-search">
+                        Buscar
+                        <input id="historyFilterText" type="search" placeholder="Codigo, encargado o detalle">
+                    </label>
+                    <button class="clear-btn" type="button" id="clearHistoryFilters">Quitar filtros</button>
+                </div>
                 <ul id="historyList" aria-live="polite" aria-label="Historial de codigos finalizados"></ul>
             </section>
         </main>
