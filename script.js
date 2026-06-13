@@ -1844,7 +1844,7 @@ function anunciarCodigo(codigo) {
     try {
         window.speechSynthesis.cancel();
 
-        const mensaje = new SpeechSynthesisUtterance(`Atencion equipo. Se esta iniciando ${info.nombre}. Mantener comunicacion y seguir el checklist operativo.`);
+        const mensaje = new SpeechSynthesisUtterance(`Activando ${info.nombre}.`);
         const voz = obtenerVozHumanaEspanol();
 
         if (voz) {
@@ -1854,8 +1854,8 @@ function anunciarCodigo(codigo) {
             mensaje.lang = 'es-PE';
         }
 
-        mensaje.rate = 0.88;
-        mensaje.pitch = 1.04;
+        mensaje.rate = 0.92;
+        mensaje.pitch = 1.03;
         mensaje.volume = 1;
         window.speechSynthesis.speak(mensaje);
     } catch (error) {
