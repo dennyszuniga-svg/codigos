@@ -1208,6 +1208,42 @@ function actualizarChecklistUI(codigo) {
     }
 }
 
+function actualizarProgresoChecklist(codigo) {
+    const progreso = obtenerElemento('checklistProgressText');
+    const estado = obtenerEstadoChecklist(codigo);
+
+    if (!progreso || !estado) {
+        return;
+    }
+
+    const pasosChecklist = obtenerPasosChecklist(codigo, estado);
+    const completadas = estado.pasos.filter(paso => paso.completado).length;
+    progreso.textContent = `${completadas} de ${pasosChecklist.length}`;
+}
+
+function actualizarPasoChecklistEnPantalla(codigo, indice) {
+    const estado = obtenerEstadoChecklist(codigo);
+    const pasoEstado = estado?.pasos[indice];
+    const checkbox = document.getElementById(`check-${codigo}-${indice}`);
+    const item = checkbox?.closest('.checklist-item');
+    const timestamp = item?.querySelector('.checklist-timestamp');
+
+    if (!pasoEstado || !checkbox || !timestamp) {
+        return;
+    }
+
+    checkbox.checked = Boolean(pasoEstado.completado);
+
+    if (pasoEstado.completadoEn) {
+        const fechaHoraTexto = formatearFechaHoraISO(pasoEstado.completadoEn);
+        timestamp.dateTime = pasoEstado.completadoEn;
+        timestamp.textContent = fechaHoraTexto ? `Hecho ${fechaHoraTexto}` : 'Hecho';
+    } else {
+        timestamp.removeAttribute('datetime');
+        timestamp.textContent = 'Pendiente';
+    }
+}
+
 function guardarHistorial() {
     guardarEstadoLocalStorage(STORAGE_KEYS.history, historial);
 }
@@ -1388,6 +1424,24 @@ function limpiarFiltrosHistorial() {
     });
 
     actualizarFiltrosHistorial();
+}
+
+function alternarFiltrosHistorial() {
+    const panel = obtenerElemento('historyFilters');
+    const boton = obtenerElemento('toggleHistoryFilters');
+
+    if (!panel || !boton) {
+        return;
+    }
+
+    const mostrar = panel.hidden;
+    panel.hidden = !mostrar;
+    boton.setAttribute('aria-expanded', String(mostrar));
+    boton.textContent = mostrar ? 'Ocultar busqueda' : 'Buscar codigo finalizado';
+
+    if (mostrar) {
+        obtenerElemento('historyFilterText')?.focus();
+    }
 }
 
 function actualizarResumenUI() {
@@ -1822,7 +1876,8 @@ function actualizarEstadoChecklist(codigo, indice, valor) {
     }
 
     if (codigoActivo === codigo) {
-        actualizarChecklistUI(codigo);
+        actualizarPasoChecklistEnPantalla(codigo, indice);
+        actualizarProgresoChecklist(codigo);
         actualizarEncargadoUI(codigo);
     }
 }
@@ -2185,6 +2240,7 @@ function configurarEventos() {
     obtenerElemento('resetChecklist').addEventListener('click', reiniciarChecklistActual);
     obtenerElemento('generateReport').addEventListener('click', generarInformeActual);
     obtenerElemento('finishCode').addEventListener('click', finalizarCodigoActual);
+    obtenerElemento('toggleHistoryFilters').addEventListener('click', alternarFiltrosHistorial);
     ['historyFilterDate', 'historyFilterCode', 'historyFilterMode', 'historyFilterPriority'].forEach(id => {
         obtenerElemento(id).addEventListener('change', actualizarFiltrosHistorial);
     });

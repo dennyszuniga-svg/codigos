@@ -51,37 +51,6 @@
                     <div id="activeCodeDisplay" class="active-code-display" aria-live="polite" aria-atomic="true">
                         <p>Ningun codigo activo</p>
                     </div>
-                    <div class="responsible-field">
-                        <label for="responsibleName">Encargado</label>
-                        <input
-                            id="responsibleName"
-                            type="text"
-                            autocomplete="name"
-                            placeholder="Escribe el nombre del encargado"
-                            required
-                            disabled
-                        />
-                        <p id="responsibleHint">Obligatorio: registra quien queda a cargo de la activacion actual.</p>
-                    </div>
-                    <div class="operation-fields">
-                        <div>
-                            <label for="operationMode">Modo</label>
-                            <select id="operationMode" disabled>
-                                <option value="real">Emergencia real</option>
-                                <option value="simulacro">Simulacro</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="operationPriority">Prioridad</label>
-                            <select id="operationPriority" disabled>
-                                <option value="baja">Baja</option>
-                                <option value="media">Media</option>
-                                <option value="alta">Alta</option>
-                                <option value="critica">Critica</option>
-                            </select>
-                        </div>
-                        <button class="finish-btn" type="button" id="finishCode" disabled>Finalizar codigo</button>
-                    </div>
                 </section>
 
                 <section class="image-panel" aria-labelledby="imageTitle">
@@ -112,6 +81,39 @@
                         <span id="checklistProgressText">0 de 0</span>
                     </div>
                     <ul id="checklistList" class="checklist-list" aria-label="Lista de tareas del codigo activo"></ul>
+                    <div class="operation-record" aria-label="Datos para finalizar el codigo">
+                        <div class="responsible-field">
+                            <label for="responsibleName">Encargado</label>
+                            <input
+                                id="responsibleName"
+                                type="text"
+                                autocomplete="name"
+                                placeholder="Escribe el nombre del encargado"
+                                required
+                                disabled
+                            />
+                            <p id="responsibleHint">Obligatorio: registra quien queda a cargo de la activacion actual.</p>
+                        </div>
+                        <div class="operation-fields">
+                            <div>
+                                <label for="operationMode">Modo</label>
+                                <select id="operationMode" disabled>
+                                    <option value="real">Emergencia real</option>
+                                    <option value="simulacro">Simulacro</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="operationPriority">Prioridad</label>
+                                <select id="operationPriority" disabled>
+                                    <option value="baja">Baja</option>
+                                    <option value="media">Media</option>
+                                    <option value="alta">Alta</option>
+                                    <option value="critica">Critica</option>
+                                </select>
+                            </div>
+                            <button class="finish-btn" type="button" id="finishCode" disabled>Finalizar codigo</button>
+                        </div>
+                    </div>
                 </section>
             </section>
 
@@ -119,11 +121,18 @@
                 <div class="panel-heading">
                     <h2 id="historyTitle">Historial de codigos finalizados</h2>
                     <div class="panel-actions">
+                        <button
+                            class="clear-btn"
+                            type="button"
+                            id="toggleHistoryFilters"
+                            aria-expanded="false"
+                            aria-controls="historyFilters"
+                        >Buscar codigo finalizado</button>
                         <button class="clear-btn" type="button" id="generateReport" disabled>Generar informe</button>
                         <button class="clear-btn" type="button" id="clearHistory">Limpiar historial</button>
                     </div>
                 </div>
-                <div class="history-filters" aria-label="Filtros del historial">
+                <div id="historyFilters" class="history-filters" aria-label="Filtros del historial" hidden>
                     <label>
                         Fecha
                         <input id="historyFilterDate" type="date">

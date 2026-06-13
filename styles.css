@@ -487,6 +487,11 @@ img:focus-visible {
 .operation-fields {
     display: grid;
     gap: 8px;
+}
+
+.operation-record {
+    display: grid;
+    gap: 16px;
     margin-top: 18px;
     padding-top: 18px;
     border-top: 1px solid #d9edf7;
@@ -915,6 +920,10 @@ img:focus-visible {
     border: 1px solid #d9edf7;
     border-radius: 8px;
     background: #ffffff;
+}
+
+.history-filters[hidden] {
+    display: none;
 }
 
 .history-filters label {
