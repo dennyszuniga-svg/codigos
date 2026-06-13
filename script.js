@@ -1811,6 +1811,29 @@ function reproducirSonidoAprobado() {
     reproducirTono(920, 0.18, 0.14, 'triangle', 0.1);
 }
 
+function obtenerVozHumanaEspanol() {
+    if (!window.speechSynthesis?.getVoices) {
+        return null;
+    }
+
+    const voces = window.speechSynthesis.getVoices();
+    const candidatas = voces.filter(voz => /^es([-_]|$)/i.test(voz.lang));
+
+    return candidatas.find(voz => /natural|online|microsoft|google|paulina|helena|sabina|monica|laura|elvira|alvaro/i.test(voz.name))
+        || candidatas.find(voz => /es[-_]?(pe|mx|us|co|cl|ar|419)/i.test(voz.lang))
+        || candidatas[0]
+        || voces.find(voz => /spanish|espanol/i.test(voz.name))
+        || null;
+}
+
+function prepararVoces() {
+    if (!window.speechSynthesis?.getVoices) {
+        return;
+    }
+
+    window.speechSynthesis.getVoices();
+}
+
 function anunciarCodigo(codigo) {
     const info = codigosEmergencia[codigo];
 
@@ -1821,10 +1844,18 @@ function anunciarCodigo(codigo) {
     try {
         window.speechSynthesis.cancel();
 
-        const mensaje = new SpeechSynthesisUtterance(`Iniciando ${info.nombre}`);
-        mensaje.lang = 'es-PE';
-        mensaje.rate = 0.95;
-        mensaje.pitch = 1;
+        const mensaje = new SpeechSynthesisUtterance(`Atencion equipo. Se esta iniciando ${info.nombre}. Mantener comunicacion y seguir el checklist operativo.`);
+        const voz = obtenerVozHumanaEspanol();
+
+        if (voz) {
+            mensaje.voice = voz;
+            mensaje.lang = voz.lang;
+        } else {
+            mensaje.lang = 'es-PE';
+        }
+
+        mensaje.rate = 0.88;
+        mensaje.pitch = 1.04;
         mensaje.volume = 1;
         window.speechSynthesis.speak(mensaje);
     } catch (error) {
@@ -2055,6 +2086,11 @@ function configurarEventos() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    prepararVoces();
+    if (window.speechSynthesis) {
+        window.speechSynthesis.onvoiceschanged = prepararVoces;
+    }
+
     renderizarCodigos();
     historial = cargarHistorial();
     checklistEstado = cargarChecklistEstado();
