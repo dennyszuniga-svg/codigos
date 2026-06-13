@@ -80,13 +80,29 @@ const codigosEmergencia = {
             escena: 'spill',
             etiquetas: ['Aislar', 'Medir', 'Ventilar']
         },
-        checklist: [
-            'Reporta la fuga o derrame y activa el Codigo 3D.',
-            'Cierra accesos y aleja a las personas del area afectada.',
-            'Toma medicion o verificacion de gas desde una distancia segura.',
-            'Diluye o dispersa con agua si el procedimiento lo permite.',
-            'Mantiene la zona controlada hasta confirmar que el riesgo termino.'
-        ]
+        checklist: [],
+        controles: [
+            {
+                id: 'tipo-incidente-3d',
+                pregunta: 'Tipo de incidente 3D',
+                opciones: ['Gas', 'Gasolina o petroleo'],
+                posicion: 'antes'
+            }
+        ],
+        checklistsCondicionales: {
+            'tipo-incidente-3d': {
+                Gas: [
+                    'Anfitrion se aleja del punto, comunica a ECO y apaga la radio hasta ubicarse en una zona segura.',
+                    'ECO comunica de inmediato a Charly la fuga de gas y la ubicacion exacta.',
+                    'ECO cierra la zona y establece un perimetro de seguridad definido.'
+                ],
+                'Gasolina o petroleo': [
+                    'Anfitrion coloca arena en el punto del derrame, informa a ECO y reporta la situacion al grupo.',
+                    'ECO se acerca al punto y recopila los datos del vehiculo que genera el derrame.',
+                    'ECO coordina con Charly el perifoneo y mantiene controlada la zona afectada.'
+                ]
+            }
+        }
     },
     azul: {
         nombre: 'Codigo CAT',
@@ -279,6 +295,59 @@ function crearEstadoChecklistBase(codigo) {
     };
 }
 
+function obtenerControlCondicional(info) {
+    if (!info.checklistsCondicionales) {
+        return null;
+    }
+
+    const controlId = Object.keys(info.checklistsCondicionales)[0];
+    return controlId || null;
+}
+
+function obtenerPasosChecklist(codigo, estado) {
+    const info = codigosEmergencia[codigo];
+    const controlId = obtenerControlCondicional(info);
+
+    if (!controlId) {
+        return info.checklist;
+    }
+
+    const seleccion = estado?.controles?.[controlId]?.valor;
+    return info.checklistsCondicionales[controlId][seleccion] || [];
+}
+
+function crearPasosEstado(cantidad) {
+    return Array.from({ length: cantidad }, () => ({
+        completado: false,
+        completadoEn: null
+    }));
+}
+
+function sincronizarPasosChecklist(codigo, estado, reiniciar = false) {
+    const pasos = obtenerPasosChecklist(codigo, estado);
+
+    if (reiniciar) {
+        estado.pasos = crearPasosEstado(pasos.length);
+        return;
+    }
+
+    estado.pasos = pasos.map((paso, indice) => {
+        const guardado = estado.pasos[indice];
+
+        if (guardado && typeof guardado === 'object') {
+            return {
+                completado: Boolean(guardado.completado),
+                completadoEn: guardado.completadoEn || null
+            };
+        }
+
+        return {
+            completado: Boolean(guardado),
+            completadoEn: guardado ? new Date().toISOString() : null
+        };
+    });
+}
+
 function normalizarChecklistGuardado(codigo, valor) {
     const base = crearEstadoChecklistBase(codigo);
 
@@ -291,6 +360,7 @@ function normalizarChecklistGuardado(codigo, valor) {
             completado: Boolean(estado),
             completadoEn: estado ? new Date().toISOString() : null
         }));
+        sincronizarPasosChecklist(codigo, base);
         return base;
     }
 
@@ -309,22 +379,6 @@ function normalizarChecklistGuardado(codigo, valor) {
             : Array.isArray(valor.estados)
                 ? valor.estados
                 : [];
-
-    base.pasos = base.pasos.map((paso, indice) => {
-        const guardado = pasosGuardados[indice];
-
-        if (guardado && typeof guardado === 'object') {
-            return {
-                completado: Boolean(guardado.completado ?? guardado.checked ?? guardado.estado),
-                completadoEn: guardado.completadoEn || guardado.checkedAt || guardado.fechaHora || null
-            };
-        }
-
-        return {
-            completado: Boolean(guardado),
-            completadoEn: guardado ? new Date().toISOString() : null
-        };
-    });
 
     const controlesInfo = codigosEmergencia[codigo].controles || [];
     controlesInfo.forEach(control => {
@@ -346,6 +400,21 @@ function normalizarChecklistGuardado(codigo, valor) {
         }
     });
 
+    base.pasos = pasosGuardados.map(guardado => {
+        if (guardado && typeof guardado === 'object') {
+            return {
+                completado: Boolean(guardado.completado ?? guardado.checked ?? guardado.estado),
+                completadoEn: guardado.completadoEn || guardado.checkedAt || guardado.fechaHora || null
+            };
+        }
+
+        return {
+            completado: Boolean(guardado),
+            completadoEn: guardado ? new Date().toISOString() : null
+        };
+    });
+    sincronizarPasosChecklist(codigo, base);
+
     return base;
 }
 
@@ -359,6 +428,8 @@ function obtenerEstadoChecklist(codigo) {
     } else {
         checklistEstado[codigo] = normalizarChecklistGuardado(codigo, checklistEstado[codigo]);
     }
+
+    sincronizarPasosChecklist(codigo, checklistEstado[codigo]);
 
     return checklistEstado[codigo];
 }
@@ -795,13 +866,82 @@ function actualizarChecklistUI(codigo) {
 
     const info = codigosEmergencia[codigo];
     const estado = obtenerEstadoChecklist(codigo);
+    const pasosChecklist = obtenerPasosChecklist(codigo, estado);
     const completadas = estado.pasos.filter(paso => paso.completado).length;
+    const controles = info.controles || [];
+    const controlCondicional = obtenerControlCondicional(info);
+    const seleccionCondicional = controlCondicional ? estado.controles?.[controlCondicional]?.valor : '';
 
-    intro.textContent = `Pasos operativos para ${info.nombre}. Marca cada casillero al completarlo.`;
-    progreso.textContent = `${completadas} de ${info.checklist.length}`;
+    intro.textContent = controlCondicional && !seleccionCondicional
+        ? `Selecciona el tipo de incidente para ver las actividades de ${info.nombre}.`
+        : `Pasos operativos para ${info.nombre}. Marca cada casillero al completarlo.`;
+    progreso.textContent = `${completadas} de ${pasosChecklist.length}`;
     botonReiniciar.disabled = false;
 
-    info.checklist.forEach((paso, indice) => {
+    const agregarControl = control => {
+        const item = document.createElement('li');
+        const fieldset = document.createElement('fieldset');
+        const legend = document.createElement('legend');
+        const opciones = document.createElement('div');
+        const timestamp = document.createElement('time');
+        const controlEstado = estado.controles?.[control.id] || { valor: '', actualizadoEn: null };
+
+        item.className = 'checklist-item checklist-control-item';
+        fieldset.className = 'checklist-control-fieldset';
+        legend.className = 'checklist-control-legend';
+        legend.textContent = control.pregunta;
+        opciones.className = 'checklist-choice-group';
+
+        control.opciones.forEach(opcion => {
+            const etiqueta = document.createElement('label');
+            const radio = document.createElement('input');
+            const texto = document.createElement('span');
+            const idOpcion = opcion.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            const id = `control-${codigo}-${control.id}-${idOpcion}`;
+
+            etiqueta.className = 'checklist-choice';
+            etiqueta.htmlFor = id;
+
+            radio.type = 'radio';
+            radio.id = id;
+            radio.name = `control-${codigo}-${control.id}`;
+            radio.value = opcion;
+            radio.dataset.codigo = codigo;
+            radio.dataset.controlId = control.id;
+            radio.checked = controlEstado.valor === opcion;
+            radio.setAttribute('aria-label', `${control.pregunta} ${opcion}`);
+
+            texto.textContent = opcion;
+            etiqueta.append(radio, texto);
+            opciones.appendChild(etiqueta);
+        });
+
+        timestamp.className = 'checklist-timestamp checklist-control-timestamp';
+        if (controlEstado.actualizadoEn) {
+            const fechaHoraTexto = formatearFechaHoraISO(controlEstado.actualizadoEn);
+            timestamp.dateTime = controlEstado.actualizadoEn;
+            timestamp.textContent = fechaHoraTexto ? `Registrado ${fechaHoraTexto}` : 'Registrado';
+        } else {
+            timestamp.textContent = 'Pendiente de registro';
+        }
+
+        fieldset.append(legend, opciones, timestamp);
+        item.appendChild(fieldset);
+        lista.appendChild(item);
+    };
+
+    controles
+        .filter(control => control.posicion === 'antes')
+        .forEach(agregarControl);
+
+    if (controlCondicional && !seleccionCondicional) {
+        const item = document.createElement('li');
+        item.className = 'checklist-empty';
+        item.textContent = 'Elige Gas o Gasolina/Petroleo para cargar el checklist correspondiente.';
+        lista.appendChild(item);
+    }
+
+    pasosChecklist.forEach((paso, indice) => {
         const item = document.createElement('li');
         const etiqueta = document.createElement('label');
         const checkbox = document.createElement('input');
@@ -847,56 +987,9 @@ function actualizarChecklistUI(codigo) {
         lista.appendChild(item);
     });
 
-    (info.controles || []).forEach(control => {
-        const item = document.createElement('li');
-        const fieldset = document.createElement('fieldset');
-        const legend = document.createElement('legend');
-        const opciones = document.createElement('div');
-        const timestamp = document.createElement('time');
-        const controlEstado = estado.controles?.[control.id] || { valor: '', actualizadoEn: null };
-
-        item.className = 'checklist-item checklist-control-item';
-        fieldset.className = 'checklist-control-fieldset';
-        legend.className = 'checklist-control-legend';
-        legend.textContent = control.pregunta;
-        opciones.className = 'checklist-choice-group';
-
-        control.opciones.forEach(opcion => {
-            const etiqueta = document.createElement('label');
-            const radio = document.createElement('input');
-            const texto = document.createElement('span');
-            const id = `control-${codigo}-${control.id}-${opcion.toLowerCase()}`;
-
-            etiqueta.className = 'checklist-choice';
-            etiqueta.htmlFor = id;
-
-            radio.type = 'radio';
-            radio.id = id;
-            radio.name = `control-${codigo}-${control.id}`;
-            radio.value = opcion;
-            radio.dataset.codigo = codigo;
-            radio.dataset.controlId = control.id;
-            radio.checked = controlEstado.valor === opcion;
-            radio.setAttribute('aria-label', `${control.pregunta} ${opcion}`);
-
-            texto.textContent = opcion;
-            etiqueta.append(radio, texto);
-            opciones.appendChild(etiqueta);
-        });
-
-        timestamp.className = 'checklist-timestamp checklist-control-timestamp';
-        if (controlEstado.actualizadoEn) {
-            const fechaHoraTexto = formatearFechaHoraISO(controlEstado.actualizadoEn);
-            timestamp.dateTime = controlEstado.actualizadoEn;
-            timestamp.textContent = fechaHoraTexto ? `Registrado ${fechaHoraTexto}` : 'Registrado';
-        } else {
-            timestamp.textContent = 'Pendiente de registro';
-        }
-
-        fieldset.append(legend, opciones, timestamp);
-        item.appendChild(fieldset);
-        lista.appendChild(item);
-    });
+    controles
+        .filter(control => control.posicion !== 'antes')
+        .forEach(agregarControl);
 }
 
 function guardarHistorial() {
@@ -988,7 +1081,8 @@ function crearContenidoInforme(codigo) {
     const estado = obtenerEstadoChecklist(codigo);
     const generacion = obtenerFechaHoraActual();
     const ultimaActivacion = historial.find(entrada => entrada.codigo === codigo);
-    const total = info.checklist.length;
+    const pasosChecklist = obtenerPasosChecklist(codigo, estado);
+    const total = pasosChecklist.length;
     const completadas = estado.pasos.filter(paso => paso.completado).length;
     const porcentaje = total > 0 ? Math.round((completadas / total) * 100) : 0;
     const encargado = estado.encargado || ultimaActivacion?.encargado || 'Pendiente';
@@ -996,7 +1090,7 @@ function crearContenidoInforme(codigo) {
         ? `${ultimaActivacion.fecha || ''} ${ultimaActivacion.hora || ''}`.trim()
         : 'Sin activacion registrada';
 
-    const filas = info.checklist.map((paso, indice) => {
+    const filas = pasosChecklist.map((paso, indice) => {
         const pasoEstado = estado.pasos[indice] || { completado: false, completadoEn: null };
         const estadoTexto = pasoEstado.completado ? 'Completado' : 'Pendiente';
         const hora = pasoEstado.completadoEn ? formatearFechaHoraISO(pasoEstado.completadoEn) : '-';
@@ -1270,8 +1364,14 @@ function actualizarControlChecklist(codigo, controlId, valor) {
         return;
     }
 
+    const valorAnterior = estado.controles[controlId].valor;
     estado.controles[controlId].valor = valor;
     estado.controles[controlId].actualizadoEn = obtenerFechaHoraActual().iso;
+
+    if (codigosEmergencia[codigo].checklistsCondicionales?.[controlId] && valorAnterior !== valor) {
+        sincronizarPasosChecklist(codigo, estado, true);
+    }
+
     guardarChecklistEstado();
 
     if (codigoActivo === codigo) {
