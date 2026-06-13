@@ -17,6 +17,18 @@ const timeFormatter = new Intl.DateTimeFormat('es-PE', {
     second: '2-digit'
 });
 
+const etiquetasModo = {
+    real: 'Emergencia real',
+    simulacro: 'Simulacro'
+};
+
+const etiquetasPrioridad = {
+    baja: 'Baja',
+    media: 'Media',
+    alta: 'Alta',
+    critica: 'Critica'
+};
+
 const codigosEmergencia = {
     rojo: {
         nombre: 'Codigo Rojo',
@@ -282,9 +294,14 @@ function crearEstadoChecklistBase(codigo) {
 
     return {
         encargado: '',
+        modo: 'real',
+        prioridad: 'media',
+        activadoEn: null,
+        cerradoEn: null,
         pasos: info.checklist.map(() => ({
             completado: false,
-            completadoEn: null
+            completadoEn: null,
+            observacion: ''
         })),
         controles
     };
@@ -314,7 +331,8 @@ function obtenerPasosChecklist(codigo, estado) {
 function crearPasosEstado(cantidad) {
     return Array.from({ length: cantidad }, () => ({
         completado: false,
-        completadoEn: null
+        completadoEn: null,
+        observacion: ''
     }));
 }
 
@@ -332,13 +350,15 @@ function sincronizarPasosChecklist(codigo, estado, reiniciar = false) {
         if (guardado && typeof guardado === 'object') {
             return {
                 completado: Boolean(guardado.completado),
-                completadoEn: guardado.completadoEn || null
+                completadoEn: guardado.completadoEn || null,
+                observacion: typeof guardado.observacion === 'string' ? guardado.observacion : ''
             };
         }
 
         return {
             completado: Boolean(guardado),
-            completadoEn: guardado ? new Date().toISOString() : null
+            completadoEn: guardado ? new Date().toISOString() : null,
+            observacion: ''
         };
     });
 }
@@ -366,6 +386,17 @@ function normalizarChecklistGuardado(codigo, valor) {
     if (typeof valor.encargado === 'string') {
         base.encargado = valor.encargado;
     }
+
+    if (typeof valor.modo === 'string' && etiquetasModo[valor.modo]) {
+        base.modo = valor.modo;
+    }
+
+    if (typeof valor.prioridad === 'string' && etiquetasPrioridad[valor.prioridad]) {
+        base.prioridad = valor.prioridad;
+    }
+
+    base.activadoEn = valor.activadoEn || valor.activatedAt || null;
+    base.cerradoEn = valor.cerradoEn || valor.closedAt || null;
 
     const pasosGuardados = Array.isArray(valor.pasos)
         ? valor.pasos
@@ -399,13 +430,15 @@ function normalizarChecklistGuardado(codigo, valor) {
         if (guardado && typeof guardado === 'object') {
             return {
                 completado: Boolean(guardado.completado ?? guardado.checked ?? guardado.estado),
-                completadoEn: guardado.completadoEn || guardado.checkedAt || guardado.fechaHora || null
+                completadoEn: guardado.completadoEn || guardado.checkedAt || guardado.fechaHora || null,
+                observacion: typeof guardado.observacion === 'string' ? guardado.observacion : ''
             };
         }
 
         return {
             completado: Boolean(guardado),
-            completadoEn: guardado ? new Date().toISOString() : null
+            completadoEn: guardado ? new Date().toISOString() : null,
+            observacion: ''
         };
     });
     sincronizarPasosChecklist(codigo, base);
@@ -446,7 +479,11 @@ function cargarHistorial() {
             descripcion: entrada.descripcion || codigosEmergencia[entrada.codigo].descripcion,
             fecha: entrada.fecha || '',
             hora: entrada.hora || entrada.tiempo || '',
-            encargado: entrada.encargado || ''
+            encargado: entrada.encargado || '',
+            modo: etiquetasModo[entrada.modo] ? entrada.modo : 'real',
+            prioridad: etiquetasPrioridad[entrada.prioridad] ? entrada.prioridad : 'media',
+            activadoEn: entrada.activadoEn || null,
+            cerradoEn: entrada.cerradoEn || null
         }));
 }
 
@@ -492,6 +529,44 @@ function formatearFechaHoraISO(iso) {
     }
 
     return `${dateFormatter.format(fecha)} ${timeFormatter.format(fecha)}`;
+}
+
+function obtenerDuracionTexto(inicioIso, finIso) {
+    if (!inicioIso || !finIso) {
+        return 'En curso';
+    }
+
+    const inicio = new Date(inicioIso);
+    const fin = new Date(finIso);
+
+    if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime()) || fin < inicio) {
+        return 'No disponible';
+    }
+
+    return formatearDuracionMs(fin - inicio);
+}
+
+function formatearDuracionMs(duracionMs) {
+    if (typeof duracionMs !== 'number' || duracionMs < 0) {
+        return 'No disponible';
+    }
+
+    const totalSegundos = Math.round(duracionMs / 1000);
+    const horas = Math.floor(totalSegundos / 3600);
+    const minutos = Math.floor((totalSegundos % 3600) / 60);
+    const segundos = totalSegundos % 60;
+    const partes = [];
+
+    if (horas) {
+        partes.push(`${horas} h`);
+    }
+
+    if (minutos || horas) {
+        partes.push(`${minutos} min`);
+    }
+
+    partes.push(`${segundos} s`);
+    return partes.join(' ');
 }
 
 function crearTarjetaCodigo(codigo, info) {
@@ -579,6 +654,36 @@ function guardarEncargadoActual(codigo, nombre) {
         historial[0].encargado = nombre;
         guardarHistorial();
         actualizarHistorialUI();
+        actualizarResumenUI();
+    }
+}
+
+function actualizarHistorialActual(codigo, cambios) {
+    const entrada = historial.find(item => item.codigo === codigo && !item.cerradoEn);
+
+    if (!entrada) {
+        return;
+    }
+
+    Object.assign(entrada, cambios);
+    guardarHistorial();
+    actualizarHistorialUI();
+    actualizarResumenUI();
+}
+
+function guardarCampoOperacion(codigo, campo, valor) {
+    const estado = obtenerEstadoChecklist(codigo);
+
+    if (!estado) {
+        return;
+    }
+
+    estado[campo] = valor;
+    guardarChecklistEstado();
+    actualizarHistorialActual(codigo, { [campo]: valor });
+
+    if (codigoActivo === codigo) {
+        actualizarCodigoActivo(codigo);
     }
 }
 
@@ -598,6 +703,8 @@ function actualizarCodigoActivo(codigo) {
     const nombre = document.createElement('div');
     const descripcion = document.createElement('div');
     const guia = document.createElement('div');
+    const meta = document.createElement('div');
+    const estado = obtenerEstadoChecklist(codigo);
 
     icono.className = 'active-code-icon';
     if (info.icono.length > 2) {
@@ -617,7 +724,12 @@ function actualizarCodigoActivo(codigo) {
     guia.className = 'active-code-guide';
     guia.textContent = info.guia;
 
-    contenido.append(nombre, descripcion, guia);
+    meta.className = 'active-code-meta';
+    meta.textContent = estado?.cerradoEn
+        ? `Finalizado ${formatearFechaHoraISO(estado.cerradoEn)} · Duracion ${obtenerDuracionTexto(estado.activadoEn, estado.cerradoEn)}`
+        : `${etiquetasModo[estado?.modo || 'real']} · Prioridad ${etiquetasPrioridad[estado?.prioridad || 'media']}`;
+
+    contenido.append(nombre, descripcion, guia, meta);
     display.append(icono, contenido);
     display.classList.add('has-code');
 }
@@ -625,15 +737,23 @@ function actualizarCodigoActivo(codigo) {
 function actualizarEncargadoUI(codigo) {
     const input = obtenerElemento('responsibleName');
     const hint = obtenerElemento('responsibleHint');
+    const modo = obtenerElemento('operationMode');
+    const prioridad = obtenerElemento('operationPriority');
+    const finalizar = obtenerElemento('finishCode');
     const estado = codigo ? obtenerEstadoChecklist(codigo) : null;
 
-    if (!input || !hint) {
+    if (!input || !hint || !modo || !prioridad || !finalizar) {
         return;
     }
 
     if (!codigo || !estado) {
         input.value = '';
         input.disabled = true;
+        modo.value = 'real';
+        modo.disabled = true;
+        prioridad.value = 'media';
+        prioridad.disabled = true;
+        finalizar.disabled = true;
         input.setAttribute('aria-describedby', 'responsibleHint');
         hint.textContent = 'Registra quien queda a cargo de la activacion actual.';
         return;
@@ -641,8 +761,15 @@ function actualizarEncargadoUI(codigo) {
 
     input.disabled = false;
     input.value = estado.encargado || '';
+    modo.disabled = Boolean(estado.cerradoEn);
+    modo.value = estado.modo || 'real';
+    prioridad.disabled = Boolean(estado.cerradoEn);
+    prioridad.value = estado.prioridad || 'media';
+    finalizar.disabled = Boolean(estado.cerradoEn);
     input.setAttribute('aria-describedby', 'responsibleHint');
-    hint.textContent = 'Registra quien queda a cargo de la activacion actual.';
+    hint.textContent = estado.cerradoEn
+        ? `Codigo finalizado: ${formatearFechaHoraISO(estado.cerradoEn)}.`
+        : 'Registra quien queda a cargo de la activacion actual.';
 }
 
 function actualizarLamina(codigo, { abrirModal = false } = {}) {
@@ -944,6 +1071,7 @@ function actualizarChecklistUI(codigo) {
         const contenido = document.createElement('div');
         const texto = document.createElement('span');
         const timestamp = document.createElement('time');
+        const observacion = document.createElement('textarea');
 
         const pasoEstado = estado.pasos[indice] || { completado: false, completadoEn: null };
 
@@ -976,7 +1104,15 @@ function actualizarChecklistUI(codigo) {
             timestamp.textContent = 'Pendiente';
         }
 
-        contenido.append(texto, timestamp);
+        observacion.className = 'checklist-observation';
+        observacion.value = pasoEstado.observacion || '';
+        observacion.placeholder = 'Observacion de la tarea';
+        observacion.rows = 2;
+        observacion.dataset.codigo = codigo;
+        observacion.dataset.index = String(indice);
+        observacion.setAttribute('aria-label', `${info.nombre}: observacion del paso ${indice + 1}`);
+
+        contenido.append(texto, timestamp, observacion);
         etiqueta.append(checkbox, numero, contenido);
         item.appendChild(etiqueta);
         lista.appendChild(item);
@@ -1007,6 +1143,7 @@ function guardarHistorial() {
 function agregarAlHistorial(codigo, encargado) {
     const info = codigosEmergencia[codigo];
     const tiempo = obtenerFechaHoraActual();
+    const estado = obtenerEstadoChecklist(codigo);
 
     historial.unshift({
         codigo,
@@ -1014,12 +1151,17 @@ function agregarAlHistorial(codigo, encargado) {
         descripcion: info.descripcion,
         fecha: tiempo.fecha,
         hora: tiempo.hora,
-        encargado: encargado || ''
+        encargado: encargado || '',
+        modo: estado?.modo || 'real',
+        prioridad: estado?.prioridad || 'media',
+        activadoEn: estado?.activadoEn || tiempo.iso,
+        cerradoEn: null
     });
 
     historial = historial.slice(0, MAX_HISTORIAL);
     guardarHistorial();
     actualizarHistorialUI();
+    actualizarResumenUI();
 }
 
 function actualizarHistorialUI() {
@@ -1041,6 +1183,7 @@ function actualizarHistorialUI() {
         const nombre = document.createElement('span');
         const descripcion = document.createElement('span');
         const encargado = document.createElement('span');
+        const meta = document.createElement('span');
 
         fecha.className = 'history-datetime';
         fecha.textContent = `${entrada.fecha || ''} ${entrada.hora || ''}`.trim();
@@ -1054,7 +1197,10 @@ function actualizarHistorialUI() {
         descripcion.className = 'history-description';
         descripcion.textContent = entrada.descripcion || '';
 
-        detalle.append(nombre, descripcion);
+        meta.className = 'history-meta';
+        meta.textContent = `${etiquetasModo[entrada.modo] || 'Emergencia real'} · Prioridad ${etiquetasPrioridad[entrada.prioridad] || 'Media'} · ${entrada.cerradoEn ? `Cerrado ${obtenerDuracionTexto(entrada.activadoEn, entrada.cerradoEn)}` : 'En curso'}`;
+
+        detalle.append(nombre, descripcion, meta);
 
         if (entrada.encargado) {
             encargado.className = 'history-responsible';
@@ -1069,10 +1215,61 @@ function actualizarHistorialUI() {
     });
 }
 
+function actualizarResumenUI() {
+    const contenedor = obtenerElemento('summaryGrid');
+
+    if (!contenedor) {
+        return;
+    }
+
+    limpiarElemento(contenedor);
+
+    const hoy = dateFormatter.format(new Date());
+    const activacionesHoy = historial.filter(entrada => entrada.fecha === hoy).length;
+    const cerradas = historial.filter(entrada => entrada.cerradoEn);
+    const duraciones = cerradas
+        .map(entrada => {
+            const inicio = new Date(entrada.activadoEn);
+            const fin = new Date(entrada.cerradoEn);
+            return Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime()) || fin < inicio
+                ? null
+                : fin - inicio;
+        })
+        .filter(valor => typeof valor === 'number');
+    const promedioMs = duraciones.length
+        ? Math.round(duraciones.reduce((total, valor) => total + valor, 0) / duraciones.length)
+        : null;
+    const codigoActivoTexto = codigoActivo && codigosEmergencia[codigoActivo]
+        ? codigosEmergencia[codigoActivo].nombre
+        : 'Sin codigo activo';
+    const ultimoCodigo = historial[0]?.nombre || 'Sin registros';
+
+    [
+        ['Activaciones hoy', String(activacionesHoy), 'Eventos registrados en la fecha actual'],
+        ['Codigo activo', codigoActivoTexto, 'Estado operativo en pantalla'],
+        ['Ultimo registro', ultimoCodigo, historial[0]?.cerradoEn ? 'Finalizado' : historial[0] ? 'En curso' : 'Pendiente'],
+        ['Promedio cierre', promedioMs ? formatearDuracionMs(promedioMs) : 'Sin cierres', `${cerradas.length} codigo(s) finalizado(s)`]
+    ].forEach(([titulo, valor, detalle]) => {
+        const tarjeta = document.createElement('article');
+        const etiqueta = document.createElement('span');
+        const numero = document.createElement('strong');
+        const descripcion = document.createElement('span');
+
+        tarjeta.className = 'summary-card';
+        etiqueta.textContent = titulo;
+        numero.textContent = valor;
+        descripcion.textContent = detalle;
+
+        tarjeta.append(etiqueta, numero, descripcion);
+        contenedor.appendChild(tarjeta);
+    });
+}
+
 function limpiarHistorial() {
     historial = [];
     guardarHistorial();
     actualizarHistorialUI();
+    actualizarResumenUI();
 }
 
 function escaparHTML(valor) {
@@ -1082,6 +1279,10 @@ function escaparHTML(valor) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+function obtenerLogoReporteURL() {
+    return new URL('assets/urbapark-logo.png', window.location.href).href;
 }
 
 function crearContenidoInforme(codigo) {
@@ -1094,14 +1295,20 @@ function crearContenidoInforme(codigo) {
     const completadas = estado.pasos.filter(paso => paso.completado).length;
     const porcentaje = total > 0 ? Math.round((completadas / total) * 100) : 0;
     const encargado = estado.encargado || ultimaActivacion?.encargado || 'Pendiente';
-    const fechaActivacion = ultimaActivacion
-        ? `${ultimaActivacion.fecha || ''} ${ultimaActivacion.hora || ''}`.trim()
-        : 'Sin activacion registrada';
+    const fechaActivacion = estado.activadoEn
+        ? formatearFechaHoraISO(estado.activadoEn)
+        : ultimaActivacion
+            ? `${ultimaActivacion.fecha || ''} ${ultimaActivacion.hora || ''}`.trim()
+            : 'Sin activacion registrada';
+    const fechaCierre = estado.cerradoEn ? formatearFechaHoraISO(estado.cerradoEn) : 'En curso';
+    const duracion = obtenerDuracionTexto(estado.activadoEn, estado.cerradoEn);
+    const logoURL = obtenerLogoReporteURL();
 
     const filas = pasosChecklist.map((paso, indice) => {
         const pasoEstado = estado.pasos[indice] || { completado: false, completadoEn: null };
         const estadoTexto = pasoEstado.completado ? 'Completado' : 'Pendiente';
         const hora = pasoEstado.completadoEn ? formatearFechaHoraISO(pasoEstado.completadoEn) : '-';
+        const observacion = pasoEstado.observacion || '-';
 
         return `
             <tr>
@@ -1109,6 +1316,7 @@ function crearContenidoInforme(codigo) {
                 <td>${escaparHTML(paso)}</td>
                 <td>${estadoTexto}</td>
                 <td>${escaparHTML(hora)}</td>
+                <td>${escaparHTML(observacion)}</td>
             </tr>
         `;
     }).join('');
@@ -1172,6 +1380,22 @@ function crearContenidoInforme(codigo) {
             border-top: 10px solid ${info.color};
             border-radius: 8px;
             background: #ffffff;
+        }
+
+        .report-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 18px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid #d0d5dd;
+        }
+
+        .report-logo {
+            width: 180px;
+            height: auto;
+            object-fit: contain;
         }
 
         h1,
@@ -1268,7 +1492,7 @@ function crearContenidoInforme(codigo) {
             padding: 9px 14px;
             border: 0;
             border-radius: 6px;
-            background: #101828;
+            background: #1474a8;
             color: #ffffff;
             font-weight: 700;
             cursor: pointer;
@@ -1296,16 +1520,37 @@ function crearContenidoInforme(codigo) {
         <div class="actions">
             <button type="button" onclick="window.print()">Imprimir / guardar PDF</button>
         </div>
-        <h1>${escaparHTML(info.nombre)}</h1>
-        <p>${escaparHTML(info.descripcion)}</p>
+        <header class="report-header">
+            <div>
+                <h1>${escaparHTML(info.nombre)}</h1>
+                <p>${escaparHTML(info.descripcion)}</p>
+            </div>
+            <img class="report-logo" src="${escaparHTML(logoURL)}" alt="UrbaPark">
+        </header>
         <section class="meta">
             <div class="box">
                 <span class="label">Fecha y hora de activacion</span>
                 <span class="value">${escaparHTML(fechaActivacion)}</span>
             </div>
             <div class="box">
+                <span class="label">Fecha y hora de cierre</span>
+                <span class="value">${escaparHTML(fechaCierre)}</span>
+            </div>
+            <div class="box">
                 <span class="label">Encargado</span>
                 <span class="value">${escaparHTML(encargado)}</span>
+            </div>
+            <div class="box">
+                <span class="label">Modo</span>
+                <span class="value">${escaparHTML(etiquetasModo[estado.modo] || 'Emergencia real')}</span>
+            </div>
+            <div class="box">
+                <span class="label">Prioridad</span>
+                <span class="value">${escaparHTML(etiquetasPrioridad[estado.prioridad] || 'Media')}</span>
+            </div>
+            <div class="box">
+                <span class="label">Duracion</span>
+                <span class="value">${escaparHTML(duracion)}</span>
             </div>
             <div class="box">
                 <span class="label">Generado</span>
@@ -1329,6 +1574,7 @@ function crearContenidoInforme(codigo) {
                     <th>Actividad</th>
                     <th>Estado</th>
                     <th>Fecha y hora</th>
+                    <th>Observacion</th>
                 </tr>
             </thead>
             <tbody>${filas}</tbody>
@@ -1391,6 +1637,17 @@ function actualizarEstadoChecklist(codigo, indice, valor) {
     }
 }
 
+function actualizarObservacionChecklist(codigo, indice, valor) {
+    const estado = obtenerEstadoChecklist(codigo);
+
+    if (!estado || !estado.pasos[indice]) {
+        return;
+    }
+
+    estado.pasos[indice].observacion = valor;
+    guardarChecklistEstado();
+}
+
 function actualizarControlChecklist(codigo, controlId, valor) {
     const estado = obtenerEstadoChecklist(codigo);
 
@@ -1413,6 +1670,26 @@ function actualizarControlChecklist(codigo, controlId, valor) {
     }
 }
 
+function finalizarCodigoActual() {
+    if (!codigoActivo) {
+        return;
+    }
+
+    const estado = obtenerEstadoChecklist(codigoActivo);
+
+    if (!estado || estado.cerradoEn) {
+        return;
+    }
+
+    const tiempo = obtenerFechaHoraActual();
+    estado.cerradoEn = tiempo.iso;
+    guardarChecklistEstado();
+    actualizarHistorialActual(codigoActivo, { cerradoEn: tiempo.iso });
+    actualizarEncargadoUI(codigoActivo);
+    actualizarCodigoActivo(codigoActivo);
+    actualizarResumenUI();
+}
+
 function reiniciarChecklistActual() {
     if (!codigoActivo) {
         return;
@@ -1421,7 +1698,8 @@ function reiniciarChecklistActual() {
     const estado = obtenerEstadoChecklist(codigoActivo);
     estado.pasos = estado.pasos.map(() => ({
         completado: false,
-        completadoEn: null
+        completadoEn: null,
+        observacion: ''
     }));
     Object.keys(estado.controles || {}).forEach(controlId => {
         estado.controles[controlId] = {
@@ -1563,6 +1841,13 @@ function activarCodigo(codigo, opciones = {}) {
         return;
     }
 
+    const estado = obtenerEstadoChecklist(codigo);
+    const tiempo = obtenerFechaHoraActual();
+
+    estado.activadoEn = tiempo.iso;
+    estado.cerradoEn = null;
+    guardarChecklistEstado();
+
     codigoActivo = codigo;
     actualizarInterfazCodigo(codigo);
 
@@ -1591,6 +1876,8 @@ function desactivarTodos() {
     if (botonInforme) {
         botonInforme.disabled = true;
     }
+
+    actualizarResumenUI();
 }
 
 function configurarEventos() {
@@ -1609,6 +1896,23 @@ function configurarEventos() {
     obtenerElemento('clearHistory').addEventListener('click', limpiarHistorial);
     obtenerElemento('resetChecklist').addEventListener('click', reiniciarChecklistActual);
     obtenerElemento('generateReport').addEventListener('click', generarInformeActual);
+    obtenerElemento('finishCode').addEventListener('click', finalizarCodigoActual);
+    obtenerElemento('operationMode').addEventListener('change', event => {
+        if (!codigoActivo) {
+            return;
+        }
+
+        guardarCampoOperacion(codigoActivo, 'modo', event.target.value);
+        actualizarResumenUI();
+    });
+    obtenerElemento('operationPriority').addEventListener('change', event => {
+        if (!codigoActivo) {
+            return;
+        }
+
+        guardarCampoOperacion(codigoActivo, 'prioridad', event.target.value);
+        actualizarResumenUI();
+    });
 
     obtenerElemento('responsibleName').addEventListener('input', event => {
         if (!codigoActivo) {
@@ -1657,6 +1961,25 @@ function configurarEventos() {
         );
     });
 
+    obtenerElemento('checklistList').addEventListener('input', event => {
+        const observacion = event.target.closest('textarea[data-index]');
+        if (!observacion) {
+            return;
+        }
+
+        actualizarObservacionChecklist(
+            observacion.dataset.codigo,
+            Number(observacion.dataset.index),
+            observacion.value
+        );
+    });
+
+    obtenerElemento('checklistList').addEventListener('click', event => {
+        if (event.target.closest('textarea[data-index]')) {
+            event.stopPropagation();
+        }
+    });
+
     obtenerElemento('codeModal').addEventListener('click', event => {
         if (event.target.matches('[data-close-modal]')) {
             cerrarModal();
@@ -1695,4 +2018,5 @@ document.addEventListener('DOMContentLoaded', () => {
     configurarEventos();
     desactivarTodos();
     actualizarHistorialUI();
+    actualizarResumenUI();
 });

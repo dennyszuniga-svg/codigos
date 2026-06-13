@@ -21,6 +21,14 @@
         </header>
 
         <main>
+            <section class="summary-panel" aria-labelledby="summaryTitle">
+                <div class="section-heading">
+                    <h2 id="summaryTitle">Resumen operativo</h2>
+                    <p>Vista rapida del estado de activaciones y cierres registrados.</p>
+                </div>
+                <div id="summaryGrid" class="summary-grid" aria-live="polite"></div>
+            </section>
+
             <section>
                 <div class="section-heading">
                     <h2>Codigos disponibles</h2>
@@ -48,6 +56,25 @@
                             disabled
                         />
                         <p id="responsibleHint">Registra quien queda a cargo de la activacion actual.</p>
+                    </div>
+                    <div class="operation-fields">
+                        <div>
+                            <label for="operationMode">Modo</label>
+                            <select id="operationMode" disabled>
+                                <option value="real">Emergencia real</option>
+                                <option value="simulacro">Simulacro</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="operationPriority">Prioridad</label>
+                            <select id="operationPriority" disabled>
+                                <option value="baja">Baja</option>
+                                <option value="media">Media</option>
+                                <option value="alta">Alta</option>
+                                <option value="critica">Critica</option>
+                            </select>
+                        </div>
+                        <button class="finish-btn" type="button" id="finishCode" disabled>Finalizar codigo</button>
                     </div>
                 </section>
 
