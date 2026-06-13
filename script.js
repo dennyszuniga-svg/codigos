@@ -225,11 +225,9 @@ const codigosEmergencia = {
             etiquetas: ['Proteger', 'Acompanamiento', 'Apoyo']
         },
         checklist: [
-            'Identifica a la persona de alto riesgo y comunica su ubicacion.',
-            'Acompana a distancia prudente sin perderla de vista.',
-            'Protege a clientes y personal cercano en el area afectada.',
-            'Tranquiliza la situacion y evita cualquier confrontacion.',
-            'Activa el codigo de apoyo que corresponda si hay agresion.'
+            'Anfitrion aborda a la persona de forma respetuosa e informa que no esta permitido el comercio ambulatorio, consumo indebido o conducta que afecte la operacion del mall.',
+            'ECO comunica a Charly la ubicacion y descripcion de la persona intervenida.',
+            'ECO acompana a la persona durante su retiro; si la situacion escala, activa Codigo CALMA o Codigo CROC segun corresponda.'
         ]
     }
 };
