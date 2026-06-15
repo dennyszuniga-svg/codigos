@@ -262,6 +262,7 @@ let historialRemotoActivo = false;
 let canalEstadoOperativo = null;
 let aplicandoEstadoRemoto = false;
 let temporizadorSincronizacion = null;
+let ultimoCodigoRemotoAlertado = null;
 let filtrosHistorial = {
     fecha: '',
     codigo: '',
@@ -354,6 +355,91 @@ function actualizarSesionUI() {
 
     const rol = perfilActual?.rol ? ` - ${perfilActual.rol}` : '';
     etiqueta.textContent = `${obtenerNombreUsuarioActivo()}${rol}`;
+}
+
+function actualizarBotonAlertas() {
+    const boton = obtenerElemento('enableAlertsButton');
+
+    if (!boton) {
+        return;
+    }
+
+    if (!('Notification' in window)) {
+        boton.textContent = 'Alertas no disponibles';
+        boton.disabled = true;
+        return;
+    }
+
+    if (Notification.permission === 'granted') {
+        boton.textContent = 'Alertas activas';
+        boton.disabled = true;
+        return;
+    }
+
+    if (Notification.permission === 'denied') {
+        boton.textContent = 'Alertas bloqueadas';
+        boton.disabled = true;
+        return;
+    }
+
+    boton.textContent = 'Activar alertas';
+    boton.disabled = false;
+}
+
+async function solicitarPermisoAlertas() {
+    if (!('Notification' in window)) {
+        actualizarEstadoSincronizacion('Sin alertas', 'warning');
+        return;
+    }
+
+    const permiso = await Notification.requestPermission();
+    actualizarBotonAlertas();
+
+    if (permiso === 'granted') {
+        actualizarEstadoSincronizacion('Alertas activas', 'success');
+    } else {
+        actualizarEstadoSincronizacion('Alertas bloqueadas', 'warning');
+    }
+}
+
+function notificarCodigoRemoto(codigo, emailOrigen) {
+    const info = codigosEmergencia[codigo];
+
+    if (!info || ultimoCodigoRemotoAlertado === codigo) {
+        return;
+    }
+
+    ultimoCodigoRemotoAlertado = codigo;
+    reproducirSonidoAlerta();
+
+    if (navigator.vibrate) {
+        navigator.vibrate([260, 120, 260, 120, 420]);
+    }
+
+    const titulo = `${info.nombre} activado`;
+    const cuerpo = emailOrigen
+        ? `${emailOrigen} activo ${info.nombre}. Abre el checklist operativo.`
+        : `Se activo ${info.nombre}. Abre el checklist operativo.`;
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+        navigator.serviceWorker?.ready
+            .then(registro => registro.showNotification(titulo, {
+                body: cuerpo,
+                icon: 'assets/icons/icon-192.png',
+                badge: 'assets/icons/icon-192.png',
+                tag: `codigo-activo-${codigo}`,
+                renotify: true,
+                vibrate: [260, 120, 260, 120, 420],
+                data: { codigo }
+            }))
+            .catch(() => {
+                new Notification(titulo, {
+                    body: cuerpo,
+                    icon: 'assets/icons/icon-192.png',
+                    tag: `codigo-activo-${codigo}`
+                });
+            });
+    }
 }
 
 async function inicializarClienteSupabase() {
@@ -561,6 +647,7 @@ function aplicarEstadoOperativoRemoto(registro) {
         return;
     }
 
+    const codigoPrevio = codigoActivo;
     const codigoRemoto = codigosEmergencia[registro.codigo_activo]
         ? registro.codigo_activo
         : null;
@@ -579,6 +666,14 @@ function aplicarEstadoOperativoRemoto(registro) {
     actualizarResumenUI();
     actualizarEstadoSincronizacion('Online', 'success');
     aplicandoEstadoRemoto = false;
+
+    if (codigoRemoto && codigoRemoto !== codigoPrevio) {
+        notificarCodigoRemoto(codigoRemoto, registro.actualizado_por_email);
+    }
+
+    if (!codigoRemoto) {
+        ultimoCodigoRemotoAlertado = null;
+    }
 }
 
 async function cargarEstadoOperativoRemoto() {
@@ -661,6 +756,7 @@ async function aplicarSesion(session) {
     mostrarAppAutenticada(true);
     actualizarEstadoAuth('Sesion iniciada.', 'success');
     actualizarSesionUI();
+    actualizarBotonAlertas();
     await cargarPerfilActual();
     await cargarHistorialRemoto();
     await cargarEstadoOperativoRemoto();
@@ -2684,6 +2780,7 @@ function configurarEventos() {
 
     obtenerElemento('authForm').addEventListener('submit', iniciarSesion);
     obtenerElemento('signOutButton').addEventListener('click', cerrarSesion);
+    obtenerElemento('enableAlertsButton').addEventListener('click', solicitarPermisoAlertas);
 
     contenedor.addEventListener('click', event => {
         const boton = event.target.closest('button.activate-btn');

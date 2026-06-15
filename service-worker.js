@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codigos-urbapark-v6';
+const CACHE_NAME = 'codigos-urbapark-v7';
 const APP_SHELL = [
     './',
     './index.html',
@@ -67,5 +67,21 @@ self.addEventListener('fetch', event => {
                 })
             )
             .catch(() => caches.match('./index.html'))
+    );
+});
+
+self.addEventListener('notificationclick', event => {
+    event.notification.close();
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true })
+            .then(clientList => {
+                const appClient = clientList.find(client => client.url.includes('/codigos/'));
+
+                if (appClient) {
+                    return appClient.focus();
+                }
+
+                return clients.openWindow('./');
+            })
     );
 });
