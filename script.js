@@ -3,6 +3,11 @@ const STORAGE_KEYS = {
     checklist: 'estadoChecklistCodigos'
 };
 
+const SUPABASE_CONFIG = {
+    url: 'https://uibjwhkxlyxdfytvudbn.supabase.co',
+    publishableKey: 'sb_publishable_R-auhGcSmwSl-1U9WdGe3g_ZYm5BZEt'
+};
+
 const MAX_HISTORIAL = 10;
 
 const dateFormatter = new Intl.DateTimeFormat('es-PE', {
@@ -250,6 +255,10 @@ const ordenCodigos = ['rojo', 'naranja', 'verde-oscuro', 'azul', 'verde', 'croc'
 let historial = [];
 let checklistEstado = {};
 let codigoActivo = null;
+let supabaseClient = null;
+let sesionActual = null;
+let perfilActual = null;
+let historialRemotoActivo = false;
 let filtrosHistorial = {
     fecha: '',
     codigo: '',
@@ -287,6 +296,282 @@ function guardarEstadoLocalStorage(clave, valor) {
     } catch (error) {
         console.warn(`No se pudo guardar ${clave}:`, error);
     }
+}
+
+function actualizarEstadoSincronizacion(texto, tipo = 'info') {
+    const estado = obtenerElemento('syncStatus');
+
+    if (!estado) {
+        return;
+    }
+
+    estado.textContent = texto;
+    estado.dataset.status = tipo;
+}
+
+function actualizarEstadoAuth(texto, tipo = 'info') {
+    const estado = obtenerElemento('authStatus');
+
+    if (!estado) {
+        return;
+    }
+
+    estado.textContent = texto;
+    estado.dataset.status = tipo;
+}
+
+function mostrarAppAutenticada(mostrar) {
+    const authPanel = obtenerElemento('authPanel');
+    const appShell = obtenerElemento('appShell');
+
+    if (authPanel) {
+        authPanel.hidden = mostrar;
+    }
+
+    if (appShell) {
+        appShell.hidden = !mostrar;
+    }
+}
+
+function obtenerNombreUsuarioActivo() {
+    return perfilActual?.nombre || sesionActual?.user?.email || 'Usuario conectado';
+}
+
+function actualizarSesionUI() {
+    const etiqueta = obtenerElemento('authUserLabel');
+
+    if (!etiqueta) {
+        return;
+    }
+
+    if (!sesionActual?.user) {
+        etiqueta.textContent = 'Sin usuario';
+        return;
+    }
+
+    const rol = perfilActual?.rol ? ` - ${perfilActual.rol}` : '';
+    etiqueta.textContent = `${obtenerNombreUsuarioActivo()}${rol}`;
+}
+
+async function inicializarClienteSupabase() {
+    let createClient = window.supabase?.createClient;
+
+    if (!createClient) {
+        try {
+            const moduloSupabase = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+            createClient = moduloSupabase.createClient;
+        } catch (error) {
+            console.warn('No se pudo cargar Supabase:', error);
+            actualizarEstadoAuth('No se pudo cargar Supabase. Revisa la conexion a internet.', 'error');
+            return null;
+        }
+    }
+
+    supabaseClient = createClient(
+        SUPABASE_CONFIG.url,
+        SUPABASE_CONFIG.publishableKey,
+        {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true
+            }
+        }
+    );
+
+    return supabaseClient;
+}
+
+async function cargarPerfilActual() {
+    perfilActual = null;
+
+    if (!supabaseClient || !sesionActual?.user) {
+        actualizarSesionUI();
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('nombre, rol, activo')
+        .eq('id', sesionActual.user.id)
+        .maybeSingle();
+
+    if (error) {
+        console.warn('No se pudo cargar perfil:', error);
+    } else if (data) {
+        perfilActual = data;
+    }
+
+    actualizarSesionUI();
+}
+
+function normalizarRegistroRemoto(registro) {
+    const codigo = registro.codigo;
+    const info = codigosEmergencia[codigo] || {};
+    const cerrado = registro.cerrado_en || registro.created_at || '';
+    const fechaCierre = cerrado ? new Date(cerrado) : null;
+
+    return {
+        id: registro.id,
+        codigo,
+        nombre: registro.nombre || info.nombre || codigo,
+        descripcion: registro.descripcion || info.descripcion || '',
+        fecha: fechaCierre && !Number.isNaN(fechaCierre.getTime()) ? dateFormatter.format(fechaCierre) : '',
+        hora: fechaCierre && !Number.isNaN(fechaCierre.getTime()) ? timeFormatter.format(fechaCierre) : '',
+        encargado: registro.encargado || '',
+        modo: registro.modo || 'real',
+        prioridad: registro.prioridad || 'media',
+        activadoEn: registro.activado_en || '',
+        cerradoEn: registro.cerrado_en || '',
+        remoto: true,
+        creadoPorEmail: registro.creado_por_email || ''
+    };
+}
+
+async function cargarHistorialRemoto() {
+    if (!supabaseClient || !sesionActual?.user) {
+        return;
+    }
+
+    actualizarEstadoSincronizacion('Sincronizando', 'info');
+
+    const { data, error } = await supabaseClient
+        .from('registros_codigos')
+        .select('id,codigo,nombre,descripcion,encargado,modo,prioridad,activado_en,cerrado_en,created_at,creado_por_email')
+        .order('created_at', { ascending: false })
+        .limit(MAX_HISTORIAL);
+
+    if (error) {
+        historialRemotoActivo = false;
+        actualizarEstadoSincronizacion('Modo local', 'warning');
+        console.warn('No se pudo cargar historial remoto:', error);
+        return;
+    }
+
+    historialRemotoActivo = true;
+    historial = data.map(normalizarRegistroRemoto);
+    guardarHistorial();
+    actualizarHistorialUI();
+    actualizarResumenUI();
+    actualizarEstadoSincronizacion('Online', 'success');
+}
+
+async function guardarRegistroRemoto(entrada, estado) {
+    if (!supabaseClient || !sesionActual?.user) {
+        actualizarEstadoSincronizacion('Modo local', 'warning');
+        return;
+    }
+
+    const { error } = await supabaseClient
+        .from('registros_codigos')
+        .insert({
+            codigo: entrada.codigo,
+            nombre: entrada.nombre,
+            descripcion: entrada.descripcion,
+            encargado: entrada.encargado,
+            modo: entrada.modo,
+            prioridad: entrada.prioridad,
+            activado_en: entrada.activadoEn || null,
+            cerrado_en: entrada.cerradoEn || null,
+            pasos: estado?.pasos || [],
+            controles: estado?.controles || {},
+            creado_por: sesionActual.user.id,
+            creado_por_email: sesionActual.user.email || ''
+        });
+
+    if (error) {
+        historialRemotoActivo = false;
+        actualizarEstadoSincronizacion('Pendiente local', 'warning');
+        console.warn('No se pudo guardar registro remoto:', error);
+        return;
+    }
+
+    historialRemotoActivo = true;
+    actualizarEstadoSincronizacion('Online', 'success');
+    await cargarHistorialRemoto();
+}
+
+async function aplicarSesion(session) {
+    sesionActual = session;
+
+    if (!session?.user) {
+        perfilActual = null;
+        mostrarAppAutenticada(false);
+        actualizarEstadoAuth('Ingresa con tu usuario asignado.', 'info');
+        actualizarSesionUI();
+        return;
+    }
+
+    mostrarAppAutenticada(true);
+    actualizarEstadoAuth('Sesion iniciada.', 'success');
+    actualizarSesionUI();
+    await cargarPerfilActual();
+    await cargarHistorialRemoto();
+}
+
+async function iniciarSesion(event) {
+    event.preventDefault();
+
+    if (!supabaseClient) {
+        actualizarEstadoAuth('Supabase aun no esta disponible.', 'error');
+        return;
+    }
+
+    const email = obtenerElemento('authEmail')?.value.trim();
+    const password = obtenerElemento('authPassword')?.value;
+    const boton = obtenerElemento('authSubmit');
+
+    if (!email || !password) {
+        actualizarEstadoAuth('Completa correo y contrasena.', 'error');
+        return;
+    }
+
+    if (boton) {
+        boton.disabled = true;
+    }
+
+    actualizarEstadoAuth('Validando credenciales...', 'info');
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+    if (boton) {
+        boton.disabled = false;
+    }
+
+    if (error) {
+        actualizarEstadoAuth('No se pudo iniciar sesion. Revisa correo y contrasena.', 'error');
+        return;
+    }
+
+    await aplicarSesion(data.session);
+}
+
+async function cerrarSesion() {
+    if (!supabaseClient) {
+        return;
+    }
+
+    await supabaseClient.auth.signOut();
+    await aplicarSesion(null);
+}
+
+async function inicializarAutenticacion() {
+    if (!await inicializarClienteSupabase()) {
+        mostrarAppAutenticada(false);
+        return;
+    }
+
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+        aplicarSesion(session);
+    });
+
+    const { data, error } = await supabaseClient.auth.getSession();
+
+    if (error) {
+        actualizarEstadoAuth('No se pudo verificar la sesion.', 'error');
+        return;
+    }
+
+    await aplicarSesion(data.session);
 }
 
 function crearEstadoChecklistBase(codigo) {
@@ -1254,7 +1539,7 @@ function agregarAlHistorial(codigo, encargado) {
     const estado = obtenerEstadoChecklist(codigo);
     const cerradoEn = estado?.cerradoEn || tiempo.iso;
 
-    historial.unshift({
+    const entrada = {
         codigo,
         nombre: info.nombre,
         descripcion: info.descripcion,
@@ -1265,12 +1550,15 @@ function agregarAlHistorial(codigo, encargado) {
         prioridad: estado?.prioridad || 'media',
         activadoEn: estado?.activadoEn || tiempo.iso,
         cerradoEn
-    });
+    };
+
+    historial.unshift(entrada);
 
     historial = historial.slice(0, MAX_HISTORIAL);
     guardarHistorial();
     actualizarHistorialUI();
     actualizarResumenUI();
+    guardarRegistroRemoto(entrada, estado);
 }
 
 function actualizarHistorialUI() {
@@ -2226,6 +2514,9 @@ function desactivarTodos() {
 function configurarEventos() {
     const contenedor = obtenerElemento('codesGrid');
 
+    obtenerElemento('authForm').addEventListener('submit', iniciarSesion);
+    obtenerElemento('signOutButton').addEventListener('click', cerrarSesion);
+
     contenedor.addEventListener('click', event => {
         const boton = event.target.closest('button.activate-btn');
         if (!boton) {
@@ -2414,6 +2705,7 @@ document.addEventListener('DOMContentLoaded', () => {
     desactivarTodos();
     actualizarHistorialUI();
     actualizarResumenUI();
+    inicializarAutenticacion();
 });
 
 if ('serviceWorker' in navigator) {

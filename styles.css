@@ -37,6 +37,10 @@ body.modal-open {
     overflow: hidden;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 button,
 [role="button"] {
     font: inherit;
@@ -52,6 +56,78 @@ img:focus-visible {
 .container {
     width: min(1240px, 100%);
     margin: 0 auto;
+}
+
+.auth-panel {
+    display: grid;
+    min-height: calc(100vh - 48px);
+    place-items: center;
+}
+
+.auth-card {
+    width: min(520px, 100%);
+    padding: 28px;
+    border: 1px solid var(--border);
+    border-left: 8px solid var(--brand-orange);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+}
+
+.auth-logo {
+    display: block;
+    width: min(220px, 72%);
+    height: auto;
+    margin-bottom: 20px;
+}
+
+.auth-card h1 {
+    margin-bottom: 8px;
+    color: var(--brand-blue-dark);
+    font-size: clamp(1.8rem, 5vw, 2.35rem);
+    line-height: 1.1;
+}
+
+.auth-card p {
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+.auth-form {
+    display: grid;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.auth-form label {
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 900;
+}
+
+.auth-form input {
+    min-height: 46px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #b8d7e8;
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--text);
+    font: inherit;
+}
+
+.auth-status {
+    min-height: 22px;
+    margin-top: 16px;
+    font-weight: 800;
+}
+
+.auth-status[data-status="error"] {
+    color: #b42318;
+}
+
+.auth-status[data-status="success"] {
+    color: #027a48;
 }
 
 .app-header {
@@ -114,6 +190,40 @@ img:focus-visible {
     color: var(--brand-blue-dark);
     font-size: 0.85rem;
     font-weight: 800;
+}
+
+.status-chip[data-status="success"] {
+    border-color: #a6f4c5;
+    background: #ecfdf3;
+    color: #027a48;
+}
+
+.status-chip[data-status="warning"] {
+    border-color: #fedf89;
+    background: #fffaeb;
+    color: #b54708;
+}
+
+.status-chip[data-status="error"] {
+    border-color: #fecdca;
+    background: #fef3f2;
+    color: #b42318;
+}
+
+.session-card {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+
+.session-card .clear-btn {
+    min-height: 38px;
+    padding: 8px 12px;
 }
 
 .section-heading {

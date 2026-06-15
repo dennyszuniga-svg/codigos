@@ -12,7 +12,24 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
+    <section class="auth-panel" id="authPanel" aria-labelledby="authTitle">
+        <div class="auth-card">
+            <img class="auth-logo" src="assets/urbapark-logo.png" alt="UrbaPark" width="475" height="106">
+            <p class="eyebrow">Acceso operativo</p>
+            <h1 id="authTitle">Ingresar al sistema</h1>
+            <p>Usa el correo y contrasena asignados para registrar codigos e informes compartidos.</p>
+            <form id="authForm" class="auth-form">
+                <label for="authEmail">Correo</label>
+                <input id="authEmail" type="email" autocomplete="email" placeholder="usuario@urbapark.pe" required>
+                <label for="authPassword">Contrasena</label>
+                <input id="authPassword" type="password" autocomplete="current-password" placeholder="Contrasena" required>
+                <button class="finish-btn" type="submit" id="authSubmit">Ingresar</button>
+            </form>
+            <p id="authStatus" class="auth-status" role="status" aria-live="polite">Conectando con Supabase...</p>
+        </div>
+    </section>
+
+    <div class="container app-shell" id="appShell" hidden>
         <header class="app-header">
             <div class="brand-block">
                 <img class="brand-logo" src="assets/urbapark-logo.png" alt="UrbaPark" width="475" height="106">
@@ -22,7 +39,11 @@
                     <p>Sistema de activacion, seguimiento y consulta de las laminas de respuesta</p>
                 </div>
             </div>
-            <span class="status-chip" aria-label="Sistema listo">Operativo</span>
+            <div class="session-card" aria-label="Sesion activa">
+                <span id="syncStatus" class="status-chip">Sincronizando</span>
+                <span id="authUserLabel">Usuario conectado</span>
+                <button class="clear-btn" type="button" id="signOutButton">Salir</button>
+            </div>
         </header>
 
         <main>
@@ -182,6 +203,7 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js"></script>
 </body>
 </html>
