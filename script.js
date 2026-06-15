@@ -4,7 +4,7 @@ const STORAGE_KEYS = {
 };
 
 const SUPABASE_CONFIG = {
-    url: 'https://uibjwhkxlyxdfytvudbn.supabase.co',
+    url: 'https://uibiwhkxlyxdfytvudbn.supabase.co',
     publishableKey: 'sb_publishable_R-auhGcSmwSl-1U9WdGe3g_ZYm5BZEt'
 };
 
