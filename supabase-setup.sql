@@ -31,6 +31,16 @@ create table if not exists public.registros_codigos (
     created_at timestamptz not null default now()
 );
 
+create table if not exists public.estado_operativo (
+    id text primary key default 'global',
+    codigo_activo text,
+    checklist_estado jsonb not null default '{}'::jsonb,
+    actualizado_por uuid references auth.users(id),
+    actualizado_por_email text,
+    updated_at timestamptz not null default now(),
+    constraint estado_operativo_global check (id = 'global')
+);
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -90,6 +100,7 @@ $$;
 
 alter table public.profiles enable row level security;
 alter table public.registros_codigos enable row level security;
+alter table public.estado_operativo enable row level security;
 
 drop policy if exists "profiles_select_own_or_admin" on public.profiles;
 create policy "profiles_select_own_or_admin"
@@ -126,6 +137,41 @@ on public.registros_codigos
 for delete
 to authenticated
 using (public.es_admin());
+
+drop policy if exists "estado_operativo_select_authenticated" on public.estado_operativo;
+create policy "estado_operativo_select_authenticated"
+on public.estado_operativo
+for select
+to authenticated
+using (true);
+
+drop policy if exists "estado_operativo_insert_authenticated" on public.estado_operativo;
+create policy "estado_operativo_insert_authenticated"
+on public.estado_operativo
+for insert
+to authenticated
+with check (id = 'global' and actualizado_por = auth.uid());
+
+drop policy if exists "estado_operativo_update_authenticated" on public.estado_operativo;
+create policy "estado_operativo_update_authenticated"
+on public.estado_operativo
+for update
+to authenticated
+using (id = 'global')
+with check (id = 'global' and actualizado_por = auth.uid());
+
+insert into public.estado_operativo (id, codigo_activo, checklist_estado)
+values ('global', null, '{}'::jsonb)
+on conflict (id) do nothing;
+
+alter table public.estado_operativo replica identity full;
+
+do $$
+begin
+    alter publication supabase_realtime add table public.estado_operativo;
+exception
+    when duplicate_object then null;
+end $$;
 
 create index if not exists registros_codigos_created_at_idx
 on public.registros_codigos (created_at desc);

@@ -259,6 +259,9 @@ let supabaseClient = null;
 let sesionActual = null;
 let perfilActual = null;
 let historialRemotoActivo = false;
+let canalEstadoOperativo = null;
+let aplicandoEstadoRemoto = false;
+let temporizadorSincronizacion = null;
 let filtrosHistorial = {
     fecha: '',
     codigo: '',
@@ -491,11 +494,164 @@ async function guardarRegistroRemoto(entrada, estado) {
     await cargarHistorialRemoto();
 }
 
+function crearSnapshotEstadoOperativo() {
+    return {
+        codigo_activo: codigoActivo,
+        checklist_estado: checklistEstado,
+        actualizado_por: sesionActual?.user?.id || null,
+        actualizado_por_email: sesionActual?.user?.email || null
+    };
+}
+
+async function sincronizarEstadoOperativoRemoto() {
+    if (aplicandoEstadoRemoto || !supabaseClient || !sesionActual?.user) {
+        return;
+    }
+
+    const snapshot = crearSnapshotEstadoOperativo();
+    const { error } = await supabaseClient
+        .from('estado_operativo')
+        .upsert({
+            id: 'global',
+            codigo_activo: snapshot.codigo_activo,
+            checklist_estado: snapshot.checklist_estado,
+            actualizado_por: snapshot.actualizado_por,
+            actualizado_por_email: snapshot.actualizado_por_email,
+            updated_at: new Date().toISOString()
+        });
+
+    if (error) {
+        actualizarEstadoSincronizacion('Pendiente local', 'warning');
+        console.warn('No se pudo sincronizar estado operativo:', error);
+        return;
+    }
+
+    actualizarEstadoSincronizacion('Online', 'success');
+}
+
+function programarSincronizacionEstadoOperativo(retraso = 350) {
+    if (aplicandoEstadoRemoto || !supabaseClient || !sesionActual?.user) {
+        return;
+    }
+
+    window.clearTimeout(temporizadorSincronizacion);
+    temporizadorSincronizacion = window.setTimeout(() => {
+        sincronizarEstadoOperativoRemoto();
+    }, retraso);
+}
+
+function normalizarEstadoOperativoRemoto(estadoRemoto) {
+    const normalizado = {};
+
+    if (!estadoRemoto || typeof estadoRemoto !== 'object') {
+        return normalizado;
+    }
+
+    Object.keys(estadoRemoto).forEach(codigo => {
+        if (codigosEmergencia[codigo]) {
+            normalizado[codigo] = normalizarChecklistGuardado(codigo, estadoRemoto[codigo]);
+        }
+    });
+
+    return normalizado;
+}
+
+function aplicarEstadoOperativoRemoto(registro) {
+    if (!registro) {
+        return;
+    }
+
+    const codigoRemoto = codigosEmergencia[registro.codigo_activo]
+        ? registro.codigo_activo
+        : null;
+
+    aplicandoEstadoRemoto = true;
+    checklistEstado = normalizarEstadoOperativoRemoto(registro.checklist_estado);
+    guardarChecklistEstado();
+    codigoActivo = codigoRemoto;
+
+    if (codigoActivo) {
+        actualizarInterfazCodigo(codigoActivo);
+    } else {
+        desactivarTodos();
+    }
+
+    actualizarResumenUI();
+    actualizarEstadoSincronizacion('Online', 'success');
+    aplicandoEstadoRemoto = false;
+}
+
+async function cargarEstadoOperativoRemoto() {
+    if (!supabaseClient || !sesionActual?.user) {
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from('estado_operativo')
+        .select('id,codigo_activo,checklist_estado,actualizado_por,actualizado_por_email,updated_at')
+        .eq('id', 'global')
+        .maybeSingle();
+
+    if (error) {
+        actualizarEstadoSincronizacion('Modo local', 'warning');
+        console.warn('No se pudo cargar estado operativo remoto:', error);
+        return;
+    }
+
+    if (data) {
+        aplicarEstadoOperativoRemoto(data);
+        return;
+    }
+
+    await sincronizarEstadoOperativoRemoto();
+}
+
+function suscribirEstadoOperativo() {
+    if (!supabaseClient || !sesionActual?.user) {
+        return;
+    }
+
+    if (canalEstadoOperativo) {
+        supabaseClient.removeChannel(canalEstadoOperativo);
+        canalEstadoOperativo = null;
+    }
+
+    canalEstadoOperativo = supabaseClient
+        .channel('estado-operativo-global')
+        .on(
+            'postgres_changes',
+            {
+                event: '*',
+                schema: 'public',
+                table: 'estado_operativo',
+                filter: 'id=eq.global'
+            },
+            payload => {
+                const nuevoEstado = payload.new;
+
+                if (!nuevoEstado || nuevoEstado.actualizado_por === sesionActual?.user?.id) {
+                    return;
+                }
+
+                aplicarEstadoOperativoRemoto(nuevoEstado);
+            }
+        )
+        .subscribe(status => {
+            if (status === 'SUBSCRIBED') {
+                actualizarEstadoSincronizacion('Online', 'success');
+            }
+        });
+}
+
 async function aplicarSesion(session) {
     sesionActual = session;
 
     if (!session?.user) {
         perfilActual = null;
+        if (canalEstadoOperativo && supabaseClient) {
+            supabaseClient.removeChannel(canalEstadoOperativo);
+            canalEstadoOperativo = null;
+        }
         mostrarAppAutenticada(false);
         actualizarEstadoAuth('Ingresa con tu usuario asignado.', 'info');
         actualizarSesionUI();
@@ -507,6 +663,8 @@ async function aplicarSesion(session) {
     actualizarSesionUI();
     await cargarPerfilActual();
     await cargarHistorialRemoto();
+    await cargarEstadoOperativoRemoto();
+    suscribirEstadoOperativo();
 }
 
 async function iniciarSesion(event) {
@@ -947,6 +1105,7 @@ function guardarEncargadoActual(codigo, nombre) {
 
     estado.encargado = nombre;
     guardarChecklistEstado();
+    programarSincronizacionEstadoOperativo();
 
     if (historial.length > 0 && historial[0].codigo === codigo && !historial[0].cerradoEn) {
         historial[0].encargado = nombre;
@@ -992,6 +1151,7 @@ function guardarCampoOperacion(codigo, campo, valor) {
 
     estado[campo] = valor;
     guardarChecklistEstado();
+    programarSincronizacionEstadoOperativo();
     actualizarHistorialActual(codigo, { [campo]: valor });
 
     if (codigoActivo === codigo) {
@@ -2158,6 +2318,7 @@ function actualizarEstadoChecklist(codigo, indice, valor) {
     estado.pasos[indice].completado = valor;
     estado.pasos[indice].completadoEn = valor ? obtenerFechaHoraActual().iso : null;
     guardarChecklistEstado();
+    programarSincronizacionEstadoOperativo(100);
 
     if (valor) {
         reproducirSonidoAprobado();
@@ -2179,6 +2340,7 @@ function actualizarObservacionChecklist(codigo, indice, valor) {
 
     estado.pasos[indice].observacion = valor;
     guardarChecklistEstado();
+    programarSincronizacionEstadoOperativo(700);
 }
 
 function comprimirFoto(file, maxDimension = 960, calidad = 0.72) {
@@ -2219,6 +2381,7 @@ function actualizarFotoChecklist(codigo, indice, foto) {
 
     estado.pasos[indice].foto = foto;
     guardarChecklistEstado();
+    programarSincronizacionEstadoOperativo(100);
 
     if (codigoActivo === codigo) {
         actualizarChecklistUI(codigo);
@@ -2242,6 +2405,7 @@ function actualizarControlChecklist(codigo, controlId, valor) {
     }
 
     guardarChecklistEstado();
+    programarSincronizacionEstadoOperativo(100);
 
     if (codigoActivo === codigo) {
         actualizarChecklistUI(codigo);
@@ -2283,6 +2447,7 @@ function finalizarCodigoActual() {
     const tiempo = obtenerFechaHoraActual();
     estado.cerradoEn = tiempo.iso;
     guardarChecklistEstado();
+    programarSincronizacionEstadoOperativo(100);
     agregarAlHistorial(codigoActivo, estado.encargado || obtenerNombreEncargadoActual());
     actualizarEncargadoUI(codigoActivo);
     actualizarCodigoActivo(codigoActivo);
@@ -2308,6 +2473,7 @@ function reiniciarChecklistActual() {
         };
     });
     guardarChecklistEstado();
+    programarSincronizacionEstadoOperativo(100);
     actualizarChecklistUI(codigoActivo);
 }
 
@@ -2488,6 +2654,7 @@ function activarCodigo(codigo, opciones = {}) {
     anunciarCodigo(codigo);
     desplazarseALamina();
     actualizarResumenUI();
+    programarSincronizacionEstadoOperativo(100);
 
     if (opciones.abrirModal) {
         abrirModalCodigo(codigo);
@@ -2509,6 +2676,7 @@ function desactivarTodos() {
     }
 
     actualizarResumenUI();
+    programarSincronizacionEstadoOperativo(100);
 }
 
 function configurarEventos() {
