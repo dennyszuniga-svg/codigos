@@ -442,6 +442,44 @@ function notificarCodigoRemoto(codigo, emailOrigen) {
     }
 }
 
+function mostrarAlertaRemota(codigo, emailOrigen) {
+    const info = codigosEmergencia[codigo];
+    const alerta = obtenerElemento('remoteAlert');
+    const titulo = obtenerElemento('remoteAlertTitle');
+    const texto = obtenerElemento('remoteAlertText');
+    const abrir = obtenerElemento('remoteAlertOpen');
+
+    if (!info || !alerta || !titulo || !texto || !abrir) {
+        return;
+    }
+
+    alerta.style.setProperty('--alert-color', info.color);
+    titulo.textContent = `Se activo ${info.nombre}!!`;
+    texto.textContent = emailOrigen
+        ? `${emailOrigen} activo ${info.nombre}. Revisa el checklist operativo.`
+        : `Se activo ${info.nombre}. Revisa el checklist operativo.`;
+    alerta.hidden = false;
+    abrir.focus();
+}
+
+function cerrarAlertaRemota() {
+    const alerta = obtenerElemento('remoteAlert');
+
+    if (alerta) {
+        alerta.hidden = true;
+    }
+}
+
+function abrirChecklistDesdeAlerta() {
+    cerrarAlertaRemota();
+    const panel = document.querySelector('.checklist-panel');
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (panel) {
+        panel.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    }
+}
+
 async function inicializarClienteSupabase() {
     let createClient = window.supabase?.createClient;
 
@@ -668,6 +706,7 @@ function aplicarEstadoOperativoRemoto(registro) {
     aplicandoEstadoRemoto = false;
 
     if (codigoRemoto && codigoRemoto !== codigoPrevio) {
+        mostrarAlertaRemota(codigoRemoto, registro.actualizado_por_email);
         notificarCodigoRemoto(codigoRemoto, registro.actualizado_por_email);
     }
 
@@ -2781,6 +2820,9 @@ function configurarEventos() {
     obtenerElemento('authForm').addEventListener('submit', iniciarSesion);
     obtenerElemento('signOutButton').addEventListener('click', cerrarSesion);
     obtenerElemento('enableAlertsButton').addEventListener('click', solicitarPermisoAlertas);
+    obtenerElemento('remoteAlertOpen').addEventListener('click', abrirChecklistDesdeAlerta);
+    obtenerElemento('remoteAlertDismiss').addEventListener('click', cerrarAlertaRemota);
+    obtenerElemento('remoteAlertClose').addEventListener('click', cerrarAlertaRemota);
 
     contenedor.addEventListener('click', event => {
         const boton = event.target.closest('button.activate-btn');

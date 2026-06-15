@@ -1138,6 +1138,63 @@ img:focus-visible {
     text-align: center;
 }
 
+.remote-alert {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(16, 24, 40, 0.64);
+    z-index: 60;
+}
+
+.remote-alert-card {
+    position: relative;
+    width: min(520px, 100%);
+    padding: 28px;
+    border: 1px solid color-mix(in srgb, var(--alert-color, var(--brand-orange)) 48%, #ffffff);
+    border-top: 10px solid var(--alert-color, var(--brand-orange));
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 24px 60px rgba(16, 24, 40, 0.28);
+}
+
+.remote-alert-card h2 {
+    margin-bottom: 10px;
+    color: var(--alert-color, var(--brand-blue-dark));
+    font-size: clamp(1.7rem, 6vw, 2.55rem);
+    line-height: 1.05;
+}
+
+.remote-alert-card p {
+    color: var(--muted);
+    font-size: 1rem;
+    line-height: 1.45;
+}
+
+.remote-alert-actions {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.remote-alert-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 38px;
+    height: 38px;
+    border: 1px solid #d0d5dd;
+    border-radius: 999px;
+    background: #ffffff;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 1.35rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
 .modal {
     position: fixed;
     inset: 0;

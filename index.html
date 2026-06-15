@@ -194,6 +194,19 @@
         </main>
     </div>
 
+    <div class="remote-alert" id="remoteAlert" role="alertdialog" aria-modal="true" aria-labelledby="remoteAlertTitle" aria-describedby="remoteAlertText" hidden>
+        <div class="remote-alert-card">
+            <button class="remote-alert-close" type="button" id="remoteAlertClose" aria-label="Cerrar alerta">&times;</button>
+            <p class="eyebrow">Alerta recibida</p>
+            <h2 id="remoteAlertTitle">Se activo un codigo</h2>
+            <p id="remoteAlertText">Revisa el checklist operativo.</p>
+            <div class="remote-alert-actions">
+                <button class="finish-btn" type="button" id="remoteAlertOpen">Ver checklist</button>
+                <button class="clear-btn" type="button" id="remoteAlertDismiss">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="codeModal" aria-hidden="true">
         <div class="modal-backdrop" data-close-modal></div>
         <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
