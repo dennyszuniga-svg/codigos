@@ -41,6 +41,17 @@ create table if not exists public.estado_operativo (
     constraint estado_operativo_global check (id = 'global')
 );
 
+create table if not exists public.push_subscriptions (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users(id) on delete cascade,
+    endpoint text not null unique,
+    p256dh text not null,
+    auth text not null,
+    user_agent text,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -101,6 +112,7 @@ $$;
 alter table public.profiles enable row level security;
 alter table public.registros_codigos enable row level security;
 alter table public.estado_operativo enable row level security;
+alter table public.push_subscriptions enable row level security;
 
 drop policy if exists "profiles_select_own_or_admin" on public.profiles;
 create policy "profiles_select_own_or_admin"
@@ -160,6 +172,35 @@ to authenticated
 using (id = 'global')
 with check (id = 'global' and actualizado_por = auth.uid());
 
+drop policy if exists "push_select_own_or_admin" on public.push_subscriptions;
+create policy "push_select_own_or_admin"
+on public.push_subscriptions
+for select
+to authenticated
+using (user_id = auth.uid() or public.es_admin());
+
+drop policy if exists "push_insert_own" on public.push_subscriptions;
+create policy "push_insert_own"
+on public.push_subscriptions
+for insert
+to authenticated
+with check (user_id = auth.uid());
+
+drop policy if exists "push_update_own" on public.push_subscriptions;
+create policy "push_update_own"
+on public.push_subscriptions
+for update
+to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+drop policy if exists "push_delete_own_or_admin" on public.push_subscriptions;
+create policy "push_delete_own_or_admin"
+on public.push_subscriptions
+for delete
+to authenticated
+using (user_id = auth.uid() or public.es_admin());
+
 insert into public.estado_operativo (id, codigo_activo, checklist_estado)
 values ('global', null, '{}'::jsonb)
 on conflict (id) do nothing;
@@ -178,6 +219,9 @@ on public.registros_codigos (created_at desc);
 
 create index if not exists registros_codigos_codigo_idx
 on public.registros_codigos (codigo);
+
+create index if not exists push_subscriptions_user_id_idx
+on public.push_subscriptions (user_id);
 
 -- Despues de crear tu primer usuario en Authentication -> Users,
 -- puedes hacerlo administrador con:

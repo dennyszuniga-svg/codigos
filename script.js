@@ -8,6 +8,8 @@ const SUPABASE_CONFIG = {
     publishableKey: 'sb_publishable_R-auhGcSmwSl-1U9WdGe3g_ZYm5BZEt'
 };
 
+const VAPID_PUBLIC_KEY = 'BPA1HvZlxREjSH6MTsm1lK150EAsO-rk6v_ANrYesBXgnCDfBpFQ5HrHnvvGUvvT7ObMR21kRIpD98uwXIBFbjE';
+
 const MAX_HISTORIAL = 10;
 
 const dateFormatter = new Intl.DateTimeFormat('es-PE', {
@@ -364,7 +366,7 @@ function actualizarBotonAlertas() {
         return;
     }
 
-    if (!('Notification' in window)) {
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
         boton.textContent = 'Alertas no disponibles';
         boton.disabled = true;
         return;
@@ -386,6 +388,58 @@ function actualizarBotonAlertas() {
     boton.disabled = false;
 }
 
+function convertirBase64UrlAUint8Array(base64Url) {
+    const padding = '='.repeat((4 - base64Url.length % 4) % 4);
+    const base64 = `${base64Url}${padding}`.replace(/-/g, '+').replace(/_/g, '/');
+    const raw = window.atob(base64);
+    const output = new Uint8Array(raw.length);
+
+    for (let i = 0; i < raw.length; i += 1) {
+        output[i] = raw.charCodeAt(i);
+    }
+
+    return output;
+}
+
+async function registrarSuscripcionPush() {
+    if (!supabaseClient || !sesionActual?.user) {
+        actualizarEstadoSincronizacion('Inicia sesion', 'warning');
+        return;
+    }
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        actualizarEstadoSincronizacion('Sin push', 'warning');
+        return;
+    }
+
+    const registro = await navigator.serviceWorker.ready;
+    const existente = await registro.pushManager.getSubscription();
+    const suscripcion = existente || await registro.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: convertirBase64UrlAUint8Array(VAPID_PUBLIC_KEY)
+    });
+    const json = suscripcion.toJSON();
+
+    const { error } = await supabaseClient
+        .from('push_subscriptions')
+        .upsert({
+            user_id: sesionActual.user.id,
+            endpoint: json.endpoint,
+            p256dh: json.keys?.p256dh || '',
+            auth: json.keys?.auth || '',
+            user_agent: navigator.userAgent,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'endpoint' });
+
+    if (error) {
+        actualizarEstadoSincronizacion('Push pendiente', 'warning');
+        console.warn('No se pudo guardar suscripcion push:', error);
+        return;
+    }
+
+    actualizarEstadoSincronizacion('Push activo', 'success');
+}
+
 async function solicitarPermisoAlertas() {
     if (!('Notification' in window)) {
         actualizarEstadoSincronizacion('Sin alertas', 'warning');
@@ -396,6 +450,7 @@ async function solicitarPermisoAlertas() {
     actualizarBotonAlertas();
 
     if (permiso === 'granted') {
+        await registrarSuscripcionPush();
         actualizarEstadoSincronizacion('Alertas activas', 'success');
     } else {
         actualizarEstadoSincronizacion('Alertas bloqueadas', 'warning');
@@ -477,6 +532,28 @@ function abrirChecklistDesdeAlerta() {
 
     if (panel) {
         panel.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    }
+}
+
+async function enviarAlertaPushCodigo(codigo) {
+    if (!supabaseClient || !sesionActual?.user || !codigosEmergencia[codigo]) {
+        return;
+    }
+
+    try {
+        const { error } = await supabaseClient.functions.invoke('send-code-alert', {
+            body: {
+                codigo,
+                nombre: codigosEmergencia[codigo].nombre,
+                guia: codigosEmergencia[codigo].guia
+            }
+        });
+
+        if (error) {
+            console.warn('No se pudo enviar push remoto:', error);
+        }
+    } catch (error) {
+        console.warn('Funcion push no disponible aun:', error);
     }
 }
 
@@ -796,6 +873,9 @@ async function aplicarSesion(session) {
     actualizarEstadoAuth('Sesion iniciada.', 'success');
     actualizarSesionUI();
     actualizarBotonAlertas();
+    if ('Notification' in window && Notification.permission === 'granted') {
+        registrarSuscripcionPush();
+    }
     await cargarPerfilActual();
     await cargarHistorialRemoto();
     await cargarEstadoOperativoRemoto();
@@ -2790,6 +2870,7 @@ function activarCodigo(codigo, opciones = {}) {
     desplazarseALamina();
     actualizarResumenUI();
     programarSincronizacionEstadoOperativo(100);
+    enviarAlertaPushCodigo(codigo);
 
     if (opciones.abrirModal) {
         abrirModalCodigo(codigo);

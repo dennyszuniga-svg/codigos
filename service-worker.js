@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codigos-urbapark-v8';
+const CACHE_NAME = 'codigos-urbapark-v9';
 const APP_SHELL = [
     './',
     './index.html',
@@ -84,4 +84,31 @@ self.addEventListener('notificationclick', event => {
                 return clients.openWindow('./');
             })
     );
+});
+
+self.addEventListener('push', event => {
+    let data = {};
+
+    try {
+        data = event.data ? event.data.json() : {};
+    } catch (_error) {
+        data = {
+            title: 'Codigo activado',
+            body: event.data ? event.data.text() : 'Revisa la app de Codigos de Emergencia.'
+        };
+    }
+
+    const title = data.title || 'Codigo activado';
+    const options = {
+        body: data.body || 'Revisa el checklist operativo.',
+        icon: 'assets/icons/icon-192.png',
+        badge: 'assets/icons/icon-192.png',
+        tag: data.tag || 'codigo-activado',
+        renotify: true,
+        requireInteraction: true,
+        vibrate: [300, 120, 300, 120, 500],
+        data: data.data || {}
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
 });
