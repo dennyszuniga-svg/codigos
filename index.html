@@ -48,18 +48,10 @@
         </header>
 
         <main>
-            <section class="summary-panel" aria-labelledby="summaryTitle">
-                <div class="section-heading">
-                    <h2 id="summaryTitle">Resumen operativo</h2>
-                    <p>Vista rapida del estado de activaciones y cierres registrados.</p>
-                </div>
-                <div id="summaryGrid" class="summary-grid" aria-live="polite"></div>
-            </section>
-
             <section class="module-panel" aria-labelledby="moduleTitle">
                 <div class="section-heading">
-                    <h2 id="moduleTitle">Centro de apoyo operativo</h2>
-                    <p>Elige un area para consultar informacion, laminas y procedimientos de apoyo.</p>
+                    <h2 id="moduleTitle">Menu de consulta</h2>
+                    <p>Elige un area como si fuera una app: mantenimiento, operaciones, caja, ronda o codigos.</p>
                 </div>
                 <div class="module-grid" aria-label="Modulos informativos">
                     <button class="module-button" type="button" data-module="mantenimiento">
@@ -111,6 +103,14 @@
                         <span>Codigos</span>
                     </button>
                 </div>
+            </section>
+
+            <section class="summary-panel" aria-labelledby="summaryTitle">
+                <div class="section-heading">
+                    <h2 id="summaryTitle">Actividad reciente</h2>
+                    <p>Resumen rapido de codigos activados, cerrados y tiempos de respuesta.</p>
+                </div>
+                <div id="summaryGrid" class="summary-grid" aria-live="polite"></div>
             </section>
 
             <section id="module-codigos" class="module-content" aria-labelledby="moduleCodigosTitle" hidden>

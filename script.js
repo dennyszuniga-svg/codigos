@@ -2210,10 +2210,10 @@ function actualizarResumenUI() {
     const ultimoCodigo = historial[0]?.nombre || 'Sin registros';
 
     [
-        ['Registros hoy', String(registrosHoy), 'Codigos finalizados en la fecha actual'],
-        ['Codigo activo', codigoActivoTexto, 'Estado operativo en pantalla'],
-        ['Ultimo registro', ultimoCodigo, historial[0]?.cerradoEn ? 'Finalizado' : historial[0] ? 'En curso' : 'Pendiente'],
-        ['Promedio cierre', promedioMs ? formatearDuracionMs(promedioMs) : 'Sin cierres', `${cerradas.length} codigo(s) finalizado(s)`]
+        ['Hoy', String(registrosHoy), 'codigos finalizados'],
+        ['En curso', codigoActivoTexto, 'seguimiento actual'],
+        ['Ultima actividad', ultimoCodigo, historial[0]?.cerradoEn ? 'cerrada correctamente' : historial[0] ? 'pendiente de cierre' : 'sin movimientos'],
+        ['Tiempo prom.', promedioMs ? formatearDuracionMs(promedioMs) : 'Sin cierres', `${cerradas.length} cierre(s) registrados`]
     ].forEach(([titulo, valor, detalle]) => {
         const tarjeta = document.createElement('article');
         const etiqueta = document.createElement('span');
