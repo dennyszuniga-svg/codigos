@@ -878,7 +878,7 @@ function crearGuiaElemento(guia) {
         eliminar.className = 'clear-btn';
         eliminar.type = 'button';
         eliminar.dataset.deleteGuide = guia.id;
-        eliminar.textContent = 'Eliminar guia';
+        eliminar.textContent = 'Eliminar guia completa';
         acciones.appendChild(eliminar);
         cuerpo.appendChild(acciones);
     }
@@ -934,10 +934,10 @@ function renderizarTareasBorrador() {
         tarjeta.dataset.taskId = tarea.id;
         encabezado.className = 'guide-task-card-header';
         titulo.textContent = `Tarea ${indice + 1}`;
-        quitar.className = 'clear-btn';
+        quitar.className = 'clear-btn danger-action';
         quitar.type = 'button';
         quitar.dataset.removeGuideTask = tarea.id;
-        quitar.textContent = 'Quitar';
+        quitar.textContent = 'Eliminar tarea';
         encabezado.append(titulo, quitar);
 
         labelDescripcion.className = 'guide-task-description';

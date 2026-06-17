@@ -452,6 +452,12 @@ img:focus-visible {
     color: var(--brand-blue-dark);
 }
 
+.danger-action {
+    border-color: #fecdca;
+    background: #fef3f2;
+    color: #b42318;
+}
+
 .guide-tasks-list {
     display: grid;
     gap: 12px;
