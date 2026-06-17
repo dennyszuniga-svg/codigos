@@ -55,6 +55,18 @@
         </header>
 
         <main>
+            <section class="global-search-panel" aria-labelledby="globalSearchTitle">
+                <div>
+                    <p class="eyebrow">Busqueda rapida</p>
+                    <h2 id="globalSearchTitle">Encuentra codigos, guias y tareas</h2>
+                </div>
+                <label class="global-search-field">
+                    <span>Buscar</span>
+                    <input id="globalSearchInput" type="search" placeholder="Ej. plumilla, impresora, codigo rojo, ronda">
+                </label>
+                <div id="globalSearchResults" class="global-search-results" aria-live="polite" hidden></div>
+            </section>
+
             <section class="module-panel" aria-labelledby="moduleTitle">
                 <div class="section-heading">
                     <h2 id="moduleTitle">Menu de consulta</h2>
@@ -109,6 +121,16 @@
                         </span>
                         <span>Codigos</span>
                     </button>
+                    <button class="module-button" type="button" data-module="capacitacion">
+                        <span class="module-icon module-icon-training" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" focusable="false">
+                                <path d="M10 18 32 8l22 10-22 10Z"/>
+                                <path d="M18 25v14c0 5 6 9 14 9s14-4 14-9V25"/>
+                                <path d="M54 18v18"/>
+                            </svg>
+                        </span>
+                        <span>Capacitacion</span>
+                    </button>
                 </div>
             </section>
 
@@ -121,6 +143,7 @@
                     </div>
                 </div>
                 <form id="adminGuideForm" class="admin-guide-form">
+                    <input id="guideEditingId" type="hidden">
                     <label>
                         Area
                         <select id="guideModule" required>
@@ -146,8 +169,21 @@
                         <div id="guideTasksList" class="guide-tasks-list"></div>
                     </div>
                     <button class="finish-btn" type="submit">Guardar para todos</button>
+                    <button class="clear-btn" type="button" id="cancelGuideEdit" hidden>Cancelar edicion</button>
                     <p id="guideEditorStatus" class="auth-status" role="status" aria-live="polite"></p>
                 </form>
+            </section>
+
+            <section class="admin-guide-panel admin-users-panel" id="adminUsersPanel" aria-labelledby="adminUsersTitle" hidden>
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Solo administradores</p>
+                        <h2 id="adminUsersTitle">Usuarios y roles</h2>
+                        <p>Activa o desactiva usuarios y ajusta roles operativos desde la app.</p>
+                    </div>
+                    <button class="clear-btn" type="button" id="refreshUsers">Actualizar usuarios</button>
+                </div>
+                <div id="usersAdminList" class="users-admin-list" aria-live="polite"></div>
             </section>
 
             <section class="summary-panel" id="activityPanel" aria-labelledby="summaryTitle" hidden>
@@ -156,6 +192,7 @@
                     <p>Resumen rapido de codigos activados, cierres registrados y tiempos de respuesta.</p>
                 </div>
                 <div id="summaryGrid" class="summary-grid" aria-live="polite"></div>
+                <div id="activityLog" class="activity-log" aria-live="polite"></div>
             </section>
 
             <section id="module-codigos" class="module-content" aria-labelledby="moduleCodigosTitle" hidden>
@@ -453,8 +490,39 @@
                 </div>
                 <div id="dynamicGuides-ronda" class="dynamic-guides" aria-label="Guias agregadas de ronda"></div>
             </section>
+
+            <section id="module-capacitacion" class="module-content" aria-labelledby="moduleCapacitacionTitle" hidden>
+                <div class="training-panel">
+                    <div class="section-heading">
+                        <div>
+                            <h2 id="moduleCapacitacionTitle">Capacitacion</h2>
+                            <p>Ruta rapida para personal nuevo o personal que necesita reforzar procedimientos clave.</p>
+                        </div>
+                    </div>
+                    <div class="training-grid">
+                        <article>
+                            <h3>Primer dia operativo</h3>
+                            <p>Reconoce roles, canales de radio, puntos criticos, accesos y zonas de reporte.</p>
+                        </article>
+                        <article>
+                            <h3>Uso de radio</h3>
+                            <p>Comunica ubicacion, prioridad, apoyo requerido y cierre de novedad con mensajes breves.</p>
+                        </article>
+                        <article>
+                            <h3>Roles de respuesta</h3>
+                            <p>ECO coordina en campo, Charly centraliza informacion y Tango apoya situaciones escaladas.</p>
+                        </article>
+                        <article>
+                            <h3>Guias revisadas</h3>
+                            <p id="trainingProgressText">Marca guias como revisadas para llevar tu avance de capacitacion.</p>
+                        </article>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
+
+    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 
     <div class="remote-alert" id="remoteAlert" role="alertdialog" aria-modal="true" aria-labelledby="remoteAlertTitle" aria-describedby="remoteAlertText" hidden>
         <div class="remote-alert-card">

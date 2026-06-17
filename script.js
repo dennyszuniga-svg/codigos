@@ -1,7 +1,8 @@
 const STORAGE_KEYS = {
     history: 'historialCodigos',
     checklist: 'estadoChecklistCodigos',
-    guides: 'guiasOperativas'
+    guides: 'guiasOperativas',
+    guideProgress: 'progresoGuiasOperativas'
 };
 
 const SUPABASE_CONFIG = {
@@ -276,6 +277,11 @@ let moduloActivo = null;
 let guiasOperativas = [];
 let guiasRemotasActivas = false;
 let guiaTareasBorrador = [];
+let progresoGuias = {};
+let progresoUsuariosAdmin = {};
+let usuariosAdmin = [];
+let canalGuiasOperativas = null;
+let busquedaGlobal = '';
 let filtrosHistorial = {
     fecha: '',
     codigo: '',
@@ -387,18 +393,21 @@ function usuarioEsAdmin() {
 
 function actualizarPanelAdminGuias() {
     const panel = obtenerElemento('adminGuidePanel');
+    const usuarios = obtenerElemento('adminUsersPanel');
 
-    if (!panel) {
+    if (!panel || !usuarios) {
         return;
     }
 
     panel.hidden = !usuarioEsAdmin();
+    usuarios.hidden = !usuarioEsAdmin();
 
     if (usuarioEsAdmin()) {
         if (!guiaTareasBorrador.length) {
             guiaTareasBorrador = [crearTareaBorrador()];
         }
         renderizarTareasBorrador();
+        cargarUsuariosAdmin();
     }
 }
 
@@ -741,6 +750,43 @@ function guardarGuiasLocales() {
     guardarEstadoLocalStorage(STORAGE_KEYS.guides, guiasOperativas);
 }
 
+function cargarProgresoGuias() {
+    progresoGuias = safeParseJSON(localStorage.getItem(STORAGE_KEYS.guideProgress), {});
+    if (!progresoGuias || typeof progresoGuias !== 'object') {
+        progresoGuias = {};
+    }
+}
+
+function guardarProgresoGuias() {
+    guardarEstadoLocalStorage(STORAGE_KEYS.guideProgress, progresoGuias);
+}
+
+async function cargarProgresoGuiasRemoto() {
+    if (!supabaseClient || !sesionActual?.user) {
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from('guia_progreso')
+        .select('guia_id,revisada,revisada_en')
+        .eq('user_id', sesionActual.user.id);
+
+    if (error) {
+        console.warn('No se pudo cargar progreso de guias:', error);
+        return;
+    }
+
+    (data || []).forEach(item => {
+        progresoGuias[item.guia_id] = {
+            revisada: item.revisada,
+            revisadaEn: item.revisada_en
+        };
+    });
+    guardarProgresoGuias();
+    renderizarGuiasOperativas();
+    actualizarProgresoCapacitacionUI();
+}
+
 function normalizarGuiaOperativa(guia) {
     const pasos = Array.isArray(guia.pasos)
         ? guia.pasos
@@ -774,6 +820,7 @@ function normalizarGuiaOperativa(guia) {
         pasos,
         creadoPorEmail: guia.creado_por_email || guia.creadoPorEmail || '',
         createdAt: guia.created_at || guia.createdAt || new Date().toISOString(),
+        updatedAt: guia.updated_at || guia.updatedAt || guia.created_at || guia.createdAt || new Date().toISOString(),
         remoto: Boolean(guia.id && !String(guia.id).startsWith('local-'))
     };
 }
@@ -785,8 +832,8 @@ async function cargarGuiasRemotas() {
 
     const { data, error } = await supabaseClient
         .from('guias_operativas')
-        .select('id,modulo,titulo,descripcion,pasos,creado_por_email,created_at')
-        .order('created_at', { ascending: false });
+        .select('id,modulo,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
+        .order('updated_at', { ascending: false });
 
     if (error) {
         guiasRemotasActivas = false;
@@ -799,6 +846,9 @@ async function cargarGuiasRemotas() {
     guiasOperativas = data.map(normalizarGuiaOperativa);
     guardarGuiasLocales();
     renderizarGuiasOperativas();
+    actualizarProgresoCapacitacionUI();
+    actualizarResultadosBusquedaGlobal();
+    actualizarResumenUI();
 }
 
 function crearGuiaElemento(guia) {
@@ -848,6 +898,9 @@ function crearGuiaElemento(guia) {
             const caption = document.createElement('figcaption');
             imagen.src = paso.foto.dataUrl;
             imagen.alt = `Foto referencial de ${pasoTitulo.textContent}`;
+            imagen.tabIndex = 0;
+            imagen.dataset.previewPhoto = paso.foto.dataUrl;
+            imagen.dataset.previewTitle = `${guia.titulo} - ${pasoTitulo.textContent}`;
             caption.textContent = paso.foto.nombre || 'Foto referencial de la tarea.';
             foto.classList.add('photo-placeholder-filled');
             foto.append(imagen, caption);
@@ -873,15 +926,30 @@ function crearGuiaElemento(guia) {
 
     if (usuarioEsAdmin()) {
         const acciones = document.createElement('div');
+        const editar = document.createElement('button');
         const eliminar = document.createElement('button');
         acciones.className = 'guide-actions';
-        eliminar.className = 'clear-btn';
+        editar.className = 'clear-btn';
+        editar.type = 'button';
+        editar.dataset.editGuide = guia.id;
+        editar.textContent = 'Editar guia';
+        eliminar.className = 'clear-btn danger-action';
         eliminar.type = 'button';
         eliminar.dataset.deleteGuide = guia.id;
         eliminar.textContent = 'Eliminar guia completa';
-        acciones.appendChild(eliminar);
+        acciones.append(editar, eliminar);
         cuerpo.appendChild(acciones);
     }
+
+    const progreso = document.createElement('div');
+    const revisar = document.createElement('button');
+    progreso.className = 'guide-actions';
+    revisar.className = progresoGuias[guia.id]?.revisada ? 'finish-btn' : 'clear-btn';
+    revisar.type = 'button';
+    revisar.dataset.markGuideRead = guia.id;
+    revisar.textContent = progresoGuias[guia.id]?.revisada ? 'Guia revisada' : 'Marcar como revisada';
+    progreso.appendChild(revisar);
+    cuerpo.appendChild(progreso);
 
     details.append(summary, cuerpo);
     return details;
@@ -922,6 +990,9 @@ function renderizarTareasBorrador() {
         const tarjeta = document.createElement('article');
         const encabezado = document.createElement('div');
         const titulo = document.createElement('h4');
+        const acciones = document.createElement('div');
+        const subir = document.createElement('button');
+        const bajar = document.createElement('button');
         const quitar = document.createElement('button');
         const labelDescripcion = document.createElement('label');
         const descripcion = document.createElement('textarea');
@@ -934,11 +1005,25 @@ function renderizarTareasBorrador() {
         tarjeta.dataset.taskId = tarea.id;
         encabezado.className = 'guide-task-card-header';
         titulo.textContent = `Tarea ${indice + 1}`;
+        acciones.className = 'guide-task-card-actions';
+        subir.className = 'clear-btn';
+        subir.type = 'button';
+        subir.dataset.moveGuideTask = tarea.id;
+        subir.dataset.direction = 'up';
+        subir.textContent = 'Subir';
+        subir.disabled = indice === 0;
+        bajar.className = 'clear-btn';
+        bajar.type = 'button';
+        bajar.dataset.moveGuideTask = tarea.id;
+        bajar.dataset.direction = 'down';
+        bajar.textContent = 'Bajar';
+        bajar.disabled = indice === guiaTareasBorrador.length - 1;
         quitar.className = 'clear-btn danger-action';
         quitar.type = 'button';
         quitar.dataset.removeGuideTask = tarea.id;
         quitar.textContent = 'Eliminar tarea';
-        encabezado.append(titulo, quitar);
+        acciones.append(subir, bajar, quitar);
+        encabezado.append(titulo, acciones);
 
         labelDescripcion.className = 'guide-task-description';
         labelDescripcion.textContent = 'Descripcion de la tarea';
@@ -965,6 +1050,9 @@ function renderizarTareasBorrador() {
             preview.className = 'guide-task-preview';
             preview.src = tarea.foto.dataUrl;
             preview.alt = `Foto de la tarea ${indice + 1}`;
+            preview.tabIndex = 0;
+            preview.dataset.previewPhoto = tarea.foto.dataUrl;
+            preview.dataset.previewTitle = `Tarea ${indice + 1}`;
             fotoArea.appendChild(preview);
         }
 
@@ -991,6 +1079,49 @@ function obtenerPasosBorrador() {
             foto: tarea.foto
         }))
         .filter(tarea => tarea.descripcion);
+}
+
+function cargarGuiaEnEditor(id) {
+    if (!usuarioEsAdmin()) {
+        return;
+    }
+
+    const guia = guiasOperativas.find(item => item.id === id);
+    const estado = obtenerElemento('guideEditorStatus');
+
+    if (!guia) {
+        return;
+    }
+
+    obtenerElemento('guideEditingId').value = guia.id;
+    obtenerElemento('guideModule').value = guia.modulo;
+    obtenerElemento('guideTitle').value = guia.titulo;
+    obtenerElemento('guideDescription').value = guia.descripcion || '';
+    guiaTareasBorrador = guia.pasos.map(paso => crearTareaBorrador(paso.descripcion, paso.foto));
+    if (!guiaTareasBorrador.length) {
+        guiaTareasBorrador.push(crearTareaBorrador());
+    }
+    renderizarTareasBorrador();
+    obtenerElemento('cancelGuideEdit').hidden = false;
+
+    if (estado) {
+        estado.textContent = 'Editando guia existente.';
+        estado.dataset.status = 'info';
+    }
+
+    obtenerElemento('adminGuidePanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function cancelarEdicionGuia() {
+    obtenerElemento('adminGuideForm')?.reset();
+    obtenerElemento('guideEditingId').value = '';
+    obtenerElemento('cancelGuideEdit').hidden = true;
+    reiniciarTareasBorrador();
+    const estado = obtenerElemento('guideEditorStatus');
+    if (estado) {
+        estado.textContent = '';
+        estado.dataset.status = 'info';
+    }
 }
 
 async function actualizarFotoTareaBorrador(input) {
@@ -1044,6 +1175,7 @@ async function guardarGuiaOperativa(event) {
     const titulo = obtenerElemento('guideTitle')?.value.trim();
     const descripcion = obtenerElemento('guideDescription')?.value.trim();
     const pasos = obtenerPasosBorrador();
+    const editandoId = obtenerElemento('guideEditingId')?.value;
 
     if (!modulo || !titulo || !pasos.length) {
         if (estado) {
@@ -1068,15 +1200,26 @@ async function guardarGuiaOperativa(event) {
     }
 
     if (supabaseClient) {
-        const { error } = await supabaseClient
-            .from('guias_operativas')
-            .insert(guia);
+        const consulta = editandoId
+            ? supabaseClient
+                .from('guias_operativas')
+                .update({
+                    modulo,
+                    titulo,
+                    descripcion,
+                    pasos
+                })
+                .eq('id', editandoId)
+            : supabaseClient
+                .from('guias_operativas')
+                .insert(guia);
+
+        const { error } = await consulta;
 
         if (!error) {
-            obtenerElemento('adminGuideForm')?.reset();
-            reiniciarTareasBorrador();
+            cancelarEdicionGuia();
             if (estado) {
-                estado.textContent = 'Guia guardada y compartida.';
+                estado.textContent = editandoId ? 'Guia actualizada para todos.' : 'Guia guardada y compartida.';
                 estado.dataset.status = 'success';
             }
             await cargarGuiasRemotas();
@@ -1089,14 +1232,17 @@ async function guardarGuiaOperativa(event) {
 
     const local = normalizarGuiaOperativa({
         ...guia,
-        id: `local-${Date.now()}`,
+        id: editandoId || `local-${Date.now()}`,
         createdAt: new Date().toISOString()
     });
-    guiasOperativas.unshift(local);
+    if (editandoId) {
+        guiasOperativas = guiasOperativas.map(item => item.id === editandoId ? local : item);
+    } else {
+        guiasOperativas.unshift(local);
+    }
     guardarGuiasLocales();
     renderizarGuiasOperativas();
-    obtenerElemento('adminGuideForm')?.reset();
-    reiniciarTareasBorrador();
+    cancelarEdicionGuia();
 
     if (estado) {
         estado.textContent = 'Guia guardada en este dispositivo. Ejecuta la actualizacion SQL para compartirla.';
@@ -1126,6 +1272,273 @@ async function eliminarGuiaOperativa(id) {
     guiasOperativas = guiasOperativas.filter(guia => guia.id !== id);
     guardarGuiasLocales();
     renderizarGuiasOperativas();
+    actualizarResultadosBusquedaGlobal();
+    actualizarProgresoCapacitacionUI();
+    actualizarResumenUI();
+}
+
+async function marcarGuiaRevisada(id) {
+    const guia = guiasOperativas.find(item => item.id === id);
+
+    if (!guia) {
+        return;
+    }
+
+    const revisada = !progresoGuias[id]?.revisada;
+    progresoGuias[id] = {
+        revisada,
+        revisadaEn: revisada ? obtenerFechaHoraActual().iso : null,
+        titulo: guia.titulo,
+        modulo: guia.modulo
+    };
+    guardarProgresoGuias();
+    renderizarGuiasOperativas();
+    actualizarProgresoCapacitacionUI();
+
+    if (supabaseClient && sesionActual?.user && !String(id).startsWith('local-')) {
+        const { error } = await supabaseClient
+            .from('guia_progreso')
+            .upsert({
+                guia_id: id,
+                user_id: sesionActual.user.id,
+                user_email: sesionActual.user.email || '',
+                revisada,
+                revisada_en: revisada ? progresoGuias[id].revisadaEn : null
+            }, { onConflict: 'guia_id,user_id' });
+
+        if (error) {
+            console.warn('No se pudo sincronizar progreso de guia:', error);
+        }
+    }
+}
+
+function actualizarProgresoCapacitacionUI() {
+    const texto = obtenerElemento('trainingProgressText');
+    if (!texto) {
+        return;
+    }
+
+    const total = guiasOperativas.length;
+    const revisadas = guiasOperativas.filter(guia => progresoGuias[guia.id]?.revisada).length;
+    texto.textContent = total
+        ? `${revisadas} de ${total} guias revisadas en este dispositivo.`
+        : 'Aun no hay guias operativas agregadas.';
+}
+
+async function cargarUsuariosAdmin() {
+    if (!usuarioEsAdmin() || !supabaseClient) {
+        return;
+    }
+
+    const lista = obtenerElemento('usersAdminList');
+    if (lista) {
+        lista.textContent = 'Cargando usuarios...';
+    }
+
+    const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('id,email,nombre,rol,activo,created_at')
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        if (lista) {
+            lista.textContent = 'No se pudieron cargar usuarios.';
+        }
+        console.warn('No se pudieron cargar usuarios:', error);
+        return;
+    }
+
+    usuariosAdmin = data || [];
+    const { data: progreso } = await supabaseClient
+        .from('guia_progreso')
+        .select('user_id,revisada');
+    progresoUsuariosAdmin = {};
+    (progreso || []).forEach(item => {
+        if (!progresoUsuariosAdmin[item.user_id]) {
+            progresoUsuariosAdmin[item.user_id] = { total: 0, revisadas: 0 };
+        }
+        progresoUsuariosAdmin[item.user_id].total += 1;
+        if (item.revisada) {
+            progresoUsuariosAdmin[item.user_id].revisadas += 1;
+        }
+    });
+    renderizarUsuariosAdmin();
+}
+
+function renderizarUsuariosAdmin() {
+    const lista = obtenerElemento('usersAdminList');
+    if (!lista) {
+        return;
+    }
+
+    limpiarElemento(lista);
+
+    if (!usuariosAdmin.length) {
+        lista.textContent = 'No hay usuarios para mostrar.';
+        return;
+    }
+
+    usuariosAdmin.forEach(usuario => {
+        const fila = document.createElement('article');
+        const datos = document.createElement('div');
+        const nombre = document.createElement('strong');
+        const email = document.createElement('span');
+        const rol = document.createElement('select');
+        const activo = document.createElement('select');
+        const guardar = document.createElement('button');
+
+        fila.className = 'user-admin-row';
+        fila.dataset.userId = usuario.id;
+        nombre.textContent = usuario.nombre || 'Sin nombre';
+        const progreso = progresoUsuariosAdmin[usuario.id];
+        email.textContent = progreso
+            ? `${usuario.email} - ${progreso.revisadas}/${guiasOperativas.length || progreso.total} guias revisadas`
+            : `${usuario.email} - sin avance registrado`;
+        datos.append(nombre, email);
+
+        ['admin', 'supervisor', 'eco', 'charly', 'anfitrion'].forEach(opcion => {
+            const option = document.createElement('option');
+            option.value = opcion;
+            option.textContent = opcion;
+            option.selected = usuario.rol === opcion;
+            rol.appendChild(option);
+        });
+        rol.dataset.userRole = usuario.id;
+
+        [
+            ['true', 'Activo'],
+            ['false', 'Inactivo']
+        ].forEach(([valor, etiqueta]) => {
+            const option = document.createElement('option');
+            option.value = valor;
+            option.textContent = etiqueta;
+            option.selected = String(Boolean(usuario.activo)) === valor;
+            activo.appendChild(option);
+        });
+        activo.dataset.userActive = usuario.id;
+
+        guardar.className = 'clear-btn';
+        guardar.type = 'button';
+        guardar.dataset.saveUser = usuario.id;
+        guardar.textContent = 'Guardar';
+
+        fila.append(datos, rol, activo, guardar);
+        lista.appendChild(fila);
+    });
+}
+
+async function guardarUsuarioAdmin(id) {
+    if (!usuarioEsAdmin() || !supabaseClient || !id) {
+        return;
+    }
+
+    const rol = document.querySelector(`[data-user-role="${id}"]`)?.value;
+    const activo = document.querySelector(`[data-user-active="${id}"]`)?.value === 'true';
+
+    const { error } = await supabaseClient
+        .from('profiles')
+        .update({ rol, activo })
+        .eq('id', id);
+
+    if (error) {
+        mostrarToast('No se pudo actualizar el usuario.');
+        console.warn('No se pudo actualizar usuario:', error);
+        return;
+    }
+
+    mostrarToast('Usuario actualizado.');
+    await cargarUsuariosAdmin();
+}
+
+function mostrarToast(mensaje) {
+    const contenedor = obtenerElemento('toastContainer');
+    if (!contenedor) {
+        return;
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'toast-message';
+    toast.textContent = mensaje;
+    contenedor.appendChild(toast);
+    window.setTimeout(() => toast.remove(), 5200);
+}
+
+function obtenerItemsBusqueda() {
+    const codigos = Object.entries(codigosEmergencia).map(([codigo, info]) => ({
+        tipo: 'Codigo',
+        titulo: info.nombre,
+        detalle: `${info.descripcion}. ${info.guia}`,
+        accion: () => {
+            seleccionarModulo('codigos');
+            const card = document.querySelector(`[data-code="${codigo}"]`);
+            card?.focus();
+        }
+    }));
+
+    const guias = guiasOperativas.map(guia => ({
+        tipo: `Guia - ${guia.modulo}`,
+        titulo: guia.titulo,
+        detalle: `${guia.descripcion || ''} ${guia.pasos.map(paso => paso.descripcion).join(' ')}`,
+        accion: () => seleccionarModulo(guia.modulo)
+    }));
+
+    const modulos = [
+        ['Mantenimiento', 'Guias de soporte, plumillas e impresoras', 'mantenimiento'],
+        ['Operaciones', 'Procesos operativos y apoyo al personal nuevo', 'operaciones'],
+        ['Caja', 'Procesos y guias de atencion para caja', 'caja'],
+        ['Ronda', 'Rondas, verificaciones y tareas en campo', 'ronda'],
+        ['Capacitacion', 'Primer dia, radio y roles de respuesta', 'capacitacion']
+    ].map(([titulo, detalle, modulo]) => ({
+        tipo: 'Modulo',
+        titulo,
+        detalle,
+        accion: () => seleccionarModulo(modulo)
+    }));
+
+    return [...modulos, ...codigos, ...guias];
+}
+
+function actualizarResultadosBusquedaGlobal() {
+    const contenedor = obtenerElemento('globalSearchResults');
+    if (!contenedor) {
+        return;
+    }
+
+    limpiarElemento(contenedor);
+    const termino = busquedaGlobal.trim().toLowerCase();
+
+    if (!termino) {
+        contenedor.hidden = true;
+        return;
+    }
+
+    const resultados = obtenerItemsBusqueda()
+        .filter(item => `${item.tipo} ${item.titulo} ${item.detalle}`.toLowerCase().includes(termino))
+        .slice(0, 8);
+
+    contenedor.hidden = false;
+
+    if (!resultados.length) {
+        const vacio = document.createElement('p');
+        vacio.className = 'activity-log-item';
+        vacio.textContent = 'Sin resultados.';
+        contenedor.appendChild(vacio);
+        return;
+    }
+
+    resultados.forEach((item, indice) => {
+        const boton = document.createElement('button');
+        const titulo = document.createElement('strong');
+        const detalle = document.createElement('span');
+        boton.className = 'search-result-card';
+        boton.type = 'button';
+        boton.dataset.searchIndex = String(indice);
+        boton.__searchAction = item.accion;
+        titulo.textContent = `${item.tipo}: ${item.titulo}`;
+        detalle.textContent = item.detalle;
+        boton.append(titulo, detalle);
+        contenedor.appendChild(boton);
+    });
 }
 
 async function guardarRegistroRemoto(entrada, estado) {
@@ -1322,6 +1735,39 @@ function suscribirEstadoOperativo() {
         });
 }
 
+function suscribirGuiasOperativas() {
+    if (!supabaseClient || !sesionActual?.user) {
+        return;
+    }
+
+    if (canalGuiasOperativas) {
+        supabaseClient.removeChannel(canalGuiasOperativas);
+        canalGuiasOperativas = null;
+    }
+
+    canalGuiasOperativas = supabaseClient
+        .channel('guias-operativas-cambios')
+        .on(
+            'postgres_changes',
+            {
+                event: '*',
+                schema: 'public',
+                table: 'guias_operativas'
+            },
+            async payload => {
+                await cargarGuiasRemotas();
+                if (payload.eventType === 'INSERT') {
+                    mostrarToast(`Nueva guia disponible: ${payload.new?.titulo || 'guia operativa'}.`);
+                } else if (payload.eventType === 'UPDATE') {
+                    mostrarToast(`Guia actualizada: ${payload.new?.titulo || 'guia operativa'}.`);
+                } else if (payload.eventType === 'DELETE') {
+                    mostrarToast('Una guia operativa fue eliminada.');
+                }
+            }
+        )
+        .subscribe();
+}
+
 async function aplicarSesion(session) {
     sesionActual = session;
 
@@ -1330,6 +1776,10 @@ async function aplicarSesion(session) {
         if (canalEstadoOperativo && supabaseClient) {
             supabaseClient.removeChannel(canalEstadoOperativo);
             canalEstadoOperativo = null;
+        }
+        if (canalGuiasOperativas && supabaseClient) {
+            supabaseClient.removeChannel(canalGuiasOperativas);
+            canalGuiasOperativas = null;
         }
         mostrarAppAutenticada(false);
         actualizarEstadoAuth('Ingresa con tu usuario asignado.', 'info');
@@ -1347,9 +1797,11 @@ async function aplicarSesion(session) {
     }
     await cargarPerfilActual();
     await cargarGuiasRemotas();
+    await cargarProgresoGuiasRemoto();
     await cargarHistorialRemoto();
     await cargarEstadoOperativoRemoto();
     suscribirEstadoOperativo();
+    suscribirGuiasOperativas();
 }
 
 async function iniciarSesion(event) {
@@ -2675,6 +3127,36 @@ function actualizarResumenUI() {
         tarjeta.append(etiqueta, numero, descripcion);
         contenedor.appendChild(tarjeta);
     });
+
+    actualizarActividadGeneralUI();
+}
+
+function actualizarActividadGeneralUI() {
+    const contenedor = obtenerElemento('activityLog');
+    if (!contenedor) {
+        return;
+    }
+
+    limpiarElemento(contenedor);
+
+    const totalGuias = guiasOperativas.length;
+    const revisadas = guiasOperativas.filter(guia => progresoGuias[guia.id]?.revisada).length;
+    const ultimasGuias = guiasOperativas.slice(0, 3);
+    const entradas = [
+        `Guias operativas: ${totalGuias}. Revisadas en este dispositivo: ${revisadas}.`,
+        ...ultimasGuias.map(guia => `Guia reciente en ${guia.modulo}: ${guia.titulo}.`)
+    ];
+
+    if (!entradas.length) {
+        return;
+    }
+
+    entradas.forEach(texto => {
+        const item = document.createElement('div');
+        item.className = 'activity-log-item';
+        item.textContent = texto;
+        contenedor.appendChild(item);
+    });
 }
 
 function limpiarHistorial() {
@@ -3330,12 +3812,33 @@ function abrirModalCodigo(codigo) {
     }
 
     const modal = obtenerElemento('codeModal');
+    const modalTitle = obtenerElemento('modalTitle');
     const modalImage = obtenerElemento('modalImage');
     const modalSubtitle = obtenerElemento('modalSubtitle');
 
+    modalTitle.textContent = 'Lamina del codigo';
     modalImage.src = info.image;
     modalImage.alt = `${info.nombre} - lamina ampliada`;
     modalSubtitle.textContent = `${info.nombre}. ${info.guia}.`;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+}
+
+function abrirPreviewFoto(dataUrl, titulo = 'Foto') {
+    if (!dataUrl) {
+        return;
+    }
+
+    const modal = obtenerElemento('codeModal');
+    const modalTitle = obtenerElemento('modalTitle');
+    const modalImage = obtenerElemento('modalImage');
+    const modalSubtitle = obtenerElemento('modalSubtitle');
+
+    modalTitle.textContent = titulo;
+    modalImage.src = dataUrl;
+    modalImage.alt = titulo;
+    modalSubtitle.textContent = 'Foto referencial de la guia operativa.';
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
@@ -3428,6 +3931,18 @@ function configurarEventos() {
     obtenerElemento('toggleActivityPanel').addEventListener('click', alternarPanelActividad);
     obtenerElemento('adminGuideForm')?.addEventListener('submit', guardarGuiaOperativa);
     obtenerElemento('addGuideTask')?.addEventListener('click', agregarTareaBorrador);
+    obtenerElemento('cancelGuideEdit')?.addEventListener('click', cancelarEdicionGuia);
+    obtenerElemento('refreshUsers')?.addEventListener('click', cargarUsuariosAdmin);
+    obtenerElemento('globalSearchInput')?.addEventListener('input', event => {
+        busquedaGlobal = event.target.value;
+        actualizarResultadosBusquedaGlobal();
+    });
+    obtenerElemento('globalSearchResults')?.addEventListener('click', event => {
+        const boton = event.target.closest('.search-result-card');
+        if (boton?.__searchAction) {
+            boton.__searchAction();
+        }
+    });
 
     document.querySelector('.module-grid').addEventListener('click', event => {
         const boton = event.target.closest('button[data-module]');
@@ -3440,11 +3955,33 @@ function configurarEventos() {
 
     document.querySelector('main').addEventListener('click', event => {
         const boton = event.target.closest('button[data-delete-guide]');
-        if (!boton) {
+        if (boton) {
+            eliminarGuiaOperativa(boton.dataset.deleteGuide);
             return;
         }
 
-        eliminarGuiaOperativa(boton.dataset.deleteGuide);
+        const editar = event.target.closest('button[data-edit-guide]');
+        if (editar) {
+            cargarGuiaEnEditor(editar.dataset.editGuide);
+            return;
+        }
+
+        const revisada = event.target.closest('button[data-mark-guide-read]');
+        if (revisada) {
+            marcarGuiaRevisada(revisada.dataset.markGuideRead);
+            return;
+        }
+
+        const guardarUsuario = event.target.closest('button[data-save-user]');
+        if (guardarUsuario) {
+            guardarUsuarioAdmin(guardarUsuario.dataset.saveUser);
+            return;
+        }
+
+        const foto = event.target.closest('[data-preview-photo]');
+        if (foto) {
+            abrirPreviewFoto(foto.dataset.previewPhoto, foto.dataset.previewTitle || 'Foto');
+        }
     });
 
     obtenerElemento('guideTasksList')?.addEventListener('input', event => {
@@ -3468,15 +4005,25 @@ function configurarEventos() {
 
     obtenerElemento('guideTasksList')?.addEventListener('click', event => {
         const boton = event.target.closest('button[data-remove-guide-task]');
-        if (!boton) {
+        if (boton) {
+            guiaTareasBorrador = guiaTareasBorrador.filter(tarea => tarea.id !== boton.dataset.removeGuideTask);
+            if (!guiaTareasBorrador.length) {
+                guiaTareasBorrador.push(crearTareaBorrador());
+            }
+            renderizarTareasBorrador();
             return;
         }
 
-        guiaTareasBorrador = guiaTareasBorrador.filter(tarea => tarea.id !== boton.dataset.removeGuideTask);
-        if (!guiaTareasBorrador.length) {
-            guiaTareasBorrador.push(crearTareaBorrador());
+        const mover = event.target.closest('button[data-move-guide-task]');
+        if (mover) {
+            const indice = guiaTareasBorrador.findIndex(tarea => tarea.id === mover.dataset.moveGuideTask);
+            const destino = mover.dataset.direction === 'up' ? indice - 1 : indice + 1;
+            if (indice >= 0 && destino >= 0 && destino < guiaTareasBorrador.length) {
+                const [tarea] = guiaTareasBorrador.splice(indice, 1);
+                guiaTareasBorrador.splice(destino, 0, tarea);
+                renderizarTareasBorrador();
+            }
         }
-        renderizarTareasBorrador();
     });
 
     contenedor.addEventListener('click', event => {
@@ -3663,6 +4210,7 @@ document.addEventListener('DOMContentLoaded', () => {
     poblarFiltroCodigos();
     historial = cargarHistorial();
     checklistEstado = cargarChecklistEstado();
+    cargarProgresoGuias();
     cargarGuiasLocales();
     reiniciarTareasBorrador();
     configurarEventos();
@@ -3670,6 +4218,7 @@ document.addEventListener('DOMContentLoaded', () => {
     seleccionarModulo(null, { desplazar: false });
     actualizarHistorialUI();
     actualizarResumenUI();
+    actualizarProgresoCapacitacionUI();
     inicializarAutenticacion();
 });
 
