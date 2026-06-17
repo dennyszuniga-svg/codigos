@@ -231,6 +231,12 @@ img:focus-visible {
     opacity: 0.75;
 }
 
+.header-history-btn {
+    border-color: #f7b299;
+    background: #fff4ed;
+    color: var(--brand-orange);
+}
+
 .section-heading {
     display: flex;
     align-items: end;

@@ -42,6 +42,13 @@
             <div class="session-card" aria-label="Sesion activa">
                 <span id="syncStatus" class="status-chip">Sincronizando</span>
                 <span id="authUserLabel">Usuario conectado</span>
+                <button
+                    class="clear-btn header-history-btn"
+                    type="button"
+                    id="toggleActivityPanel"
+                    aria-expanded="false"
+                    aria-controls="activityPanel"
+                >Historial de actividades</button>
                 <button class="clear-btn" type="button" id="enableAlertsButton">Activar alertas</button>
                 <button class="clear-btn" type="button" id="signOutButton">Salir</button>
             </div>
@@ -105,10 +112,10 @@
                 </div>
             </section>
 
-            <section class="summary-panel" aria-labelledby="summaryTitle">
+            <section class="summary-panel" id="activityPanel" aria-labelledby="summaryTitle" hidden>
                 <div class="section-heading">
-                    <h2 id="summaryTitle">Actividad reciente</h2>
-                    <p>Resumen rapido de codigos activados, cerrados y tiempos de respuesta.</p>
+                    <h2 id="summaryTitle">Historial de actividades</h2>
+                    <p>Resumen rapido de codigos activados, cierres registrados y tiempos de respuesta.</p>
                 </div>
                 <div id="summaryGrid" class="summary-grid" aria-live="polite"></div>
             </section>

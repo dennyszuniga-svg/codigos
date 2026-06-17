@@ -2180,6 +2180,25 @@ function alternarFiltrosHistorial() {
     }
 }
 
+function alternarPanelActividad() {
+    const panel = obtenerElemento('activityPanel');
+    const boton = obtenerElemento('toggleActivityPanel');
+
+    if (!panel || !boton) {
+        return;
+    }
+
+    const mostrar = panel.hidden;
+    panel.hidden = !mostrar;
+    boton.setAttribute('aria-expanded', String(mostrar));
+    boton.textContent = mostrar ? 'Ocultar historial' : 'Historial de actividades';
+
+    if (mostrar) {
+        actualizarResumenUI();
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
 function actualizarResumenUI() {
     const contenedor = obtenerElemento('summaryGrid');
 
@@ -2978,6 +2997,7 @@ function configurarEventos() {
     obtenerElemento('remoteAlertOpen').addEventListener('click', abrirChecklistDesdeAlerta);
     obtenerElemento('remoteAlertDismiss').addEventListener('click', cerrarAlertaRemota);
     obtenerElemento('remoteAlertClose').addEventListener('click', cerrarAlertaRemota);
+    obtenerElemento('toggleActivityPanel').addEventListener('click', alternarPanelActividad);
 
     document.querySelector('.module-grid').addEventListener('click', event => {
         const boton = event.target.closest('button[data-module]');
