@@ -446,6 +446,12 @@ img:focus-visible {
     font-size: 1rem;
 }
 
+.add-guide-task-btn {
+    border-color: #9bd8f3;
+    background: #e8f7fd;
+    color: var(--brand-blue-dark);
+}
+
 .guide-tasks-list {
     display: grid;
     gap: 12px;
@@ -470,6 +476,10 @@ img:focus-visible {
     grid-template-columns: auto 1fr;
     gap: 10px;
     align-items: center;
+    padding: 12px;
+    border: 1px dashed #b8d7e8;
+    border-radius: 8px;
+    background: #f8fafc;
 }
 
 .guide-task-preview {

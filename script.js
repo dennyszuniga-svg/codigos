@@ -393,6 +393,13 @@ function actualizarPanelAdminGuias() {
     }
 
     panel.hidden = !usuarioEsAdmin();
+
+    if (usuarioEsAdmin()) {
+        if (!guiaTareasBorrador.length) {
+            guiaTareasBorrador = [crearTareaBorrador()];
+        }
+        renderizarTareasBorrador();
+    }
 }
 
 function actualizarBotonAlertas() {
@@ -943,7 +950,7 @@ function renderizarTareasBorrador() {
 
         fotoArea.className = 'guide-task-photo';
         fotoLabel.className = 'photo-capture-btn';
-        fotoLabel.textContent = tarea.foto ? 'Cambiar foto' : 'Agregar foto';
+        fotoLabel.textContent = tarea.foto ? 'Cambiar foto de tarea' : 'Agregar foto a tarea';
         fotoInput.type = 'file';
         fotoInput.accept = 'image/*';
         fotoInput.capture = 'environment';
@@ -3419,8 +3426,8 @@ function configurarEventos() {
     obtenerElemento('remoteAlertDismiss').addEventListener('click', cerrarAlertaRemota);
     obtenerElemento('remoteAlertClose').addEventListener('click', cerrarAlertaRemota);
     obtenerElemento('toggleActivityPanel').addEventListener('click', alternarPanelActividad);
-    obtenerElemento('adminGuideForm').addEventListener('submit', guardarGuiaOperativa);
-    obtenerElemento('addGuideTask').addEventListener('click', agregarTareaBorrador);
+    obtenerElemento('adminGuideForm')?.addEventListener('submit', guardarGuiaOperativa);
+    obtenerElemento('addGuideTask')?.addEventListener('click', agregarTareaBorrador);
 
     document.querySelector('.module-grid').addEventListener('click', event => {
         const boton = event.target.closest('button[data-module]');
@@ -3440,7 +3447,7 @@ function configurarEventos() {
         eliminarGuiaOperativa(boton.dataset.deleteGuide);
     });
 
-    obtenerElemento('guideTasksList').addEventListener('input', event => {
+    obtenerElemento('guideTasksList')?.addEventListener('input', event => {
         const campo = event.target.closest('textarea[data-task-description]');
         if (!campo) {
             return;
@@ -3452,14 +3459,14 @@ function configurarEventos() {
         }
     });
 
-    obtenerElemento('guideTasksList').addEventListener('change', event => {
+    obtenerElemento('guideTasksList')?.addEventListener('change', event => {
         const input = event.target.closest('input[type="file"][data-task-photo]');
         if (input) {
             actualizarFotoTareaBorrador(input);
         }
     });
 
-    obtenerElemento('guideTasksList').addEventListener('click', event => {
+    obtenerElemento('guideTasksList')?.addEventListener('click', event => {
         const boton = event.target.closest('button[data-remove-guide-task]');
         if (!boton) {
             return;
