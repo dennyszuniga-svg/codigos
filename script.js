@@ -265,6 +265,7 @@ let canalEstadoOperativo = null;
 let aplicandoEstadoRemoto = false;
 let temporizadorSincronizacion = null;
 let ultimoCodigoRemotoAlertado = null;
+let moduloActivo = null;
 let filtrosHistorial = {
     fecha: '',
     codigo: '',
@@ -527,6 +528,7 @@ function cerrarAlertaRemota() {
 
 function abrirChecklistDesdeAlerta() {
     cerrarAlertaRemota();
+    seleccionarModulo('codigos', { desplazar: false });
     const panel = document.querySelector('.checklist-panel');
     const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -1286,6 +1288,27 @@ function renderizarCodigos() {
     ordenCodigos.forEach(codigo => {
         contenedor.appendChild(crearTarjetaCodigo(codigo, codigosEmergencia[codigo]));
     });
+}
+
+function seleccionarModulo(modulo, opciones = {}) {
+    const { desplazar = true } = opciones;
+    const moduloValido = modulo && obtenerElemento(`module-${modulo}`);
+    moduloActivo = moduloValido ? modulo : null;
+
+    document.querySelectorAll('.module-content').forEach(seccion => {
+        seccion.hidden = seccion.id !== `module-${moduloActivo}`;
+    });
+
+    document.querySelectorAll('.module-button').forEach(boton => {
+        const activo = boton.dataset.module === moduloActivo;
+        boton.setAttribute('aria-pressed', activo ? 'true' : 'false');
+    });
+
+    if (desplazar && moduloActivo) {
+        const destino = obtenerElemento(`module-${moduloActivo}`);
+        const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        destino.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    }
 }
 
 function actualizarTarjetasActivas(codigo) {
@@ -2853,6 +2876,7 @@ function activarCodigo(codigo, opciones = {}) {
         return;
     }
 
+    seleccionarModulo('codigos', { desplazar: false });
     const estado = obtenerEstadoChecklist(codigo);
     const tiempo = obtenerFechaHoraActual();
 
@@ -2904,6 +2928,15 @@ function configurarEventos() {
     obtenerElemento('remoteAlertOpen').addEventListener('click', abrirChecklistDesdeAlerta);
     obtenerElemento('remoteAlertDismiss').addEventListener('click', cerrarAlertaRemota);
     obtenerElemento('remoteAlertClose').addEventListener('click', cerrarAlertaRemota);
+
+    document.querySelector('.module-grid').addEventListener('click', event => {
+        const boton = event.target.closest('button[data-module]');
+        if (!boton) {
+            return;
+        }
+
+        seleccionarModulo(boton.dataset.module);
+    });
 
     contenedor.addEventListener('click', event => {
         const boton = event.target.closest('button.activate-btn');
@@ -3091,6 +3124,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checklistEstado = cargarChecklistEstado();
     configurarEventos();
     desactivarTodos();
+    seleccionarModulo(null, { desplazar: false });
     actualizarHistorialUI();
     actualizarResumenUI();
     inicializarAutenticacion();

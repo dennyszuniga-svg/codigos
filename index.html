@@ -35,8 +35,8 @@
                 <img class="brand-logo" src="assets/urbapark-logo.png" alt="UrbaPark" width="475" height="106">
                 <div>
                     <p class="eyebrow">Panel operativo</p>
-                    <h1>Codigos de Emergencia</h1>
-                    <p>Sistema de activacion, seguimiento y consulta de las laminas de respuesta</p>
+                    <h1>Centro de Apoyo UrbaPark</h1>
+                    <p>Guias rapidas, procedimientos y codigos para consulta operativa</p>
                 </div>
             </div>
             <div class="session-card" aria-label="Sesion activa">
@@ -56,15 +56,71 @@
                 <div id="summaryGrid" class="summary-grid" aria-live="polite"></div>
             </section>
 
-            <section>
+            <section class="module-panel" aria-labelledby="moduleTitle">
                 <div class="section-heading">
-                    <h2>Codigos disponibles</h2>
+                    <h2 id="moduleTitle">Centro de apoyo operativo</h2>
+                    <p>Elige un area para consultar informacion, laminas y procedimientos de apoyo.</p>
+                </div>
+                <div class="module-grid" aria-label="Modulos informativos">
+                    <button class="module-button" type="button" data-module="mantenimiento">
+                        <span class="module-icon module-icon-maintenance" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" focusable="false">
+                                <path d="M26 8h12l3 8 8 3 7-4 6 10-6 6 1 8 7 5-6 10-8-2-7 5-1 7H22l-2-8-7-4-8 3-6-10 7-6-1-8-7-5 6-10 8 3 7-4 3-8Z"/>
+                                <circle cx="32" cy="32" r="9"/>
+                            </svg>
+                        </span>
+                        <span>Mantenimiento</span>
+                    </button>
+                    <button class="module-button" type="button" data-module="operaciones">
+                        <span class="module-icon module-icon-operations" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" focusable="false">
+                                <path d="M10 46h44v10H10zM14 12h36v27H14z"/>
+                                <path d="M22 22h20M22 30h12"/>
+                                <circle cx="47" cy="47" r="4"/>
+                                <circle cx="17" cy="47" r="4"/>
+                            </svg>
+                        </span>
+                        <span>Operaciones</span>
+                    </button>
+                    <button class="module-button" type="button" data-module="caja">
+                        <span class="module-icon module-icon-cash" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" focusable="false">
+                                <rect x="10" y="18" width="44" height="32" rx="5"/>
+                                <path d="M16 26h32M20 38h10"/>
+                                <circle cx="43" cy="38" r="5"/>
+                            </svg>
+                        </span>
+                        <span>Caja</span>
+                    </button>
+                    <button class="module-button" type="button" data-module="ronda">
+                        <span class="module-icon module-icon-rounds" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" focusable="false">
+                                <path d="M32 6 54 16v15c0 14-9 23-22 27C19 54 10 45 10 31V16Z"/>
+                                <path d="M24 32h16M32 24v16"/>
+                            </svg>
+                        </span>
+                        <span>Ronda</span>
+                    </button>
+                    <button class="module-button module-button-primary" type="button" data-module="codigos">
+                        <span class="module-icon module-icon-codes" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" focusable="false">
+                                <path d="M32 6 58 54H6Z"/>
+                                <path d="M32 22v15M32 45h.1"/>
+                            </svg>
+                        </span>
+                        <span>Codigos</span>
+                    </button>
+                </div>
+            </section>
+
+            <section id="module-codigos" class="module-content" aria-labelledby="moduleCodigosTitle" hidden>
+                <div class="section-heading">
+                    <h2 id="moduleCodigosTitle">Codigos disponibles</h2>
                     <p>Selecciona un codigo para activarlo, registrar el evento y ver su imagen.</p>
                 </div>
                 <div id="codesGrid" class="codes-grid" aria-label="Codigos disponibles"></div>
-            </section>
 
-            <section class="detail-grid">
+                <section class="detail-grid">
                 <section class="active-panel" aria-labelledby="activeTitle">
                     <div class="panel-heading">
                         <h2 id="activeTitle">Codigo activo</h2>
@@ -139,7 +195,7 @@
                 </section>
             </section>
 
-            <section class="history-panel" aria-labelledby="historyTitle">
+                <section class="history-panel" aria-labelledby="historyTitle">
                 <div class="panel-heading">
                     <h2 id="historyTitle">Historial de codigos finalizados</h2>
                     <div class="panel-actions">
@@ -190,6 +246,35 @@
                     <button class="clear-btn" type="button" id="clearHistoryFilters">Quitar filtros</button>
                 </div>
                 <ul id="historyList" aria-live="polite" aria-label="Historial de codigos finalizados"></ul>
+            </section>
+            </section>
+
+            <section id="module-mantenimiento" class="module-content" aria-labelledby="moduleMantenimientoTitle" hidden>
+                <div class="module-placeholder">
+                    <h2 id="moduleMantenimientoTitle">Mantenimiento</h2>
+                    <p>Contenido pendiente. Aqui se podran agregar procedimientos, contactos y guias rapidas de mantenimiento.</p>
+                </div>
+            </section>
+
+            <section id="module-operaciones" class="module-content" aria-labelledby="moduleOperacionesTitle" hidden>
+                <div class="module-placeholder">
+                    <h2 id="moduleOperacionesTitle">Operaciones</h2>
+                    <p>Contenido pendiente. Este espacio queda preparado para instructivos operativos y apoyo al personal nuevo.</p>
+                </div>
+            </section>
+
+            <section id="module-caja" class="module-content" aria-labelledby="moduleCajaTitle" hidden>
+                <div class="module-placeholder">
+                    <h2 id="moduleCajaTitle">Caja</h2>
+                    <p>Contenido pendiente. Aqui se podran colocar procesos, alertas y guias de atencion para caja.</p>
+                </div>
+            </section>
+
+            <section id="module-ronda" class="module-content" aria-labelledby="moduleRondaTitle" hidden>
+                <div class="module-placeholder">
+                    <h2 id="moduleRondaTitle">Ronda</h2>
+                    <p>Contenido pendiente. Este modulo queda listo para rondas, verificaciones y tareas de apoyo en campo.</p>
+                </div>
             </section>
         </main>
     </div>
