@@ -1,6 +1,7 @@
 const STORAGE_KEYS = {
     history: 'historialCodigos',
-    checklist: 'estadoChecklistCodigos'
+    checklist: 'estadoChecklistCodigos',
+    guides: 'guiasOperativas'
 };
 
 const SUPABASE_CONFIG = {
@@ -272,6 +273,8 @@ let aplicandoEstadoRemoto = false;
 let temporizadorSincronizacion = null;
 let ultimoCodigoRemotoAlertado = null;
 let moduloActivo = null;
+let guiasOperativas = [];
+let guiasRemotasActivas = false;
 let filtrosHistorial = {
     fecha: '',
     codigo: '',
@@ -375,6 +378,20 @@ function actualizarSesionUI() {
 
     const rol = perfilActual?.rol ? ` - ${perfilActual.rol}` : '';
     etiqueta.textContent = `${obtenerNombreUsuarioActivo()}${rol}`;
+}
+
+function usuarioEsAdmin() {
+    return perfilActual?.rol === 'admin' && perfilActual?.activo !== false;
+}
+
+function actualizarPanelAdminGuias() {
+    const panel = obtenerElemento('adminGuidePanel');
+
+    if (!panel) {
+        return;
+    }
+
+    panel.hidden = !usuarioEsAdmin();
 }
 
 function actualizarBotonAlertas() {
@@ -649,6 +666,8 @@ async function cargarPerfilActual() {
     }
 
     actualizarSesionUI();
+    actualizarPanelAdminGuias();
+    renderizarGuiasOperativas();
 }
 
 function normalizarRegistroRemoto(registro) {
@@ -700,6 +719,239 @@ async function cargarHistorialRemoto() {
     actualizarHistorialUI();
     actualizarResumenUI();
     actualizarEstadoSincronizacion('Online', 'success');
+}
+
+function cargarGuiasLocales() {
+    guiasOperativas = safeParseJSON(localStorage.getItem(STORAGE_KEYS.guides), []);
+    if (!Array.isArray(guiasOperativas)) {
+        guiasOperativas = [];
+    }
+    renderizarGuiasOperativas();
+}
+
+function guardarGuiasLocales() {
+    guardarEstadoLocalStorage(STORAGE_KEYS.guides, guiasOperativas);
+}
+
+function normalizarGuiaOperativa(guia) {
+    return {
+        id: guia.id || `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        modulo: guia.modulo,
+        titulo: guia.titulo || 'Guia sin titulo',
+        descripcion: guia.descripcion || '',
+        pasos: Array.isArray(guia.pasos) ? guia.pasos.filter(Boolean) : [],
+        creadoPorEmail: guia.creado_por_email || guia.creadoPorEmail || '',
+        createdAt: guia.created_at || guia.createdAt || new Date().toISOString(),
+        remoto: Boolean(guia.id && !String(guia.id).startsWith('local-'))
+    };
+}
+
+async function cargarGuiasRemotas() {
+    if (!supabaseClient || !sesionActual?.user) {
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from('guias_operativas')
+        .select('id,modulo,titulo,descripcion,pasos,creado_por_email,created_at')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        guiasRemotasActivas = false;
+        console.warn('No se pudieron cargar guias operativas:', error);
+        renderizarGuiasOperativas();
+        return;
+    }
+
+    guiasRemotasActivas = true;
+    guiasOperativas = data.map(normalizarGuiaOperativa);
+    guardarGuiasLocales();
+    renderizarGuiasOperativas();
+}
+
+function crearGuiaElemento(guia) {
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    const icono = document.createElement('span');
+    const iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const iconPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const texto = document.createElement('span');
+    const titulo = document.createElement('strong');
+    const descripcion = document.createElement('small');
+    const cuerpo = document.createElement('div');
+    const lista = document.createElement('ol');
+    const meta = document.createElement('p');
+
+    details.className = 'procedure-card';
+    details.dataset.guideId = guia.id;
+    icono.className = 'procedure-icon';
+    icono.setAttribute('aria-hidden', 'true');
+    iconSvg.setAttribute('viewBox', '0 0 64 64');
+    iconSvg.setAttribute('focusable', 'false');
+    iconPath.setAttribute('d', 'M14 12h36v40H14zM22 24h20M22 34h20M22 44h12');
+    iconSvg.appendChild(iconPath);
+    icono.appendChild(iconSvg);
+
+    titulo.textContent = guia.titulo;
+    descripcion.textContent = guia.descripcion || 'Guia operativa agregada por administrador.';
+    texto.append(titulo, descripcion);
+    summary.append(icono, texto);
+
+    cuerpo.className = 'procedure-body';
+    lista.className = 'procedure-steps';
+
+    guia.pasos.forEach(paso => {
+        const item = document.createElement('li');
+        const contenido = document.createElement('div');
+        const pasoTitulo = document.createElement('h3');
+        const detalle = document.createElement('p');
+        const foto = document.createElement('figure');
+        const fotoTexto = document.createElement('span');
+        const caption = document.createElement('figcaption');
+
+        pasoTitulo.textContent = 'Paso';
+        detalle.textContent = paso;
+        foto.className = 'photo-placeholder';
+        fotoTexto.textContent = 'Foto pendiente';
+        caption.textContent = 'Evidencia o referencia visual del paso.';
+        foto.append(fotoTexto, caption);
+        contenido.append(pasoTitulo, detalle);
+        item.append(contenido, foto);
+        lista.appendChild(item);
+    });
+
+    meta.className = 'guide-meta';
+    meta.textContent = guia.creadoPorEmail
+        ? `Creado por ${guia.creadoPorEmail}`
+        : 'Guia agregada por administrador';
+
+    cuerpo.append(lista, meta);
+
+    if (usuarioEsAdmin()) {
+        const acciones = document.createElement('div');
+        const eliminar = document.createElement('button');
+        acciones.className = 'guide-actions';
+        eliminar.className = 'clear-btn';
+        eliminar.type = 'button';
+        eliminar.dataset.deleteGuide = guia.id;
+        eliminar.textContent = 'Eliminar guia';
+        acciones.appendChild(eliminar);
+        cuerpo.appendChild(acciones);
+    }
+
+    details.append(summary, cuerpo);
+    return details;
+}
+
+function renderizarGuiasOperativas() {
+    ['mantenimiento', 'operaciones', 'caja', 'ronda'].forEach(modulo => {
+        const contenedor = obtenerElemento(`dynamicGuides-${modulo}`);
+        if (!contenedor) {
+            return;
+        }
+
+        limpiarElemento(contenedor);
+        guiasOperativas
+            .filter(guia => guia.modulo === modulo)
+            .forEach(guia => contenedor.appendChild(crearGuiaElemento(guia)));
+    });
+}
+
+async function guardarGuiaOperativa(event) {
+    event.preventDefault();
+
+    if (!usuarioEsAdmin()) {
+        return;
+    }
+
+    const estado = obtenerElemento('guideEditorStatus');
+    const modulo = obtenerElemento('guideModule')?.value;
+    const titulo = obtenerElemento('guideTitle')?.value.trim();
+    const descripcion = obtenerElemento('guideDescription')?.value.trim();
+    const pasos = obtenerElemento('guideSteps')?.value
+        .split('\n')
+        .map(paso => paso.trim())
+        .filter(Boolean);
+
+    if (!modulo || !titulo || !pasos.length) {
+        if (estado) {
+            estado.textContent = 'Completa titulo y al menos un paso.';
+            estado.dataset.status = 'error';
+        }
+        return;
+    }
+
+    const guia = {
+        modulo,
+        titulo,
+        descripcion,
+        pasos,
+        creado_por: sesionActual.user.id,
+        creado_por_email: sesionActual.user.email || ''
+    };
+
+    if (estado) {
+        estado.textContent = 'Guardando guia...';
+        estado.dataset.status = 'info';
+    }
+
+    if (supabaseClient) {
+        const { error } = await supabaseClient
+            .from('guias_operativas')
+            .insert(guia);
+
+        if (!error) {
+            obtenerElemento('adminGuideForm')?.reset();
+            if (estado) {
+                estado.textContent = 'Guia guardada y compartida.';
+                estado.dataset.status = 'success';
+            }
+            await cargarGuiasRemotas();
+            seleccionarModulo(modulo, { desplazar: false });
+            return;
+        }
+
+        console.warn('No se pudo guardar guia remota:', error);
+    }
+
+    const local = normalizarGuiaOperativa({
+        ...guia,
+        id: `local-${Date.now()}`,
+        createdAt: new Date().toISOString()
+    });
+    guiasOperativas.unshift(local);
+    guardarGuiasLocales();
+    renderizarGuiasOperativas();
+    obtenerElemento('adminGuideForm')?.reset();
+
+    if (estado) {
+        estado.textContent = 'Guia guardada en este dispositivo. Ejecuta la actualizacion SQL para compartirla.';
+        estado.dataset.status = 'warning';
+    }
+}
+
+async function eliminarGuiaOperativa(id) {
+    if (!usuarioEsAdmin() || !id) {
+        return;
+    }
+
+    if (supabaseClient && !String(id).startsWith('local-')) {
+        const { error } = await supabaseClient
+            .from('guias_operativas')
+            .delete()
+            .eq('id', id);
+
+        if (!error) {
+            await cargarGuiasRemotas();
+            return;
+        }
+
+        console.warn('No se pudo eliminar guia remota:', error);
+    }
+
+    guiasOperativas = guiasOperativas.filter(guia => guia.id !== id);
+    guardarGuiasLocales();
+    renderizarGuiasOperativas();
 }
 
 async function guardarRegistroRemoto(entrada, estado) {
@@ -908,6 +1160,7 @@ async function aplicarSesion(session) {
         mostrarAppAutenticada(false);
         actualizarEstadoAuth('Ingresa con tu usuario asignado.', 'info');
         actualizarSesionUI();
+        actualizarPanelAdminGuias();
         return;
     }
 
@@ -919,6 +1172,7 @@ async function aplicarSesion(session) {
         registrarSuscripcionPush();
     }
     await cargarPerfilActual();
+    await cargarGuiasRemotas();
     await cargarHistorialRemoto();
     await cargarEstadoOperativoRemoto();
     suscribirEstadoOperativo();
@@ -2998,6 +3252,7 @@ function configurarEventos() {
     obtenerElemento('remoteAlertDismiss').addEventListener('click', cerrarAlertaRemota);
     obtenerElemento('remoteAlertClose').addEventListener('click', cerrarAlertaRemota);
     obtenerElemento('toggleActivityPanel').addEventListener('click', alternarPanelActividad);
+    obtenerElemento('adminGuideForm').addEventListener('submit', guardarGuiaOperativa);
 
     document.querySelector('.module-grid').addEventListener('click', event => {
         const boton = event.target.closest('button[data-module]');
@@ -3006,6 +3261,15 @@ function configurarEventos() {
         }
 
         seleccionarModulo(boton.dataset.module);
+    });
+
+    document.querySelector('main').addEventListener('click', event => {
+        const boton = event.target.closest('button[data-delete-guide]');
+        if (!boton) {
+            return;
+        }
+
+        eliminarGuiaOperativa(boton.dataset.deleteGuide);
     });
 
     contenedor.addEventListener('click', event => {
@@ -3192,6 +3456,7 @@ document.addEventListener('DOMContentLoaded', () => {
     poblarFiltroCodigos();
     historial = cargarHistorial();
     checklistEstado = cargarChecklistEstado();
+    cargarGuiasLocales();
     configurarEventos();
     desactivarTodos();
     seleccionarModulo(null, { desplazar: false });

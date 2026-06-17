@@ -112,6 +112,41 @@
                 </div>
             </section>
 
+            <section class="admin-guide-panel" id="adminGuidePanel" aria-labelledby="adminGuideTitle" hidden>
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Solo administradores</p>
+                        <h2 id="adminGuideTitle">Crear guia paso a paso</h2>
+                        <p>Agrega procedimientos para mantenimiento, operaciones, caja o ronda. Los usuarios podran consultarlos desde su modulo.</p>
+                    </div>
+                </div>
+                <form id="adminGuideForm" class="admin-guide-form">
+                    <label>
+                        Area
+                        <select id="guideModule" required>
+                            <option value="mantenimiento">Mantenimiento</option>
+                            <option value="operaciones">Operaciones</option>
+                            <option value="caja">Caja</option>
+                            <option value="ronda">Ronda</option>
+                        </select>
+                    </label>
+                    <label>
+                        Titulo de la tarea
+                        <input id="guideTitle" type="text" placeholder="Ej. Cobro manual, ronda de apertura, revision de barrera" required>
+                    </label>
+                    <label class="admin-guide-wide">
+                        Resumen
+                        <input id="guideDescription" type="text" placeholder="Describe cuando se usa esta guia">
+                    </label>
+                    <label class="admin-guide-wide">
+                        Pasos
+                        <textarea id="guideSteps" rows="5" placeholder="Escribe un paso por linea" required></textarea>
+                    </label>
+                    <button class="finish-btn" type="submit">Guardar guia</button>
+                    <p id="guideEditorStatus" class="auth-status" role="status" aria-live="polite"></p>
+                </form>
+            </section>
+
             <section class="summary-panel" id="activityPanel" aria-labelledby="summaryTitle" hidden>
                 <div class="section-heading">
                     <h2 id="summaryTitle">Historial de actividades</h2>
@@ -388,6 +423,7 @@
                             </div>
                         </details>
                     </div>
+                    <div id="dynamicGuides-mantenimiento" class="dynamic-guides" aria-label="Guias agregadas de mantenimiento"></div>
                 </div>
             </section>
 
@@ -396,6 +432,7 @@
                     <h2 id="moduleOperacionesTitle">Operaciones</h2>
                     <p>Contenido pendiente. Este espacio queda preparado para instructivos operativos y apoyo al personal nuevo.</p>
                 </div>
+                <div id="dynamicGuides-operaciones" class="dynamic-guides" aria-label="Guias agregadas de operaciones"></div>
             </section>
 
             <section id="module-caja" class="module-content" aria-labelledby="moduleCajaTitle" hidden>
@@ -403,6 +440,7 @@
                     <h2 id="moduleCajaTitle">Caja</h2>
                     <p>Contenido pendiente. Aqui se podran colocar procesos, alertas y guias de atencion para caja.</p>
                 </div>
+                <div id="dynamicGuides-caja" class="dynamic-guides" aria-label="Guias agregadas de caja"></div>
             </section>
 
             <section id="module-ronda" class="module-content" aria-labelledby="moduleRondaTitle" hidden>
@@ -410,6 +448,7 @@
                     <h2 id="moduleRondaTitle">Ronda</h2>
                     <p>Contenido pendiente. Este modulo queda listo para rondas, verificaciones y tareas de apoyo en campo.</p>
                 </div>
+                <div id="dynamicGuides-ronda" class="dynamic-guides" aria-label="Guias agregadas de ronda"></div>
             </section>
         </main>
     </div>
