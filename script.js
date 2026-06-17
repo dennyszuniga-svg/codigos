@@ -8,6 +8,11 @@ const SUPABASE_CONFIG = {
     publishableKey: 'sb_publishable_R-auhGcSmwSl-1U9WdGe3g_ZYm5BZEt'
 };
 
+const SUPABASE_ESM_SOURCES = [
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm',
+    'https://esm.sh/@supabase/supabase-js@2'
+];
+
 const VAPID_PUBLIC_KEY = 'BPA1HvZlxREjSH6MTsm1lK150EAsO-rk6v_ANrYesBXgnCDfBpFQ5HrHnvvGUvvT7ObMR21kRIpD98uwXIBFbjE';
 
 const MAX_HISTORIAL = 10;
@@ -258,6 +263,7 @@ let historial = [];
 let checklistEstado = {};
 let codigoActivo = null;
 let supabaseClient = null;
+let inicializacionSupabase = null;
 let sesionActual = null;
 let perfilActual = null;
 let historialRemotoActivo = false;
@@ -325,6 +331,17 @@ function actualizarEstadoAuth(texto, tipo = 'info') {
 
     estado.textContent = texto;
     estado.dataset.status = tipo;
+}
+
+function actualizarBotonIngreso(disponible, texto = null) {
+    const boton = obtenerElemento('authSubmit');
+
+    if (!boton) {
+        return;
+    }
+
+    boton.disabled = !disponible;
+    boton.textContent = texto || (disponible ? 'Ingresar' : 'Conectando...');
 }
 
 function mostrarAppAutenticada(mostrar) {
@@ -560,15 +577,37 @@ async function enviarAlertaPushCodigo(codigo) {
 }
 
 async function inicializarClienteSupabase() {
+    if (supabaseClient) {
+        return supabaseClient;
+    }
+
+    if (inicializacionSupabase) {
+        return inicializacionSupabase;
+    }
+
+    inicializacionSupabase = cargarClienteSupabase();
+    const cliente = await inicializacionSupabase;
+    inicializacionSupabase = null;
+    return cliente;
+}
+
+async function cargarClienteSupabase() {
     let createClient = window.supabase?.createClient;
 
     if (!createClient) {
-        try {
-            const moduloSupabase = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
-            createClient = moduloSupabase.createClient;
-        } catch (error) {
-            console.warn('No se pudo cargar Supabase:', error);
-            actualizarEstadoAuth('No se pudo cargar Supabase. Revisa la conexion a internet.', 'error');
+        for (const source of SUPABASE_ESM_SOURCES) {
+            try {
+                const moduloSupabase = await import(source);
+                createClient = moduloSupabase.createClient;
+                break;
+            } catch (error) {
+                console.warn(`No se pudo cargar Supabase desde ${source}:`, error);
+            }
+        }
+
+        if (!createClient) {
+            actualizarEstadoAuth('No se pudo cargar Supabase. Revisa la conexion a internet y actualiza la app.', 'error');
+            actualizarBotonIngreso(true, 'Reintentar');
             return null;
         }
     }
@@ -585,6 +624,7 @@ async function inicializarClienteSupabase() {
         }
     );
 
+    actualizarBotonIngreso(true);
     return supabaseClient;
 }
 
@@ -887,17 +927,24 @@ async function aplicarSesion(session) {
 async function iniciarSesion(event) {
     event.preventDefault();
 
-    if (!supabaseClient) {
-        actualizarEstadoAuth('Supabase aun no esta disponible.', 'error');
-        return;
-    }
-
     const email = obtenerElemento('authEmail')?.value.trim();
     const password = obtenerElemento('authPassword')?.value;
     const boton = obtenerElemento('authSubmit');
 
     if (!email || !password) {
         actualizarEstadoAuth('Completa correo y contrasena.', 'error');
+        return;
+    }
+
+    if (!supabaseClient) {
+        actualizarBotonIngreso(false, 'Conectando...');
+        actualizarEstadoAuth('Conectando con Supabase...', 'info');
+        await inicializarClienteSupabase();
+    }
+
+    if (!supabaseClient) {
+        actualizarEstadoAuth('Supabase no esta disponible. Revisa internet y vuelve a intentar.', 'error');
+        actualizarBotonIngreso(true, 'Reintentar');
         return;
     }
 
@@ -930,6 +977,9 @@ async function cerrarSesion() {
 }
 
 async function inicializarAutenticacion() {
+    actualizarBotonIngreso(false);
+    actualizarEstadoAuth('Conectando con Supabase...', 'info');
+
     if (!await inicializarClienteSupabase()) {
         mostrarAppAutenticada(false);
         return;
