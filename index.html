@@ -138,11 +138,14 @@
                         Resumen
                         <input id="guideDescription" type="text" placeholder="Describe cuando se usa esta guia">
                     </label>
-                    <label class="admin-guide-wide">
-                        Pasos
-                        <textarea id="guideSteps" rows="5" placeholder="Escribe un paso por linea" required></textarea>
-                    </label>
-                    <button class="finish-btn" type="submit">Guardar guia</button>
+                    <div class="admin-guide-wide guide-task-builder" aria-labelledby="guideTasksTitle">
+                        <div class="guide-task-header">
+                            <h3 id="guideTasksTitle">Tareas del paso a paso</h3>
+                            <button class="clear-btn" type="button" id="addGuideTask">Agregar tarea</button>
+                        </div>
+                        <div id="guideTasksList" class="guide-tasks-list"></div>
+                    </div>
+                    <button class="finish-btn" type="submit">Guardar para todos</button>
                     <p id="guideEditorStatus" class="auth-status" role="status" aria-live="polite"></p>
                 </form>
             </section>

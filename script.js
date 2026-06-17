@@ -275,6 +275,7 @@ let ultimoCodigoRemotoAlertado = null;
 let moduloActivo = null;
 let guiasOperativas = [];
 let guiasRemotasActivas = false;
+let guiaTareasBorrador = [];
 let filtrosHistorial = {
     fecha: '',
     codigo: '',
@@ -734,12 +735,36 @@ function guardarGuiasLocales() {
 }
 
 function normalizarGuiaOperativa(guia) {
+    const pasos = Array.isArray(guia.pasos)
+        ? guia.pasos
+            .map((paso, indice) => {
+                if (typeof paso === 'string') {
+                    return {
+                        titulo: `Tarea ${indice + 1}`,
+                        descripcion: paso,
+                        foto: null
+                    };
+                }
+
+                if (paso && typeof paso === 'object') {
+                    return {
+                        titulo: paso.titulo || `Tarea ${indice + 1}`,
+                        descripcion: paso.descripcion || paso.texto || '',
+                        foto: paso.foto && typeof paso.foto === 'object' ? paso.foto : null
+                    };
+                }
+
+                return null;
+            })
+            .filter(paso => paso && paso.descripcion)
+        : [];
+
     return {
         id: guia.id || `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         modulo: guia.modulo,
         titulo: guia.titulo || 'Guia sin titulo',
         descripcion: guia.descripcion || '',
-        pasos: Array.isArray(guia.pasos) ? guia.pasos.filter(Boolean) : [],
+        pasos,
         creadoPorEmail: guia.creado_por_email || guia.creadoPorEmail || '',
         createdAt: guia.created_at || guia.createdAt || new Date().toISOString(),
         remoto: Boolean(guia.id && !String(guia.id).startsWith('local-'))
@@ -800,21 +825,33 @@ function crearGuiaElemento(guia) {
     cuerpo.className = 'procedure-body';
     lista.className = 'procedure-steps';
 
-    guia.pasos.forEach(paso => {
+    guia.pasos.forEach((paso, indice) => {
         const item = document.createElement('li');
         const contenido = document.createElement('div');
         const pasoTitulo = document.createElement('h3');
         const detalle = document.createElement('p');
         const foto = document.createElement('figure');
-        const fotoTexto = document.createElement('span');
-        const caption = document.createElement('figcaption');
 
-        pasoTitulo.textContent = 'Paso';
-        detalle.textContent = paso;
+        pasoTitulo.textContent = paso.titulo || `Tarea ${indice + 1}`;
+        detalle.textContent = paso.descripcion;
         foto.className = 'photo-placeholder';
-        fotoTexto.textContent = 'Foto pendiente';
-        caption.textContent = 'Evidencia o referencia visual del paso.';
-        foto.append(fotoTexto, caption);
+
+        if (paso.foto?.dataUrl) {
+            const imagen = document.createElement('img');
+            const caption = document.createElement('figcaption');
+            imagen.src = paso.foto.dataUrl;
+            imagen.alt = `Foto referencial de ${pasoTitulo.textContent}`;
+            caption.textContent = paso.foto.nombre || 'Foto referencial de la tarea.';
+            foto.classList.add('photo-placeholder-filled');
+            foto.append(imagen, caption);
+        } else {
+            const fotoTexto = document.createElement('span');
+            const caption = document.createElement('figcaption');
+            fotoTexto.textContent = 'Foto pendiente';
+            caption.textContent = 'Evidencia o referencia visual del paso.';
+            foto.append(fotoTexto, caption);
+        }
+
         contenido.append(pasoTitulo, detalle);
         item.append(contenido, foto);
         lista.appendChild(item);
@@ -857,6 +894,137 @@ function renderizarGuiasOperativas() {
     });
 }
 
+function crearTareaBorrador(descripcion = '', foto = null) {
+    return {
+        id: `task-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        descripcion,
+        foto
+    };
+}
+
+function renderizarTareasBorrador() {
+    const contenedor = obtenerElemento('guideTasksList');
+
+    if (!contenedor) {
+        return;
+    }
+
+    limpiarElemento(contenedor);
+
+    guiaTareasBorrador.forEach((tarea, indice) => {
+        const tarjeta = document.createElement('article');
+        const encabezado = document.createElement('div');
+        const titulo = document.createElement('h4');
+        const quitar = document.createElement('button');
+        const labelDescripcion = document.createElement('label');
+        const descripcion = document.createElement('textarea');
+        const fotoArea = document.createElement('div');
+        const fotoLabel = document.createElement('label');
+        const fotoInput = document.createElement('input');
+        const fotoEstado = document.createElement('span');
+
+        tarjeta.className = 'guide-task-card';
+        tarjeta.dataset.taskId = tarea.id;
+        encabezado.className = 'guide-task-card-header';
+        titulo.textContent = `Tarea ${indice + 1}`;
+        quitar.className = 'clear-btn';
+        quitar.type = 'button';
+        quitar.dataset.removeGuideTask = tarea.id;
+        quitar.textContent = 'Quitar';
+        encabezado.append(titulo, quitar);
+
+        labelDescripcion.className = 'guide-task-description';
+        labelDescripcion.textContent = 'Descripcion de la tarea';
+        descripcion.value = tarea.descripcion;
+        descripcion.rows = 3;
+        descripcion.placeholder = 'Describe que debe hacer el anfitrion en esta tarea';
+        descripcion.dataset.taskDescription = tarea.id;
+        labelDescripcion.appendChild(descripcion);
+
+        fotoArea.className = 'guide-task-photo';
+        fotoLabel.className = 'photo-capture-btn';
+        fotoLabel.textContent = tarea.foto ? 'Cambiar foto' : 'Agregar foto';
+        fotoInput.type = 'file';
+        fotoInput.accept = 'image/*';
+        fotoInput.capture = 'environment';
+        fotoInput.dataset.taskPhoto = tarea.id;
+        fotoLabel.appendChild(fotoInput);
+        fotoEstado.className = 'photo-status';
+        fotoEstado.textContent = tarea.foto ? 'Foto agregada' : 'Sin foto';
+        fotoArea.append(fotoLabel, fotoEstado);
+
+        if (tarea.foto?.dataUrl) {
+            const preview = document.createElement('img');
+            preview.className = 'guide-task-preview';
+            preview.src = tarea.foto.dataUrl;
+            preview.alt = `Foto de la tarea ${indice + 1}`;
+            fotoArea.appendChild(preview);
+        }
+
+        tarjeta.append(encabezado, labelDescripcion, fotoArea);
+        contenedor.appendChild(tarjeta);
+    });
+}
+
+function agregarTareaBorrador() {
+    guiaTareasBorrador.push(crearTareaBorrador());
+    renderizarTareasBorrador();
+}
+
+function reiniciarTareasBorrador() {
+    guiaTareasBorrador = [crearTareaBorrador()];
+    renderizarTareasBorrador();
+}
+
+function obtenerPasosBorrador() {
+    return guiaTareasBorrador
+        .map((tarea, indice) => ({
+            titulo: `Tarea ${indice + 1}`,
+            descripcion: tarea.descripcion.trim(),
+            foto: tarea.foto
+        }))
+        .filter(tarea => tarea.descripcion);
+}
+
+async function actualizarFotoTareaBorrador(input) {
+    const tarea = guiaTareasBorrador.find(item => item.id === input.dataset.taskPhoto);
+
+    if (!tarea || !input.files || input.files.length === 0) {
+        return;
+    }
+
+    const estado = obtenerElemento('guideEditorStatus');
+
+    try {
+        if (estado) {
+            estado.textContent = 'Procesando foto...';
+            estado.dataset.status = 'info';
+        }
+
+        const file = input.files[0];
+        const dataUrl = await comprimirFoto(file, 860, 0.68);
+        tarea.foto = {
+            dataUrl,
+            nombre: file.name || 'foto-guia.jpg',
+            agregadaEn: obtenerFechaHoraActual().iso
+        };
+        renderizarTareasBorrador();
+
+        if (estado) {
+            estado.textContent = 'Foto agregada a la tarea.';
+            estado.dataset.status = 'success';
+        }
+    } catch (error) {
+        console.warn('No se pudo agregar foto a la guia:', error);
+        if (estado) {
+            estado.textContent = 'No se pudo agregar la foto.';
+            estado.dataset.status = 'error';
+        }
+    } finally {
+        input.value = '';
+    }
+}
+
 async function guardarGuiaOperativa(event) {
     event.preventDefault();
 
@@ -868,10 +1036,7 @@ async function guardarGuiaOperativa(event) {
     const modulo = obtenerElemento('guideModule')?.value;
     const titulo = obtenerElemento('guideTitle')?.value.trim();
     const descripcion = obtenerElemento('guideDescription')?.value.trim();
-    const pasos = obtenerElemento('guideSteps')?.value
-        .split('\n')
-        .map(paso => paso.trim())
-        .filter(Boolean);
+    const pasos = obtenerPasosBorrador();
 
     if (!modulo || !titulo || !pasos.length) {
         if (estado) {
@@ -902,6 +1067,7 @@ async function guardarGuiaOperativa(event) {
 
         if (!error) {
             obtenerElemento('adminGuideForm')?.reset();
+            reiniciarTareasBorrador();
             if (estado) {
                 estado.textContent = 'Guia guardada y compartida.';
                 estado.dataset.status = 'success';
@@ -923,6 +1089,7 @@ async function guardarGuiaOperativa(event) {
     guardarGuiasLocales();
     renderizarGuiasOperativas();
     obtenerElemento('adminGuideForm')?.reset();
+    reiniciarTareasBorrador();
 
     if (estado) {
         estado.textContent = 'Guia guardada en este dispositivo. Ejecuta la actualizacion SQL para compartirla.';
@@ -3253,6 +3420,7 @@ function configurarEventos() {
     obtenerElemento('remoteAlertClose').addEventListener('click', cerrarAlertaRemota);
     obtenerElemento('toggleActivityPanel').addEventListener('click', alternarPanelActividad);
     obtenerElemento('adminGuideForm').addEventListener('submit', guardarGuiaOperativa);
+    obtenerElemento('addGuideTask').addEventListener('click', agregarTareaBorrador);
 
     document.querySelector('.module-grid').addEventListener('click', event => {
         const boton = event.target.closest('button[data-module]');
@@ -3270,6 +3438,38 @@ function configurarEventos() {
         }
 
         eliminarGuiaOperativa(boton.dataset.deleteGuide);
+    });
+
+    obtenerElemento('guideTasksList').addEventListener('input', event => {
+        const campo = event.target.closest('textarea[data-task-description]');
+        if (!campo) {
+            return;
+        }
+
+        const tarea = guiaTareasBorrador.find(item => item.id === campo.dataset.taskDescription);
+        if (tarea) {
+            tarea.descripcion = campo.value;
+        }
+    });
+
+    obtenerElemento('guideTasksList').addEventListener('change', event => {
+        const input = event.target.closest('input[type="file"][data-task-photo]');
+        if (input) {
+            actualizarFotoTareaBorrador(input);
+        }
+    });
+
+    obtenerElemento('guideTasksList').addEventListener('click', event => {
+        const boton = event.target.closest('button[data-remove-guide-task]');
+        if (!boton) {
+            return;
+        }
+
+        guiaTareasBorrador = guiaTareasBorrador.filter(tarea => tarea.id !== boton.dataset.removeGuideTask);
+        if (!guiaTareasBorrador.length) {
+            guiaTareasBorrador.push(crearTareaBorrador());
+        }
+        renderizarTareasBorrador();
     });
 
     contenedor.addEventListener('click', event => {
@@ -3457,6 +3657,7 @@ document.addEventListener('DOMContentLoaded', () => {
     historial = cargarHistorial();
     checklistEstado = cargarChecklistEstado();
     cargarGuiasLocales();
+    reiniciarTareasBorrador();
     configurarEventos();
     desactivarTodos();
     seleccionarModulo(null, { desplazar: false });
