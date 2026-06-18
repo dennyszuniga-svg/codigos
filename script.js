@@ -1984,12 +1984,12 @@ async function aplicarSesion(session) {
 async function iniciarSesion(event) {
     event.preventDefault();
 
-    const email = obtenerElemento('authEmail')?.value.trim();
+    const identificador = obtenerElemento('authEmail')?.value.trim();
     const password = obtenerElemento('authPassword')?.value;
     const boton = obtenerElemento('authSubmit');
 
-    if (!email || !password) {
-        actualizarEstadoAuth('Completa correo y contrasena.', 'error');
+    if (!identificador || !password) {
+        actualizarEstadoAuth('Completa usuario y contrasena.', 'error');
         return;
     }
 
@@ -2010,6 +2010,16 @@ async function iniciarSesion(event) {
     }
 
     actualizarEstadoAuth('Validando credenciales...', 'info');
+    const email = await resolverEmailLogin(identificador);
+
+    if (!email) {
+        if (boton) {
+            boton.disabled = false;
+        }
+        actualizarEstadoAuth('No se encontro ese usuario. Prueba con tu correo asignado.', 'error');
+        return;
+    }
+
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
     if (boton) {
@@ -2022,6 +2032,34 @@ async function iniciarSesion(event) {
     }
 
     await aplicarSesion(data.session);
+}
+
+async function resolverEmailLogin(identificador) {
+    const valor = identificador.trim();
+
+    if (valor.includes('@')) {
+        return valor.toLowerCase();
+    }
+
+    if (!supabaseClient) {
+        return '';
+    }
+
+    try {
+        const { data, error } = await supabaseClient.functions.invoke('resolve-login', {
+            body: { usuario: valor }
+        });
+
+        if (error || !data?.email) {
+            console.warn('No se pudo resolver usuario:', error || data);
+            return '';
+        }
+
+        return data.email;
+    } catch (error) {
+        console.warn('Funcion resolve-login no disponible:', error);
+        return '';
+    }
 }
 
 async function cerrarSesion() {

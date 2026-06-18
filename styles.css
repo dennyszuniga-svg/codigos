@@ -170,9 +170,6 @@ img:focus-visible {
     align-items: center;
     justify-content: space-between;
     gap: 20px;
-    position: sticky;
-    top: 12px;
-    z-index: 30;
     margin-bottom: 18px;
     padding: 14px 16px;
     border: 1px solid var(--border);
@@ -2162,10 +2159,6 @@ body.dark-theme .modal-dialog {
 @media (max-width: 760px) {
     body {
         padding: 14px 14px 96px;
-    }
-
-    .app-header {
-        top: 8px;
     }
 
     .app-header,
