@@ -167,6 +167,9 @@ img:focus-visible {
 
 .app-header {
     display: flex;
+    position: static;
+    top: auto;
+    z-index: auto;
     align-items: center;
     justify-content: space-between;
     gap: 20px;
