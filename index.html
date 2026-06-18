@@ -42,6 +42,7 @@
             <div class="session-card" aria-label="Sesion activa">
                 <span id="syncStatus" class="status-chip">Sincronizando</span>
                 <span id="authUserLabel">Usuario conectado</span>
+                <button class="clear-btn" type="button" id="toggleThemeButton">Modo oscuro</button>
                 <button
                     class="clear-btn header-history-btn"
                     type="button"
@@ -55,7 +56,7 @@
         </header>
 
         <main>
-            <section class="global-search-panel" aria-labelledby="globalSearchTitle">
+            <section class="global-search-panel" id="globalSearchPanel" aria-labelledby="globalSearchTitle">
                 <div>
                     <p class="eyebrow">Busqueda rapida</p>
                     <h2 id="globalSearchTitle">Encuentra codigos, guias y tareas</h2>
@@ -67,7 +68,7 @@
                 <div id="globalSearchResults" class="global-search-results" aria-live="polite" hidden></div>
             </section>
 
-            <section class="module-panel" aria-labelledby="moduleTitle">
+            <section class="module-panel" id="modulePanel" aria-labelledby="moduleTitle">
                 <div class="section-heading">
                     <h2 id="moduleTitle">Menu de consulta</h2>
                     <p>Elige un area como si fuera una app: mantenimiento, operaciones, caja, ronda o codigos.</p>
@@ -572,6 +573,14 @@
     </div>
 
     <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <nav class="bottom-nav" id="bottomNav" aria-label="Navegacion principal" hidden>
+        <button type="button" data-nav-action="home">Inicio</button>
+        <button type="button" data-nav-action="search">Buscar</button>
+        <button type="button" data-nav-module="codigos">Codigos</button>
+        <button type="button" data-nav-module="mantenimiento">Guias</button>
+        <button type="button" data-nav-action="admin">Admin</button>
+    </nav>
 
     <div class="remote-alert" id="remoteAlert" role="alertdialog" aria-modal="true" aria-labelledby="remoteAlertTitle" aria-describedby="remoteAlertText" hidden>
         <div class="remote-alert-card">

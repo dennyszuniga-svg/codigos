@@ -2,7 +2,8 @@ const STORAGE_KEYS = {
     history: 'historialCodigos',
     checklist: 'estadoChecklistCodigos',
     guides: 'guiasOperativas',
-    guideProgress: 'progresoGuiasOperativas'
+    guideProgress: 'progresoGuiasOperativas',
+    theme: 'temaCodigosUrbapark'
 };
 
 const SUPABASE_CONFIG = {
@@ -321,6 +322,31 @@ function guardarEstadoLocalStorage(clave, valor) {
     }
 }
 
+function actualizarBotonTema() {
+    const boton = obtenerElemento('toggleThemeButton');
+
+    if (!boton) {
+        return;
+    }
+
+    const oscuro = document.body.classList.contains('dark-theme');
+    boton.textContent = oscuro ? 'Modo claro' : 'Modo oscuro';
+    boton.setAttribute('aria-pressed', String(oscuro));
+}
+
+function aplicarTemaGuardado() {
+    const tema = safeParseJSON(localStorage.getItem(STORAGE_KEYS.theme), 'claro');
+    document.body.classList.toggle('dark-theme', tema === 'oscuro');
+    actualizarBotonTema();
+}
+
+function alternarTema() {
+    const oscuro = !document.body.classList.contains('dark-theme');
+    document.body.classList.toggle('dark-theme', oscuro);
+    guardarEstadoLocalStorage(STORAGE_KEYS.theme, oscuro ? 'oscuro' : 'claro');
+    actualizarBotonTema();
+}
+
 function actualizarEstadoSincronizacion(texto, tipo = 'info') {
     const estado = obtenerElemento('syncStatus');
 
@@ -357,6 +383,7 @@ function actualizarBotonIngreso(disponible, texto = null) {
 function mostrarAppAutenticada(mostrar) {
     const authPanel = obtenerElemento('authPanel');
     const appShell = obtenerElemento('appShell');
+    const bottomNav = obtenerElemento('bottomNav');
 
     if (authPanel) {
         authPanel.hidden = mostrar;
@@ -364,6 +391,10 @@ function mostrarAppAutenticada(mostrar) {
 
     if (appShell) {
         appShell.hidden = !mostrar;
+    }
+
+    if (bottomNav) {
+        bottomNav.hidden = !mostrar;
     }
 }
 
@@ -408,6 +439,9 @@ function actualizarPanelAdminGuias() {
     if (!admin) {
         panel.hidden = true;
         usuarios.hidden = true;
+        panel.classList.remove('panel-open');
+        usuarios.classList.remove('panel-open');
+        document.body.classList.remove('admin-panel-open');
         botonGuias?.setAttribute('aria-expanded', 'false');
         botonUsuarios?.setAttribute('aria-expanded', 'false');
         return;
@@ -419,6 +453,35 @@ function actualizarPanelAdminGuias() {
         }
         renderizarTareasBorrador();
     }
+}
+
+function cerrarPanelesAdmin() {
+    const panelGuias = obtenerElemento('adminGuidePanel');
+    const panelUsuarios = obtenerElemento('adminUsersPanel');
+    const botonGuias = obtenerElemento('toggleGuideAdmin');
+    const botonUsuarios = obtenerElemento('toggleUsersAdmin');
+
+    if (panelGuias) {
+        panelGuias.hidden = true;
+        panelGuias.classList.remove('panel-open');
+    }
+
+    if (panelUsuarios) {
+        panelUsuarios.hidden = true;
+        panelUsuarios.classList.remove('panel-open');
+    }
+
+    if (botonGuias) {
+        botonGuias.textContent = 'Crear guias';
+        botonGuias.setAttribute('aria-expanded', 'false');
+    }
+
+    if (botonUsuarios) {
+        botonUsuarios.textContent = 'Usuarios y roles';
+        botonUsuarios.setAttribute('aria-expanded', 'false');
+    }
+
+    document.body.classList.remove('admin-panel-open');
 }
 
 function alternarPanelAdmin(tipo) {
@@ -435,6 +498,9 @@ function alternarPanelAdmin(tipo) {
 
     panelGuias.hidden = !abrirGuias;
     panelUsuarios.hidden = !abrirUsuarios;
+    panelGuias.classList.toggle('panel-open', abrirGuias);
+    panelUsuarios.classList.toggle('panel-open', abrirUsuarios);
+    document.body.classList.toggle('admin-panel-open', abrirGuias || abrirUsuarios);
     botonGuias?.setAttribute('aria-expanded', String(abrirGuias));
     botonUsuarios?.setAttribute('aria-expanded', String(abrirUsuarios));
     botonGuias.textContent = abrirGuias ? 'Ocultar crear guias' : 'Crear guias';
@@ -442,12 +508,10 @@ function alternarPanelAdmin(tipo) {
 
     if (abrirGuias) {
         renderizarTareasBorrador();
-        panelGuias.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     if (abrirUsuarios) {
         cargarUsuariosAdmin();
-        panelUsuarios.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 }
 
@@ -1139,12 +1203,15 @@ function cargarGuiaEnEditor(id) {
     const panelUsuarios = obtenerElemento('adminUsersPanel');
     if (panel && panel.hidden) {
         panel.hidden = false;
+        panel.classList.add('panel-open');
+        document.body.classList.add('admin-panel-open');
         botonGuias?.setAttribute('aria-expanded', 'true');
         if (botonGuias) {
             botonGuias.textContent = 'Ocultar crear guias';
         }
         if (panelUsuarios) {
             panelUsuarios.hidden = true;
+            panelUsuarios.classList.remove('panel-open');
         }
         botonUsuarios?.setAttribute('aria-expanded', 'false');
         if (botonUsuarios) {
@@ -1168,7 +1235,7 @@ function cargarGuiaEnEditor(id) {
         estado.dataset.status = 'info';
     }
 
-    obtenerElemento('adminGuidePanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    obtenerElemento('adminGuidePanel')?.focus?.();
 }
 
 function cancelarEdicionGuia() {
@@ -2344,10 +2411,66 @@ function seleccionarModulo(modulo, opciones = {}) {
         boton.setAttribute('aria-pressed', activo ? 'true' : 'false');
     });
 
+    actualizarBottomNav(moduloActivo);
+
     if (desplazar && moduloActivo) {
         const destino = obtenerElemento(`module-${moduloActivo}`);
         const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         destino.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    }
+}
+
+function actualizarBottomNav(modulo) {
+    const nav = obtenerElemento('bottomNav');
+
+    if (!nav) {
+        return;
+    }
+
+    nav.querySelectorAll('button').forEach(boton => {
+        const activo = boton.dataset.navModule === modulo
+            || (boton.dataset.navAction === 'home' && !modulo);
+
+        if (activo) {
+            boton.setAttribute('aria-current', 'page');
+        } else {
+            boton.removeAttribute('aria-current');
+        }
+    });
+}
+
+function manejarNavegacionInferior(event) {
+    const boton = event.target.closest('button');
+
+    if (!boton) {
+        return;
+    }
+
+    const modulo = boton.dataset.navModule;
+
+    if (modulo) {
+        seleccionarModulo(modulo);
+        return;
+    }
+
+    if (boton.dataset.navAction === 'home') {
+        seleccionarModulo(null, { desplazar: false });
+        obtenerElemento('modulePanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+    }
+
+    if (boton.dataset.navAction === 'search') {
+        obtenerElemento('globalSearchInput')?.focus();
+        obtenerElemento('globalSearchPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+    }
+
+    if (boton.dataset.navAction === 'admin') {
+        if (usuarioEsAdmin()) {
+            alternarPanelAdmin('guias');
+        } else {
+            mostrarToast('Solo los usuarios administradores pueden abrir este panel.');
+        }
     }
 }
 
@@ -4039,6 +4162,8 @@ function configurarEventos() {
     obtenerElemento('remoteAlertDismiss').addEventListener('click', cerrarAlertaRemota);
     obtenerElemento('remoteAlertClose').addEventListener('click', cerrarAlertaRemota);
     obtenerElemento('toggleActivityPanel').addEventListener('click', alternarPanelActividad);
+    obtenerElemento('toggleThemeButton')?.addEventListener('click', alternarTema);
+    obtenerElemento('bottomNav')?.addEventListener('click', manejarNavegacionInferior);
     obtenerElemento('adminGuideForm')?.addEventListener('submit', guardarGuiaOperativa);
     obtenerElemento('addGuideTask')?.addEventListener('click', agregarTareaBorrador);
     obtenerElemento('cancelGuideEdit')?.addEventListener('click', cancelarEdicionGuia);
@@ -4294,6 +4419,11 @@ function configurarEventos() {
             return;
         }
 
+        if (event.key === 'Escape' && document.body.classList.contains('admin-panel-open')) {
+            cerrarPanelesAdmin();
+            return;
+        }
+
         const elementoActivo = document.activeElement;
         const escribiendo = elementoActivo && ['INPUT', 'TEXTAREA', 'SELECT'].includes(elementoActivo.tagName);
 
@@ -4314,6 +4444,7 @@ function configurarEventos() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    aplicarTemaGuardado();
     prepararVoces();
     if (window.speechSynthesis) {
         window.speechSynthesis.onvoiceschanged = prepararVoces;
