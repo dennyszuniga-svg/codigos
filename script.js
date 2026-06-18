@@ -392,22 +392,62 @@ function usuarioEsAdmin() {
 }
 
 function actualizarPanelAdminGuias() {
+    const acciones = obtenerElemento('adminActionsPanel');
     const panel = obtenerElemento('adminGuidePanel');
     const usuarios = obtenerElemento('adminUsersPanel');
+    const botonGuias = obtenerElemento('toggleGuideAdmin');
+    const botonUsuarios = obtenerElemento('toggleUsersAdmin');
 
-    if (!panel || !usuarios) {
+    if (!acciones || !panel || !usuarios) {
         return;
     }
 
-    panel.hidden = !usuarioEsAdmin();
-    usuarios.hidden = !usuarioEsAdmin();
+    const admin = usuarioEsAdmin();
+    acciones.hidden = !admin;
 
-    if (usuarioEsAdmin()) {
+    if (!admin) {
+        panel.hidden = true;
+        usuarios.hidden = true;
+        botonGuias?.setAttribute('aria-expanded', 'false');
+        botonUsuarios?.setAttribute('aria-expanded', 'false');
+        return;
+    }
+
+    if (admin) {
         if (!guiaTareasBorrador.length) {
             guiaTareasBorrador = [crearTareaBorrador()];
         }
         renderizarTareasBorrador();
+    }
+}
+
+function alternarPanelAdmin(tipo) {
+    if (!usuarioEsAdmin()) {
+        return;
+    }
+
+    const panelGuias = obtenerElemento('adminGuidePanel');
+    const panelUsuarios = obtenerElemento('adminUsersPanel');
+    const botonGuias = obtenerElemento('toggleGuideAdmin');
+    const botonUsuarios = obtenerElemento('toggleUsersAdmin');
+    const abrirGuias = tipo === 'guias' ? panelGuias.hidden : false;
+    const abrirUsuarios = tipo === 'usuarios' ? panelUsuarios.hidden : false;
+
+    panelGuias.hidden = !abrirGuias;
+    panelUsuarios.hidden = !abrirUsuarios;
+    botonGuias?.setAttribute('aria-expanded', String(abrirGuias));
+    botonUsuarios?.setAttribute('aria-expanded', String(abrirUsuarios));
+    botonGuias.textContent = abrirGuias ? 'Ocultar crear guias' : 'Crear guias';
+    botonUsuarios.textContent = abrirUsuarios ? 'Ocultar usuarios y roles' : 'Usuarios y roles';
+
+    if (abrirGuias) {
+        renderizarTareasBorrador();
+        panelGuias.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    if (abrirUsuarios) {
         cargarUsuariosAdmin();
+        panelUsuarios.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 }
 
@@ -1091,6 +1131,25 @@ function cargarGuiaEnEditor(id) {
 
     if (!guia) {
         return;
+    }
+
+    const panel = obtenerElemento('adminGuidePanel');
+    const botonGuias = obtenerElemento('toggleGuideAdmin');
+    const botonUsuarios = obtenerElemento('toggleUsersAdmin');
+    const panelUsuarios = obtenerElemento('adminUsersPanel');
+    if (panel && panel.hidden) {
+        panel.hidden = false;
+        botonGuias?.setAttribute('aria-expanded', 'true');
+        if (botonGuias) {
+            botonGuias.textContent = 'Ocultar crear guias';
+        }
+        if (panelUsuarios) {
+            panelUsuarios.hidden = true;
+        }
+        botonUsuarios?.setAttribute('aria-expanded', 'false');
+        if (botonUsuarios) {
+            botonUsuarios.textContent = 'Usuarios y roles';
+        }
     }
 
     obtenerElemento('guideEditingId').value = guia.id;
@@ -3984,6 +4043,8 @@ function configurarEventos() {
     obtenerElemento('addGuideTask')?.addEventListener('click', agregarTareaBorrador);
     obtenerElemento('cancelGuideEdit')?.addEventListener('click', cancelarEdicionGuia);
     obtenerElemento('refreshUsers')?.addEventListener('click', cargarUsuariosAdmin);
+    obtenerElemento('toggleGuideAdmin')?.addEventListener('click', () => alternarPanelAdmin('guias'));
+    obtenerElemento('toggleUsersAdmin')?.addEventListener('click', () => alternarPanelAdmin('usuarios'));
     obtenerElemento('createUserForm')?.addEventListener('submit', crearUsuarioDesdeAdmin);
     obtenerElemento('globalSearchInput')?.addEventListener('input', event => {
         busquedaGlobal = event.target.value;

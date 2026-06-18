@@ -456,6 +456,30 @@ img:focus-visible {
     box-shadow: var(--shadow);
 }
 
+.admin-actions-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+    padding: 18px;
+    border: 1px solid #f7b299;
+    border-radius: 8px;
+    background: #fffaf7;
+    box-shadow: 0 8px 18px rgba(240, 75, 26, 0.08);
+}
+
+.admin-actions-panel h2 {
+    color: var(--brand-blue-dark);
+    font-size: 1.2rem;
+}
+
+.admin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
 .admin-guide-form {
     display: grid;
     grid-template-columns: minmax(160px, 0.75fr) minmax(220px, 1fr);
@@ -1946,6 +1970,7 @@ img:focus-visible {
     }
 
     .app-header,
+    .admin-actions-panel,
     .section-heading,
     .panel-heading {
         align-items: stretch;
