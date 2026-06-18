@@ -596,6 +596,15 @@ img:focus-visible {
 .users-admin-list {
     display: grid;
     gap: 10px;
+    margin-top: 16px;
+}
+
+.create-user-form {
+    margin-bottom: 16px;
+    padding: 16px;
+    border: 1px solid #d9eaf3;
+    border-radius: 8px;
+    background: #ffffff;
 }
 
 .user-admin-row {

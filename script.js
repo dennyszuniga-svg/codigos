@@ -1450,6 +1450,57 @@ async function guardarUsuarioAdmin(id) {
     await cargarUsuariosAdmin();
 }
 
+async function crearUsuarioDesdeAdmin(event) {
+    event.preventDefault();
+
+    if (!usuarioEsAdmin() || !supabaseClient) {
+        return;
+    }
+
+    const estado = obtenerElemento('createUserStatus');
+    const nombre = obtenerElemento('newUserName')?.value.trim();
+    const email = obtenerElemento('newUserEmail')?.value.trim();
+    const password = obtenerElemento('newUserPassword')?.value;
+    const rol = obtenerElemento('newUserRole')?.value;
+
+    if (!nombre || !email || !password || !rol) {
+        if (estado) {
+            estado.textContent = 'Completa todos los datos del usuario.';
+            estado.dataset.status = 'error';
+        }
+        return;
+    }
+
+    if (estado) {
+        estado.textContent = 'Creando usuario...';
+        estado.dataset.status = 'info';
+    }
+
+    try {
+        const { error } = await supabaseClient.functions.invoke('create-user', {
+            body: { nombre, email, password, rol }
+        });
+
+        if (error) {
+            throw error;
+        }
+
+        obtenerElemento('createUserForm')?.reset();
+        if (estado) {
+            estado.textContent = 'Usuario creado correctamente.';
+            estado.dataset.status = 'success';
+        }
+        mostrarToast(`Usuario creado: ${email}`);
+        await cargarUsuariosAdmin();
+    } catch (error) {
+        console.warn('No se pudo crear usuario:', error);
+        if (estado) {
+            estado.textContent = 'No se pudo crear usuario. Revisa correo, contrasena o permisos.';
+            estado.dataset.status = 'error';
+        }
+    }
+}
+
 function mostrarToast(mensaje) {
     const contenedor = obtenerElemento('toastContainer');
     if (!contenedor) {
@@ -3933,6 +3984,7 @@ function configurarEventos() {
     obtenerElemento('addGuideTask')?.addEventListener('click', agregarTareaBorrador);
     obtenerElemento('cancelGuideEdit')?.addEventListener('click', cancelarEdicionGuia);
     obtenerElemento('refreshUsers')?.addEventListener('click', cargarUsuariosAdmin);
+    obtenerElemento('createUserForm')?.addEventListener('submit', crearUsuarioDesdeAdmin);
     obtenerElemento('globalSearchInput')?.addEventListener('input', event => {
         busquedaGlobal = event.target.value;
         actualizarResultadosBusquedaGlobal();
