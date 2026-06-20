@@ -1066,12 +1066,17 @@ function crearGuiaElemento(guia) {
 
     const progreso = document.createElement('div');
     const revisar = document.createElement('button');
+    const exportarPdf = document.createElement('button');
     progreso.className = 'guide-actions';
     revisar.className = progresoGuias[guia.id]?.revisada ? 'finish-btn' : 'clear-btn';
     revisar.type = 'button';
     revisar.dataset.markGuideRead = guia.id;
     revisar.textContent = progresoGuias[guia.id]?.revisada ? 'Guia revisada' : 'Marcar como revisada';
-    progreso.appendChild(revisar);
+    exportarPdf.className = 'clear-btn';
+    exportarPdf.type = 'button';
+    exportarPdf.dataset.exportGuidePdf = guia.id;
+    exportarPdf.textContent = 'Generar PDF';
+    progreso.append(revisar, exportarPdf);
     cuerpo.appendChild(progreso);
 
     details.append(summary, cuerpo);
@@ -3490,7 +3495,7 @@ function obtenerLogoReporteURL() {
     return new URL('assets/urbapark-logo.png', window.location.href).href;
 }
 
-function crearContenidoPdfGuias() {
+function crearContenidoPdfGuias(guias) {
     const etiquetasModulo = {
         mantenimiento: 'Mantenimiento',
         operaciones: 'Operaciones',
@@ -3499,7 +3504,7 @@ function crearContenidoPdfGuias() {
     };
     const fechaGeneracion = formatearFechaHoraISO(new Date().toISOString());
     const logoURL = obtenerLogoReporteURL();
-    const secciones = guiasOperativas.map((guia, indiceGuia) => {
+    const secciones = guias.map((guia, indiceGuia) => {
         const pasos = guia.pasos.map((paso, indicePaso) => {
             const foto = paso.foto?.dataUrl
                 ? `<img src="${escaparHTML(paso.foto.dataUrl)}" alt="Foto de la tarea ${indicePaso + 1}">`
@@ -3522,7 +3527,7 @@ function crearContenidoPdfGuias() {
                 <h2>${escaparHTML(guia.titulo)}</h2>
                 ${guia.descripcion ? `<p class="description">${escaparHTML(guia.descripcion)}</p>` : ''}
                 <ol>${pasos}</ol>
-                <footer>Guia ${indiceGuia + 1} de ${guiasOperativas.length}</footer>
+                <footer>Guia ${indiceGuia + 1} de ${guias.length}</footer>
             </article>
         `;
     }).join('');
@@ -3532,7 +3537,7 @@ function crearContenidoPdfGuias() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guias operativas UrbaPark</title>
+    <title>${escaparHTML(guias.length === 1 ? guias[0].titulo : 'Guias operativas UrbaPark')}</title>
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; padding: 28px; color: #172033; font-family: Arial, sans-serif; background: #eef5f8; }
@@ -3573,7 +3578,7 @@ function crearContenidoPdfGuias() {
             <div class="cover-header">
                 <div>
                     <h1>Guias operativas</h1>
-                    <p class="generated">${guiasOperativas.length} guias disponibles<br>Generado: ${escaparHTML(fechaGeneracion)}</p>
+                    <p class="generated">${guias.length === 1 ? 'Guia operativa individual' : `${guias.length} guias disponibles`}<br>Generado: ${escaparHTML(fechaGeneracion)}</p>
                 </div>
                 <img src="${escaparHTML(logoURL)}" alt="UrbaPark">
             </div>
@@ -3584,9 +3589,10 @@ function crearContenidoPdfGuias() {
 </html>`;
 }
 
-function generarPdfGuias() {
-    if (!guiasOperativas.length) {
-        mostrarToast('Aun no hay guias para generar el PDF.');
+function generarPdfGuia(id) {
+    const guia = guiasOperativas.find(item => item.id === id);
+    if (!guia) {
+        mostrarToast('No se encontro la guia seleccionada.');
         return;
     }
 
@@ -3596,7 +3602,7 @@ function generarPdfGuias() {
         return;
     }
 
-    const html = crearContenidoPdfGuias();
+    const html = crearContenidoPdfGuias([guia]);
     ventana.addEventListener('load', () => {
         ventana.setTimeout(() => ventana.print(), 500);
     }, { once: true });
@@ -4364,7 +4370,6 @@ function configurarEventos() {
     obtenerElemento('refreshUsers')?.addEventListener('click', cargarUsuariosAdmin);
     obtenerElemento('toggleGuideAdmin')?.addEventListener('click', () => alternarPanelAdmin('guias'));
     obtenerElemento('toggleUsersAdmin')?.addEventListener('click', () => alternarPanelAdmin('usuarios'));
-    obtenerElemento('exportGuidesPdf')?.addEventListener('click', generarPdfGuias);
     obtenerElemento('createUserForm')?.addEventListener('submit', crearUsuarioDesdeAdmin);
     obtenerElemento('globalSearchInput')?.addEventListener('input', event => {
         busquedaGlobal = event.target.value;
@@ -4407,6 +4412,12 @@ function configurarEventos() {
         const revisada = event.target.closest('button[data-mark-guide-read]');
         if (revisada) {
             marcarGuiaRevisada(revisada.dataset.markGuideRead);
+            return;
+        }
+
+        const exportarGuia = event.target.closest('button[data-export-guide-pdf]');
+        if (exportarGuia) {
+            generarPdfGuia(exportarGuia.dataset.exportGuidePdf);
             return;
         }
 
