@@ -946,8 +946,15 @@ async function cargarGuiasRemotas() {
         return;
     }
 
+    const guiasLocalesPendientes = guiasOperativas.filter(guia =>
+        String(guia.id).startsWith('local-')
+    );
+
     guiasRemotasActivas = true;
-    guiasOperativas = data.map(normalizarGuiaOperativa);
+    guiasOperativas = [
+        ...data.map(normalizarGuiaOperativa),
+        ...guiasLocalesPendientes
+    ];
     guardarGuiasLocales();
     renderizarGuiasOperativas();
     actualizarProgresoCapacitacionUI();
@@ -1325,8 +1332,11 @@ async function guardarGuiaOperativa(event) {
         estado.dataset.status = 'info';
     }
 
-    if (supabaseClient) {
-        const consulta = editandoId
+    let errorRemoto = null;
+
+    if (supabaseClient && sesionActual?.user) {
+        const editandoRemota = editandoId && !String(editandoId).startsWith('local-');
+        const consulta = editandoRemota
             ? supabaseClient
                 .from('guias_operativas')
                 .update({
@@ -1336,23 +1346,36 @@ async function guardarGuiaOperativa(event) {
                     pasos
                 })
                 .eq('id', editandoId)
+                .select('id,modulo,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
+                .single()
             : supabaseClient
                 .from('guias_operativas')
-                .insert(guia);
+                .insert(guia)
+                .select('id,modulo,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
+                .single();
 
-        const { error } = await consulta;
+        const { data, error } = await consulta;
 
-        if (!error) {
+        if (!error && data) {
+            const guiaGuardada = normalizarGuiaOperativa(data);
+            guiasOperativas = editandoId
+                ? guiasOperativas.map(item => item.id === editandoId ? guiaGuardada : item)
+                : [guiaGuardada, ...guiasOperativas.filter(item => item.id !== guiaGuardada.id)];
+            guardarGuiasLocales();
+            renderizarGuiasOperativas();
             cancelarEdicionGuia();
             if (estado) {
                 estado.textContent = editandoId ? 'Guia actualizada para todos.' : 'Guia guardada y compartida.';
                 estado.dataset.status = 'success';
             }
-            await cargarGuiasRemotas();
             seleccionarModulo(modulo, { desplazar: false });
+            actualizarResultadosBusquedaGlobal();
+            actualizarProgresoCapacitacionUI();
+            actualizarResumenUI();
             return;
         }
 
+        errorRemoto = error || new Error('Supabase no devolvio la guia guardada.');
         console.warn('No se pudo guardar guia remota:', error);
     }
 
@@ -1369,9 +1392,14 @@ async function guardarGuiaOperativa(event) {
     guardarGuiasLocales();
     renderizarGuiasOperativas();
     cancelarEdicionGuia();
+    seleccionarModulo(modulo, { desplazar: false });
+    actualizarResultadosBusquedaGlobal();
+    actualizarProgresoCapacitacionUI();
+    actualizarResumenUI();
 
     if (estado) {
-        estado.textContent = 'Guia guardada en este dispositivo. Ejecuta la actualizacion SQL para compartirla.';
+        const detalle = errorRemoto?.message ? ` Motivo: ${errorRemoto.message}` : '';
+        estado.textContent = `Guia visible solo en este dispositivo; no se pudo compartir.${detalle}`;
         estado.dataset.status = 'warning';
     }
 }
