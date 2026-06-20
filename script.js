@@ -283,6 +283,7 @@ let progresoUsuariosAdmin = {};
 let usuariosAdmin = [];
 let canalGuiasOperativas = null;
 let busquedaGlobal = '';
+let elementoRetornoPanelAdmin = null;
 let filtrosHistorial = {
     fecha: '',
     codigo: '',
@@ -482,6 +483,11 @@ function cerrarPanelesAdmin() {
     }
 
     document.body.classList.remove('admin-panel-open');
+
+    if (elementoRetornoPanelAdmin?.isConnected) {
+        elementoRetornoPanelAdmin.focus();
+    }
+    elementoRetornoPanelAdmin = null;
 }
 
 function alternarPanelAdmin(tipo) {
@@ -496,6 +502,10 @@ function alternarPanelAdmin(tipo) {
     const abrirGuias = tipo === 'guias' ? panelGuias.hidden : false;
     const abrirUsuarios = tipo === 'usuarios' ? panelUsuarios.hidden : false;
 
+    if (abrirGuias || abrirUsuarios) {
+        elementoRetornoPanelAdmin = document.activeElement;
+    }
+
     panelGuias.hidden = !abrirGuias;
     panelUsuarios.hidden = !abrirUsuarios;
     panelGuias.classList.toggle('panel-open', abrirGuias);
@@ -508,10 +518,12 @@ function alternarPanelAdmin(tipo) {
 
     if (abrirGuias) {
         renderizarTareasBorrador();
+        panelGuias.querySelector('[data-close-admin-panel]')?.focus();
     }
 
     if (abrirUsuarios) {
         cargarUsuariosAdmin();
+        panelUsuarios.querySelector('[data-close-admin-panel]')?.focus();
     }
 }
 
@@ -3478,6 +3490,122 @@ function obtenerLogoReporteURL() {
     return new URL('assets/urbapark-logo.png', window.location.href).href;
 }
 
+function crearContenidoPdfGuias() {
+    const etiquetasModulo = {
+        mantenimiento: 'Mantenimiento',
+        operaciones: 'Operaciones',
+        caja: 'Caja',
+        ronda: 'Ronda'
+    };
+    const fechaGeneracion = formatearFechaHoraISO(new Date().toISOString());
+    const logoURL = obtenerLogoReporteURL();
+    const secciones = guiasOperativas.map((guia, indiceGuia) => {
+        const pasos = guia.pasos.map((paso, indicePaso) => {
+            const foto = paso.foto?.dataUrl
+                ? `<img src="${escaparHTML(paso.foto.dataUrl)}" alt="Foto de la tarea ${indicePaso + 1}">`
+                : '';
+
+            return `
+                <li>
+                    <div class="step-copy">
+                        <h3>${escaparHTML(paso.titulo || `Tarea ${indicePaso + 1}`)}</h3>
+                        <p>${escaparHTML(paso.descripcion)}</p>
+                    </div>
+                    ${foto}
+                </li>
+            `;
+        }).join('');
+
+        return `
+            <article class="guide${indiceGuia === 0 ? ' first-guide' : ''}">
+                <p class="module">${escaparHTML(etiquetasModulo[guia.modulo] || guia.modulo)}</p>
+                <h2>${escaparHTML(guia.titulo)}</h2>
+                ${guia.descripcion ? `<p class="description">${escaparHTML(guia.descripcion)}</p>` : ''}
+                <ol>${pasos}</ol>
+                <footer>Guia ${indiceGuia + 1} de ${guiasOperativas.length}</footer>
+            </article>
+        `;
+    }).join('');
+
+    return `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guias operativas UrbaPark</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 28px; color: #172033; font-family: Arial, sans-serif; background: #eef5f8; }
+        main { max-width: 920px; margin: 0 auto; }
+        .actions { margin-bottom: 18px; text-align: right; }
+        button { min-height: 42px; padding: 10px 16px; border: 0; border-radius: 6px; background: #1474a8; color: #fff; font-weight: 700; cursor: pointer; }
+        .cover, .guide { padding: 28px; border: 1px solid #ccd8df; border-top: 8px solid #f04b23; border-radius: 8px; background: #fff; }
+        .cover { margin-bottom: 22px; }
+        .cover-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+        .cover img { width: 190px; max-width: 42%; height: auto; }
+        h1, h2, h3, p { margin-top: 0; }
+        h1 { margin-bottom: 8px; color: #1474a8; font-size: 30px; }
+        h2 { margin-bottom: 8px; color: #172033; font-size: 26px; }
+        h3 { margin-bottom: 6px; font-size: 17px; }
+        .generated, .description { color: #526273; line-height: 1.5; }
+        .module { display: inline-block; margin-bottom: 12px; padding: 5px 9px; border-radius: 4px; background: #e7f5fb; color: #0f668f; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+        .guide { margin-bottom: 22px; break-inside: avoid; }
+        ol { margin: 22px 0 0; padding-left: 28px; }
+        li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 240px); gap: 18px; margin-bottom: 18px; padding: 16px; border: 1px solid #dce5ea; border-radius: 7px; background: #f8fbfc; break-inside: avoid; }
+        li::marker { color: #f04b23; font-weight: 800; }
+        li p { margin-bottom: 0; line-height: 1.55; white-space: pre-wrap; }
+        li img { width: 100%; max-height: 180px; border-radius: 6px; object-fit: cover; }
+        footer { margin-top: 18px; padding-top: 12px; border-top: 1px solid #dce5ea; color: #667785; font-size: 12px; text-align: right; }
+        @media (max-width: 620px) { li { grid-template-columns: 1fr; } }
+        @page { size: A4; margin: 14mm; }
+        @media print {
+            body { padding: 0; background: #fff; }
+            .actions { display: none; }
+            .cover, .guide { border-right: 0; border-bottom: 0; border-left: 0; box-shadow: none; }
+            .guide:not(.first-guide) { break-before: page; }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="actions"><button type="button" onclick="window.print()">Imprimir / guardar PDF</button></div>
+        <header class="cover">
+            <div class="cover-header">
+                <div>
+                    <h1>Guias operativas</h1>
+                    <p class="generated">${guiasOperativas.length} guias disponibles<br>Generado: ${escaparHTML(fechaGeneracion)}</p>
+                </div>
+                <img src="${escaparHTML(logoURL)}" alt="UrbaPark">
+            </div>
+        </header>
+        ${secciones}
+    </main>
+</body>
+</html>`;
+}
+
+function generarPdfGuias() {
+    if (!guiasOperativas.length) {
+        mostrarToast('Aun no hay guias para generar el PDF.');
+        return;
+    }
+
+    const ventana = window.open('', '_blank');
+    if (!ventana) {
+        mostrarToast('Permite ventanas emergentes para generar el PDF.');
+        return;
+    }
+
+    const html = crearContenidoPdfGuias();
+    ventana.addEventListener('load', () => {
+        ventana.setTimeout(() => ventana.print(), 500);
+    }, { once: true });
+    ventana.document.open();
+    ventana.document.write(html);
+    ventana.document.close();
+    ventana.focus();
+}
+
 function crearContenidoInforme(codigo) {
     const info = codigosEmergencia[codigo];
     const estado = obtenerEstadoChecklist(codigo);
@@ -4236,6 +4364,7 @@ function configurarEventos() {
     obtenerElemento('refreshUsers')?.addEventListener('click', cargarUsuariosAdmin);
     obtenerElemento('toggleGuideAdmin')?.addEventListener('click', () => alternarPanelAdmin('guias'));
     obtenerElemento('toggleUsersAdmin')?.addEventListener('click', () => alternarPanelAdmin('usuarios'));
+    obtenerElemento('exportGuidesPdf')?.addEventListener('click', generarPdfGuias);
     obtenerElemento('createUserForm')?.addEventListener('submit', crearUsuarioDesdeAdmin);
     obtenerElemento('globalSearchInput')?.addEventListener('input', event => {
         busquedaGlobal = event.target.value;
@@ -4258,6 +4387,11 @@ function configurarEventos() {
     });
 
     document.querySelector('main').addEventListener('click', event => {
+        if (event.target.closest('[data-close-admin-panel]')) {
+            cerrarPanelesAdmin();
+            return;
+        }
+
         const boton = event.target.closest('button[data-delete-guide]');
         if (boton) {
             eliminarGuiaOperativa(boton.dataset.deleteGuide);
@@ -4285,6 +4419,18 @@ function configurarEventos() {
         const foto = event.target.closest('[data-preview-photo]');
         if (foto) {
             abrirPreviewFoto(foto.dataset.previewPhoto, foto.dataset.previewTitle || 'Foto');
+        }
+    });
+
+    document.addEventListener('click', event => {
+        if (!document.body.classList.contains('admin-panel-open')) {
+            return;
+        }
+
+        const dentroDelPanel = event.target.closest('.admin-guide-panel.panel-open');
+        const botonApertura = event.target.closest('#toggleGuideAdmin, #toggleUsersAdmin');
+        if (!dentroDelPanel && !botonApertura) {
+            cerrarPanelesAdmin();
         }
     });
 

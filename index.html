@@ -155,10 +155,12 @@
                         aria-expanded="false"
                         aria-controls="adminUsersPanel"
                     >Usuarios y roles</button>
+                    <button class="clear-btn" type="button" id="exportGuidesPdf">PDF de guias</button>
                 </div>
             </section>
 
-            <section class="admin-guide-panel" id="adminGuidePanel" aria-labelledby="adminGuideTitle" hidden>
+            <section class="admin-guide-panel" id="adminGuidePanel" role="dialog" aria-modal="true" aria-labelledby="adminGuideTitle" tabindex="-1" hidden>
+                <button class="modal-close admin-panel-close" type="button" data-close-admin-panel aria-label="Cerrar creador de guias" title="Cerrar">&times;</button>
                 <div class="section-heading">
                     <div>
                         <p class="eyebrow">Solo administradores</p>
@@ -198,7 +200,8 @@
                 </form>
             </section>
 
-            <section class="admin-guide-panel admin-users-panel" id="adminUsersPanel" aria-labelledby="adminUsersTitle" hidden>
+            <section class="admin-guide-panel admin-users-panel" id="adminUsersPanel" role="dialog" aria-modal="true" aria-labelledby="adminUsersTitle" tabindex="-1" hidden>
+                <button class="modal-close admin-panel-close" type="button" data-close-admin-panel aria-label="Cerrar usuarios y roles" title="Cerrar">&times;</button>
                 <div class="section-heading">
                     <div>
                         <p class="eyebrow">Solo administradores</p>
