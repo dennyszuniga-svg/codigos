@@ -3,6 +3,7 @@ const STORAGE_KEYS = {
     checklist: 'estadoChecklistCodigos',
     guides: 'guiasOperativas',
     guideProgress: 'progresoGuiasOperativas',
+    guideImagesMigrated: 'fotosGuiasMigradasAStorage',
     theme: 'temaCodigosUrbapark'
 };
 
@@ -17,6 +18,8 @@ const SUPABASE_ESM_SOURCES = [
 ];
 
 const VAPID_PUBLIC_KEY = 'BPA1HvZlxREjSH6MTsm1lK150EAsO-rk6v_ANrYesBXgnCDfBpFQ5HrHnvvGUvvT7ObMR21kRIpD98uwXIBFbjE';
+const GUIDE_IMAGE_BUCKET = 'guide-images';
+const GUIDE_IMAGE_URL_TTL = 60 * 60;
 
 const MAX_HISTORIAL = 10;
 
@@ -916,10 +919,19 @@ function normalizarGuiaOperativa(guia) {
                 }
 
                 if (paso && typeof paso === 'object') {
+                    const foto = paso.foto && typeof paso.foto === 'object'
+                        ? {
+                            path: typeof paso.foto.path === 'string' ? paso.foto.path : '',
+                            url: typeof paso.foto.url === 'string' ? paso.foto.url : '',
+                            dataUrl: typeof paso.foto.dataUrl === 'string' ? paso.foto.dataUrl : '',
+                            nombre: paso.foto.nombre || '',
+                            agregadaEn: paso.foto.agregadaEn || ''
+                        }
+                        : null;
                     return {
                         titulo: paso.titulo || `Tarea ${indice + 1}`,
                         descripcion: paso.descripcion || paso.texto || '',
-                        foto: paso.foto && typeof paso.foto === 'object' ? paso.foto : null
+                        foto
                     };
                 }
 
@@ -939,6 +951,36 @@ function normalizarGuiaOperativa(guia) {
         updatedAt: guia.updated_at || guia.updatedAt || guia.created_at || guia.createdAt || new Date().toISOString(),
         remoto: Boolean(guia.id && !String(guia.id).startsWith('local-'))
     };
+}
+
+function obtenerFuenteFotoGuia(foto) {
+    return foto?.url || foto?.dataUrl || '';
+}
+
+async function hidratarFotosGuias(guias) {
+    if (!supabaseClient || !sesionActual?.user) {
+        return guias;
+    }
+
+    const fotos = guias.flatMap(guia => guia.pasos.map(paso => paso.foto).filter(foto => foto?.path));
+    const rutas = [...new Set(fotos.map(foto => foto.path))];
+    const urls = new Map();
+
+    await Promise.all(rutas.map(async path => {
+        const { data, error } = await supabaseClient.storage
+            .from(GUIDE_IMAGE_BUCKET)
+            .createSignedUrl(path, GUIDE_IMAGE_URL_TTL);
+        if (!error && data?.signedUrl) {
+            urls.set(path, data.signedUrl);
+        } else {
+            console.warn(`No se pudo abrir la foto ${path}:`, error);
+        }
+    }));
+
+    fotos.forEach(foto => {
+        foto.url = urls.get(foto.path) || '';
+    });
+    return guias;
 }
 
 async function cargarGuiasRemotas() {
@@ -962,9 +1004,12 @@ async function cargarGuiasRemotas() {
         String(guia.id).startsWith('local-')
     );
 
+    const guiasRemotas = data.map(normalizarGuiaOperativa);
+    await hidratarFotosGuias(guiasRemotas);
+
     guiasRemotasActivas = true;
     guiasOperativas = [
-        ...data.map(normalizarGuiaOperativa),
+        ...guiasRemotas,
         ...guiasLocalesPendientes
     ];
     guardarGuiasLocales();
@@ -1016,13 +1061,16 @@ function crearGuiaElemento(guia) {
         detalle.textContent = paso.descripcion;
         foto.className = 'photo-placeholder';
 
-        if (paso.foto?.dataUrl) {
+        const fuenteFoto = obtenerFuenteFotoGuia(paso.foto);
+        if (fuenteFoto) {
             const imagen = document.createElement('img');
             const caption = document.createElement('figcaption');
-            imagen.src = paso.foto.dataUrl;
+            imagen.src = fuenteFoto;
             imagen.alt = `Foto referencial de ${pasoTitulo.textContent}`;
+            imagen.loading = 'lazy';
+            imagen.decoding = 'async';
             imagen.tabIndex = 0;
-            imagen.dataset.previewPhoto = paso.foto.dataUrl;
+            imagen.dataset.previewPhoto = fuenteFoto;
             imagen.dataset.previewTitle = `${guia.titulo} - ${pasoTitulo.textContent}`;
             caption.textContent = paso.foto.nombre || 'Foto referencial de la tarea.';
             foto.classList.add('photo-placeholder-filled');
@@ -1173,13 +1221,14 @@ function renderizarTareasBorrador() {
         fotoEstado.textContent = tarea.foto ? 'Foto agregada' : 'Sin foto';
         fotoArea.append(fotoLabel, fotoEstado);
 
-        if (tarea.foto?.dataUrl) {
+        const fuenteFoto = obtenerFuenteFotoGuia(tarea.foto);
+        if (fuenteFoto) {
             const preview = document.createElement('img');
             preview.className = 'guide-task-preview';
-            preview.src = tarea.foto.dataUrl;
+            preview.src = fuenteFoto;
             preview.alt = `Foto de la tarea ${indice + 1}`;
             preview.tabIndex = 0;
-            preview.dataset.previewPhoto = tarea.foto.dataUrl;
+            preview.dataset.previewPhoto = fuenteFoto;
             preview.dataset.previewTitle = `Tarea ${indice + 1}`;
             fotoArea.appendChild(preview);
         }
@@ -1313,6 +1362,108 @@ async function actualizarFotoTareaBorrador(input) {
     }
 }
 
+function obtenerRutasFotosPasos(pasos) {
+    return pasos
+        .map(paso => paso.foto?.path)
+        .filter(Boolean);
+}
+
+async function eliminarFotosGuias(rutas) {
+    const rutasUnicas = [...new Set(rutas.filter(Boolean))];
+    if (!supabaseClient || !rutasUnicas.length) {
+        return;
+    }
+
+    const { error } = await supabaseClient.storage
+        .from(GUIDE_IMAGE_BUCKET)
+        .remove(rutasUnicas);
+    if (error) {
+        console.warn('No se pudieron eliminar fotos de guia:', error);
+    }
+}
+
+async function subirFotosPasosGuia(pasos, guiaId) {
+    const rutasNuevas = [];
+    const carpetaGuia = guiaId && !String(guiaId).startsWith('local-')
+        ? guiaId
+        : crypto.randomUUID();
+
+    try {
+        const pasosPreparados = [];
+        for (const paso of pasos) {
+            const foto = paso.foto;
+            if (!foto?.dataUrl || foto.path) {
+                pasosPreparados.push({
+                    ...paso,
+                    foto: foto
+                        ? {
+                            path: foto.path || '',
+                            nombre: foto.nombre || '',
+                            agregadaEn: foto.agregadaEn || ''
+                        }
+                        : null
+                });
+                continue;
+            }
+
+            const blob = await fetch(foto.dataUrl).then(response => response.blob());
+            const extension = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
+            const path = `${sesionActual.user.id}/${carpetaGuia}/${crypto.randomUUID()}.${extension}`;
+            const { error } = await supabaseClient.storage
+                .from(GUIDE_IMAGE_BUCKET)
+                .upload(path, blob, {
+                    contentType: blob.type || 'image/jpeg',
+                    upsert: false
+                });
+            if (error) {
+                throw error;
+            }
+
+            rutasNuevas.push(path);
+            pasosPreparados.push({
+                ...paso,
+                foto: {
+                    path,
+                    nombre: foto.nombre || `foto-guia.${extension}`,
+                    agregadaEn: foto.agregadaEn || obtenerFechaHoraActual().iso
+                }
+            });
+        }
+
+        return { pasos: pasosPreparados, rutasNuevas };
+    } catch (error) {
+        await eliminarFotosGuias(rutasNuevas);
+        throw error;
+    }
+}
+
+async function migrarFotosGuiasLegacy() {
+    if (!usuarioEsAdmin() || !supabaseClient || !sesionActual?.user) {
+        return;
+    }
+
+    if (localStorage.getItem(STORAGE_KEYS.guideImagesMigrated) === '1') {
+        return;
+    }
+
+    try {
+        const { data, error } = await supabaseClient.functions.invoke('migrate-guide-images', {
+            body: {}
+        });
+        if (error) {
+            console.warn('No se pudo migrar fotos antiguas:', error);
+            return;
+        }
+
+        if (data?.migratedPhotos > 0) {
+            mostrarToast(`${data.migratedPhotos} fotos de guias fueron optimizadas.`);
+        }
+        localStorage.setItem(STORAGE_KEYS.guideImagesMigrated, '1');
+    } catch (error) {
+        console.warn('Migracion de fotos no disponible:', error);
+    }
+}
+
 async function guardarGuiaOperativa(event) {
     event.preventDefault();
 
@@ -1335,7 +1486,7 @@ async function guardarGuiaOperativa(event) {
         return;
     }
 
-    const guia = {
+    const guiaLocal = {
         modulo,
         titulo,
         descripcion,
@@ -1352,6 +1503,32 @@ async function guardarGuiaOperativa(event) {
     let errorRemoto = null;
 
     if (supabaseClient && sesionActual?.user) {
+        let rutasNuevas = [];
+        let pasosRemotos = pasos;
+        try {
+            const tieneFotosNuevas = pasos.some(paso => paso.foto?.dataUrl && !paso.foto?.path);
+            if (tieneFotosNuevas) {
+                if (estado) {
+                    estado.textContent = 'Subiendo fotos de la guia...';
+                    estado.dataset.status = 'info';
+                }
+            }
+            const subida = await subirFotosPasosGuia(pasos, editandoId);
+            pasosRemotos = subida.pasos;
+            rutasNuevas = subida.rutasNuevas;
+        } catch (error) {
+            console.warn('No se pudieron subir fotos de la guia:', error);
+            if (estado) {
+                estado.textContent = `No se pudieron subir las fotos. ${error.message || ''}`.trim();
+                estado.dataset.status = 'error';
+            }
+            return;
+        }
+
+        const guiaRemota = {
+            ...guiaLocal,
+            pasos: pasosRemotos
+        };
         const editandoRemota = editandoId && !String(editandoId).startsWith('local-');
         const consulta = editandoRemota
             ? supabaseClient
@@ -1360,14 +1537,14 @@ async function guardarGuiaOperativa(event) {
                     modulo,
                     titulo,
                     descripcion,
-                    pasos
+                    pasos: pasosRemotos
                 })
                 .eq('id', editandoId)
                 .select('id,modulo,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
                 .single()
             : supabaseClient
                 .from('guias_operativas')
-                .insert(guia)
+                .insert(guiaRemota)
                 .select('id,modulo,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
                 .single();
 
@@ -1375,6 +1552,11 @@ async function guardarGuiaOperativa(event) {
 
         if (!error && data) {
             const guiaGuardada = normalizarGuiaOperativa(data);
+            await hidratarFotosGuias([guiaGuardada]);
+            const guiaAnterior = guiasOperativas.find(item => item.id === editandoId);
+            const rutasAnteriores = guiaAnterior ? obtenerRutasFotosPasos(guiaAnterior.pasos) : [];
+            const rutasActuales = obtenerRutasFotosPasos(guiaGuardada.pasos);
+            await eliminarFotosGuias(rutasAnteriores.filter(path => !rutasActuales.includes(path)));
             guiasOperativas = editandoId
                 ? guiasOperativas.map(item => item.id === editandoId ? guiaGuardada : item)
                 : [guiaGuardada, ...guiasOperativas.filter(item => item.id !== guiaGuardada.id)];
@@ -1392,12 +1574,13 @@ async function guardarGuiaOperativa(event) {
             return;
         }
 
+        await eliminarFotosGuias(rutasNuevas);
         errorRemoto = error || new Error('Supabase no devolvio la guia guardada.');
         console.warn('No se pudo guardar guia remota:', error);
     }
 
     const local = normalizarGuiaOperativa({
-        ...guia,
+        ...guiaLocal,
         id: editandoId || `local-${Date.now()}`,
         createdAt: new Date().toISOString()
     });
@@ -1426,6 +1609,8 @@ async function eliminarGuiaOperativa(id) {
         return;
     }
 
+    const guia = guiasOperativas.find(item => item.id === id);
+
     if (supabaseClient && !String(id).startsWith('local-')) {
         const { error } = await supabaseClient
             .from('guias_operativas')
@@ -1433,6 +1618,7 @@ async function eliminarGuiaOperativa(id) {
             .eq('id', id);
 
         if (!error) {
+            await eliminarFotosGuias(guia ? obtenerRutasFotosPasos(guia.pasos) : []);
             await cargarGuiasRemotas();
             return;
         }
@@ -2018,6 +2204,7 @@ async function aplicarSesion(session) {
         registrarSuscripcionPush();
     }
     await cargarPerfilActual();
+    await migrarFotosGuiasLegacy();
     await cargarGuiasRemotas();
     await cargarProgresoGuiasRemoto();
     await cargarHistorialRemoto();
@@ -3506,8 +3693,9 @@ function crearContenidoPdfGuias(guias) {
     const logoURL = obtenerLogoReporteURL();
     const secciones = guias.map((guia, indiceGuia) => {
         const pasos = guia.pasos.map((paso, indicePaso) => {
-            const foto = paso.foto?.dataUrl
-                ? `<img src="${escaparHTML(paso.foto.dataUrl)}" alt="Foto de la tarea ${indicePaso + 1}">`
+            const fuenteFoto = obtenerFuenteFotoGuia(paso.foto);
+            const foto = fuenteFoto
+                ? `<img src="${escaparHTML(fuenteFoto)}" alt="Foto de la tarea ${indicePaso + 1}">`
                 : '';
             const claseFoto = foto ? ' class="has-photo"' : '';
 
