@@ -193,6 +193,16 @@
                             <option value="ronda">Ronda</option>
                         </select>
                     </label>
+                    <label id="guideSiteField">
+                        Sede
+                        <select id="guideSite" required>
+                            <option value="puruchuco">Real Plaza Puruchuco</option>
+                            <option value="salaverry">Real Plaza Salaverry</option>
+                            <option value="primavera">Real Plaza Primavera</option>
+                            <option value="civico">Real Plaza Civico</option>
+                            <option value="gama">GAMA</option>
+                        </select>
+                    </label>
                     <label>
                         Titulo de la tarea
                         <input id="guideTitle" type="text" placeholder="Ej. Cobro manual, ronda de apertura, revision de barrera" required>
@@ -395,7 +405,14 @@
                         </div>
                     </div>
 
-                    <div class="procedure-list" aria-label="Procedimientos de mantenimiento">
+                    <div class="site-navigation" data-site-navigation="mantenimiento" aria-label="Seleccionar sede de mantenimiento"></div>
+                    <p class="site-context" id="siteContext-mantenimiento"></p>
+
+                    <div class="shared-guides-heading">
+                        <strong>Procedimientos generales</strong>
+                        <span>Disponibles para las cinco sedes</span>
+                    </div>
+                    <div class="procedure-list" aria-label="Procedimientos generales de mantenimiento">
                         <details class="procedure-card">
                             <summary>
                                 <span class="procedure-icon" aria-hidden="true">
@@ -531,17 +548,21 @@
             </section>
 
             <section id="module-caja" class="module-content" aria-labelledby="moduleCajaTitle" hidden>
-                <div class="module-placeholder">
+                <div class="module-placeholder site-module-header">
                     <h2 id="moduleCajaTitle">Caja</h2>
-                    <p>Contenido pendiente. Aqui se podran colocar procesos, alertas y guias de atencion para caja.</p>
+                    <p>Selecciona una sede para consultar sus procesos, alertas y guias de atencion para caja.</p>
+                    <div class="site-navigation" data-site-navigation="caja" aria-label="Seleccionar sede de caja"></div>
+                    <p class="site-context" id="siteContext-caja"></p>
                 </div>
                 <div id="dynamicGuides-caja" class="dynamic-guides" aria-label="Guias agregadas de caja"></div>
             </section>
 
             <section id="module-ronda" class="module-content" aria-labelledby="moduleRondaTitle" hidden>
-                <div class="module-placeholder">
+                <div class="module-placeholder site-module-header">
                     <h2 id="moduleRondaTitle">Ronda</h2>
-                    <p>Contenido pendiente. Este modulo queda listo para rondas, verificaciones y tareas de apoyo en campo.</p>
+                    <p>Selecciona una sede para consultar rondas, verificaciones y tareas de apoyo en campo.</p>
+                    <div class="site-navigation" data-site-navigation="ronda" aria-label="Seleccionar sede de ronda"></div>
+                    <p class="site-context" id="siteContext-ronda"></p>
                 </div>
                 <div id="dynamicGuides-ronda" class="dynamic-guides" aria-label="Guias agregadas de ronda"></div>
             </section>

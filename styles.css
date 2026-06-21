@@ -590,6 +590,10 @@ body.dark-theme .theme-icon-moon {
     font-weight: 900;
 }
 
+.site-module-header::before {
+    content: "Sedes";
+}
+
 .module-placeholder h2 {
     margin-bottom: 8px;
     color: var(--brand-blue-dark);
@@ -833,6 +837,84 @@ body.dark-theme .bottom-nav button:hover {
 
 .dynamic-guides:empty {
     display: none;
+}
+
+.site-navigation {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 18px;
+}
+
+.site-button {
+    min-height: 48px;
+    padding: 9px 10px;
+    border: 1px solid #b8d7e8;
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--brand-blue-dark);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 850;
+    line-height: 1.25;
+    transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.site-button:hover {
+    border-color: var(--brand-blue);
+    transform: translateY(-1px);
+}
+
+.site-button[aria-pressed="true"] {
+    border-color: var(--brand-blue);
+    background: var(--brand-blue);
+    color: #ffffff;
+    box-shadow: 0 7px 16px rgba(20, 116, 168, 0.2);
+}
+
+.site-context {
+    margin: 10px 0 0;
+    color: var(--muted);
+    font-size: 0.88rem;
+    font-weight: 750;
+}
+
+.shared-guides-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 20px 0 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--brand-blue-dark);
+}
+
+.shared-guides-heading span {
+    color: var(--muted);
+    font-size: 0.82rem;
+}
+
+.empty-site-guides {
+    margin: 0;
+    padding: 18px;
+    border: 1px dashed #b8d7e8;
+    border-radius: 8px;
+    background: var(--surface-muted);
+    color: var(--muted);
+    text-align: center;
+}
+
+body.dark-theme .site-button {
+    border-color: var(--border);
+    background: var(--surface-muted);
+}
+
+body.dark-theme .site-button[aria-pressed="true"] {
+    border-color: #38bdf8;
+    background: #0f668f;
+    color: #ffffff;
 }
 
 .guide-meta {
@@ -2410,6 +2492,16 @@ body.dark-theme .modal-dialog {
     .module-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 16px 8px;
+    }
+
+    .site-navigation {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .shared-guides-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
     }
 
     .bottom-nav:not([hidden]) {

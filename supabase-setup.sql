@@ -56,6 +56,8 @@ create table if not exists public.guias_operativas (
     id uuid primary key default gen_random_uuid(),
     modulo text not null
         check (modulo in ('mantenimiento', 'operaciones', 'caja', 'ronda')),
+    sede text not null default 'general'
+        check (sede in ('general', 'puruchuco', 'salaverry', 'primavera', 'civico', 'gama')),
     titulo text not null,
     descripcion text,
     pasos jsonb not null default '[]'::jsonb,
@@ -321,6 +323,9 @@ on public.push_subscriptions (user_id);
 
 create index if not exists guias_operativas_modulo_idx
 on public.guias_operativas (modulo);
+
+create index if not exists guias_operativas_sede_idx
+on public.guias_operativas (modulo, sede);
 
 create index if not exists guia_progreso_user_id_idx
 on public.guia_progreso (user_id);

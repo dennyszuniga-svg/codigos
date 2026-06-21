@@ -20,6 +20,14 @@ const SUPABASE_ESM_SOURCES = [
 const VAPID_PUBLIC_KEY = 'BPA1HvZlxREjSH6MTsm1lK150EAsO-rk6v_ANrYesBXgnCDfBpFQ5HrHnvvGUvvT7ObMR21kRIpD98uwXIBFbjE';
 const GUIDE_IMAGE_BUCKET = 'guide-images';
 const GUIDE_IMAGE_URL_TTL = 60 * 60;
+const SEDES_OPERACION = [
+    { id: 'puruchuco', nombre: 'Real Plaza Puruchuco' },
+    { id: 'salaverry', nombre: 'Real Plaza Salaverry' },
+    { id: 'primavera', nombre: 'Real Plaza Primavera' },
+    { id: 'civico', nombre: 'Real Plaza Civico' },
+    { id: 'gama', nombre: 'GAMA' }
+];
+const MODULOS_POR_SEDE = new Set(['mantenimiento', 'caja', 'ronda']);
 
 const MAX_HISTORIAL = 10;
 
@@ -287,6 +295,11 @@ let usuariosAdmin = [];
 let canalGuiasOperativas = null;
 let busquedaGlobal = '';
 let elementoRetornoPanelAdmin = null;
+let sedeActivaPorModulo = {
+    mantenimiento: 'puruchuco',
+    caja: 'gama',
+    ronda: 'puruchuco'
+};
 let filtrosHistorial = {
     fecha: '',
     codigo: '',
@@ -907,6 +920,42 @@ async function cargarProgresoGuiasRemoto() {
     actualizarProgresoCapacitacionUI();
 }
 
+function obtenerNombreSede(sede) {
+    return SEDES_OPERACION.find(item => item.id === sede)?.nombre || 'Todas las sedes';
+}
+
+function normalizarSedeGuia(guia) {
+    const sede = String(guia.sede || '').toLowerCase();
+    if (sede === 'general' || SEDES_OPERACION.some(item => item.id === sede)) {
+        return sede;
+    }
+
+    return guia.modulo === 'caja' ? 'gama' : 'general';
+}
+
+function actualizarCampoSedeGuia() {
+    const modulo = obtenerElemento('guideModule')?.value;
+    const campo = obtenerElemento('guideSiteField');
+    const selector = obtenerElemento('guideSite');
+    const usaSede = MODULOS_POR_SEDE.has(modulo);
+
+    if (!campo || !selector) {
+        return;
+    }
+
+    campo.hidden = !usaSede;
+    selector.disabled = !usaSede;
+    if (!usaSede) {
+        selector.value = 'puruchuco';
+        return;
+    }
+
+    const sedePreferida = sedeActivaPorModulo[modulo] || 'puruchuco';
+    if (!SEDES_OPERACION.some(item => item.id === selector.value)) {
+        selector.value = sedePreferida;
+    }
+}
+
 function normalizarGuiaOperativa(guia) {
     const pasos = Array.isArray(guia.pasos)
         ? guia.pasos
@@ -944,6 +993,7 @@ function normalizarGuiaOperativa(guia) {
     return {
         id: guia.id || `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         modulo: guia.modulo,
+        sede: normalizarSedeGuia(guia),
         titulo: guia.titulo || 'Guia sin titulo',
         descripcion: guia.descripcion || '',
         pasos,
@@ -991,7 +1041,7 @@ async function cargarGuiasRemotas() {
 
     const { data, error } = await supabaseClient
         .from('guias_operativas')
-        .select('id,modulo,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
+        .select('id,modulo,sede,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
         .order('updated_at', { ascending: false });
 
     if (error) {
@@ -1096,9 +1146,11 @@ function crearGuiaElemento(guia) {
     });
 
     meta.className = 'guide-meta';
-    meta.textContent = guia.creadoPorEmail
+    const sedeTexto = guia.sede === 'general' ? 'Todas las sedes' : obtenerNombreSede(guia.sede);
+    const autoria = guia.creadoPorEmail
         ? `Creado por ${guia.creadoPorEmail}`
         : 'Guia agregada por administrador';
+    meta.textContent = `${sedeTexto} - ${autoria}`;
 
     cuerpo.append(lista, meta);
 
@@ -1138,7 +1190,52 @@ function crearGuiaElemento(guia) {
     return details;
 }
 
+function renderizarNavegacionSedes() {
+    MODULOS_POR_SEDE.forEach(modulo => {
+        const contenedor = document.querySelector(`[data-site-navigation="${modulo}"]`);
+        const contexto = obtenerElemento(`siteContext-${modulo}`);
+        if (!contenedor) {
+            return;
+        }
+
+        limpiarElemento(contenedor);
+        SEDES_OPERACION.forEach(sede => {
+            const boton = document.createElement('button');
+            const activa = sedeActivaPorModulo[modulo] === sede.id;
+            boton.className = 'site-button';
+            boton.type = 'button';
+            boton.dataset.selectSite = sede.id;
+            boton.dataset.siteModule = modulo;
+            boton.textContent = sede.nombre;
+            boton.setAttribute('aria-pressed', activa ? 'true' : 'false');
+            contenedor.appendChild(boton);
+        });
+
+        if (contexto) {
+            const sede = obtenerNombreSede(sedeActivaPorModulo[modulo]);
+            contexto.textContent = modulo === 'mantenimiento'
+                ? `Consultando ${sede}. Las guias generales tambien se muestran en esta sede.`
+                : `Consultando guias de ${sede}.`;
+        }
+    });
+}
+
+function seleccionarSedeModulo(modulo, sede, opciones = {}) {
+    if (!MODULOS_POR_SEDE.has(modulo) || !SEDES_OPERACION.some(item => item.id === sede)) {
+        return;
+    }
+
+    sedeActivaPorModulo[modulo] = sede;
+    renderizarGuiasOperativas();
+
+    if (opciones.desplazar) {
+        obtenerElemento(`module-${modulo}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
 function renderizarGuiasOperativas() {
+    renderizarNavegacionSedes();
+
     ['mantenimiento', 'operaciones', 'caja', 'ronda'].forEach(modulo => {
         const contenedor = obtenerElemento(`dynamicGuides-${modulo}`);
         if (!contenedor) {
@@ -1146,9 +1243,24 @@ function renderizarGuiasOperativas() {
         }
 
         limpiarElemento(contenedor);
-        guiasOperativas
-            .filter(guia => guia.modulo === modulo)
-            .forEach(guia => contenedor.appendChild(crearGuiaElemento(guia)));
+        const sedeActiva = sedeActivaPorModulo[modulo];
+        const guiasModulo = guiasOperativas.filter(guia => {
+            if (guia.modulo !== modulo) {
+                return false;
+            }
+            return !MODULOS_POR_SEDE.has(modulo)
+                || guia.sede === 'general'
+                || guia.sede === sedeActiva;
+        });
+
+        guiasModulo.forEach(guia => contenedor.appendChild(crearGuiaElemento(guia)));
+
+        if (MODULOS_POR_SEDE.has(modulo) && !guiasModulo.length) {
+            const vacio = document.createElement('p');
+            vacio.className = 'empty-site-guides';
+            vacio.textContent = `Aun no hay guias especificas para ${obtenerNombreSede(sedeActiva)}.`;
+            contenedor.appendChild(vacio);
+        }
     });
     actualizarContadoresModulos();
 }
@@ -1161,7 +1273,8 @@ function actualizarContadoresModulos() {
             return;
         }
 
-        const total = document.querySelectorAll(`#module-${modulo} .procedure-card`).length;
+        const guiasBase = modulo === 'mantenimiento' ? 2 : 0;
+        const total = guiasBase + guiasOperativas.filter(guia => guia.modulo === modulo).length;
         const revisadas = guiasOperativas.filter(guia =>
             guia.modulo === modulo && progresoGuias[guia.id]?.revisada
         ).length;
@@ -1333,6 +1446,10 @@ function cargarGuiaEnEditor(id) {
 
     obtenerElemento('guideEditingId').value = guia.id;
     obtenerElemento('guideModule').value = guia.modulo;
+    actualizarCampoSedeGuia();
+    if (MODULOS_POR_SEDE.has(guia.modulo) && guia.sede !== 'general') {
+        obtenerElemento('guideSite').value = guia.sede;
+    }
     obtenerElemento('guideTitle').value = guia.titulo;
     obtenerElemento('guideDescription').value = guia.descripcion || '';
     guiaTareasBorrador = guia.pasos.map(paso => crearTareaBorrador(paso.descripcion, paso.foto));
@@ -1354,6 +1471,7 @@ function cancelarEdicionGuia() {
     obtenerElemento('adminGuideForm')?.reset();
     obtenerElemento('guideEditingId').value = '';
     obtenerElemento('cancelGuideEdit').hidden = true;
+    actualizarCampoSedeGuia();
     reiniciarTareasBorrador();
     const estado = obtenerElemento('guideEditorStatus');
     if (estado) {
@@ -1512,14 +1630,17 @@ async function guardarGuiaOperativa(event) {
 
     const estado = obtenerElemento('guideEditorStatus');
     const modulo = obtenerElemento('guideModule')?.value;
+    const sede = MODULOS_POR_SEDE.has(modulo)
+        ? obtenerElemento('guideSite')?.value
+        : 'general';
     const titulo = obtenerElemento('guideTitle')?.value.trim();
     const descripcion = obtenerElemento('guideDescription')?.value.trim();
     const pasos = obtenerPasosBorrador();
     const editandoId = obtenerElemento('guideEditingId')?.value;
 
-    if (!modulo || !titulo || !pasos.length) {
+    if (!modulo || !sede || !titulo || !pasos.length) {
         if (estado) {
-            estado.textContent = 'Completa titulo y al menos un paso.';
+            estado.textContent = 'Completa sede, titulo y al menos un paso.';
             estado.dataset.status = 'error';
         }
         return;
@@ -1527,6 +1648,7 @@ async function guardarGuiaOperativa(event) {
 
     const guiaLocal = {
         modulo,
+        sede,
         titulo,
         descripcion,
         pasos,
@@ -1574,17 +1696,18 @@ async function guardarGuiaOperativa(event) {
                 .from('guias_operativas')
                 .update({
                     modulo,
+                    sede,
                     titulo,
                     descripcion,
                     pasos: pasosRemotos
                 })
                 .eq('id', editandoId)
-                .select('id,modulo,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
+                .select('id,modulo,sede,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
                 .single()
             : supabaseClient
                 .from('guias_operativas')
                 .insert(guiaRemota)
-                .select('id,modulo,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
+                .select('id,modulo,sede,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
                 .single();
 
         const { data, error } = await consulta;
@@ -1600,6 +1723,9 @@ async function guardarGuiaOperativa(event) {
                 ? guiasOperativas.map(item => item.id === editandoId ? guiaGuardada : item)
                 : [guiaGuardada, ...guiasOperativas.filter(item => item.id !== guiaGuardada.id)];
             guardarGuiasLocales();
+            if (MODULOS_POR_SEDE.has(modulo) && sede !== 'general') {
+                sedeActivaPorModulo[modulo] = sede;
+            }
             renderizarGuiasOperativas();
             cancelarEdicionGuia();
             if (estado) {
@@ -1629,6 +1755,9 @@ async function guardarGuiaOperativa(event) {
         guiasOperativas.unshift(local);
     }
     guardarGuiasLocales();
+    if (MODULOS_POR_SEDE.has(modulo) && sede !== 'general') {
+        sedeActivaPorModulo[modulo] = sede;
+    }
     renderizarGuiasOperativas();
     cancelarEdicionGuia();
     seleccionarModulo(modulo, { desplazar: false });
@@ -2023,10 +2152,16 @@ function obtenerItemsBusqueda() {
     }));
 
     const guias = guiasOperativas.map(guia => ({
-        tipo: `Guia - ${guia.modulo}`,
+        tipo: `Guia - ${guia.modulo}${guia.sede !== 'general' ? ` - ${obtenerNombreSede(guia.sede)}` : ''}`,
         titulo: guia.titulo,
-        detalle: `${guia.descripcion || ''} ${guia.pasos.map(paso => paso.descripcion).join(' ')}`,
-        accion: () => seleccionarModulo(guia.modulo)
+        detalle: `${guia.descripcion || ''} ${guia.sede !== 'general' ? obtenerNombreSede(guia.sede) : ''} ${guia.pasos.map(paso => paso.descripcion).join(' ')}`,
+        accion: () => {
+            if (MODULOS_POR_SEDE.has(guia.modulo) && guia.sede !== 'general') {
+                sedeActivaPorModulo[guia.modulo] = guia.sede;
+                renderizarGuiasOperativas();
+            }
+            seleccionarModulo(guia.modulo);
+        }
     }));
 
     const modulos = [
@@ -3853,7 +3988,7 @@ function crearContenidoPdfGuias(guias) {
             <article class="guide${indiceGuia === 0 ? ' first-guide' : ''}">
                 <header class="guide-header">
                     <div>
-                        <p class="module">${escaparHTML(etiquetasModulo[guia.modulo] || guia.modulo)}</p>
+                        <p class="module">${escaparHTML(`${etiquetasModulo[guia.modulo] || guia.modulo}${guia.sede !== 'general' ? ` - ${obtenerNombreSede(guia.sede)}` : ' - Todas las sedes'}`)}</p>
                         <h2>${escaparHTML(guia.titulo)}</h2>
                         ${guia.descripcion ? `<p class="description">${escaparHTML(guia.descripcion)}</p>` : ''}
                         <p class="generated">Generado: ${escaparHTML(fechaGeneracion)}</p>
@@ -4690,6 +4825,7 @@ function configurarEventos() {
     obtenerElemento('toggleThemeButton')?.addEventListener('click', alternarTema);
     obtenerElemento('bottomNav')?.addEventListener('click', manejarNavegacionInferior);
     obtenerElemento('adminGuideForm')?.addEventListener('submit', guardarGuiaOperativa);
+    obtenerElemento('guideModule')?.addEventListener('change', actualizarCampoSedeGuia);
     obtenerElemento('addGuideTask')?.addEventListener('click', agregarTareaBorrador);
     obtenerElemento('cancelGuideEdit')?.addEventListener('click', cancelarEdicionGuia);
     obtenerElemento('refreshUsers')?.addEventListener('click', cargarUsuariosAdmin);
@@ -4717,6 +4853,12 @@ function configurarEventos() {
     });
 
     document.querySelector('main').addEventListener('click', event => {
+        const botonSede = event.target.closest('button[data-select-site][data-site-module]');
+        if (botonSede) {
+            seleccionarSedeModulo(botonSede.dataset.siteModule, botonSede.dataset.selectSite);
+            return;
+        }
+
         if (event.target.closest('[data-close-admin-panel]')) {
             cerrarPanelesAdmin();
             return;
@@ -5011,6 +5153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     cargarProgresoGuias();
     cargarGuiasLocales();
     reiniciarTareasBorrador();
+    actualizarCampoSedeGuia();
     configurarEventos();
     desactivarTodos();
     seleccionarModulo(null, { desplazar: false });
