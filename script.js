@@ -1783,6 +1783,9 @@ function renderizarUsuariosAdmin() {
         const rol = document.createElement('select');
         const activo = document.createElement('select');
         const guardar = document.createElement('button');
+        const eliminar = document.createElement('button');
+        const acciones = document.createElement('div');
+        const esCuentaActual = usuario.id === sesionActual?.user?.id;
 
         fila.className = 'user-admin-row';
         fila.dataset.userId = usuario.id;
@@ -1819,7 +1822,18 @@ function renderizarUsuariosAdmin() {
         guardar.dataset.saveUser = usuario.id;
         guardar.textContent = 'Guardar';
 
-        fila.append(datos, rol, activo, guardar);
+        eliminar.className = 'clear-btn danger-action';
+        eliminar.type = 'button';
+        eliminar.dataset.deleteUser = usuario.id;
+        eliminar.textContent = esCuentaActual ? 'Tu cuenta' : 'Eliminar';
+        eliminar.disabled = esCuentaActual;
+        eliminar.title = esCuentaActual
+            ? 'No puedes eliminar la cuenta con la que iniciaste sesion'
+            : `Eliminar definitivamente a ${usuario.nombre || usuario.email}`;
+
+        acciones.className = 'user-admin-actions';
+        acciones.append(guardar, eliminar);
+        fila.append(datos, rol, activo, acciones);
         lista.appendChild(fila);
     });
 }
@@ -1845,6 +1859,88 @@ async function guardarUsuarioAdmin(id) {
 
     mostrarToast('Usuario actualizado.');
     await cargarUsuariosAdmin();
+}
+
+async function obtenerMensajeErrorFuncion(error, mensajePredeterminado) {
+    const respuesta = error?.context;
+    if (respuesta && typeof respuesta.clone === 'function') {
+        try {
+            const datos = await respuesta.clone().json();
+            if (datos?.error) {
+                return datos.error;
+            }
+        } catch (errorLectura) {
+            console.warn('No se pudo leer el detalle de la funcion:', errorLectura);
+        }
+    }
+
+    return error?.message || mensajePredeterminado;
+}
+
+async function eliminarUsuarioAdmin(id) {
+    if (!usuarioEsAdmin() || !supabaseClient || !id) {
+        return;
+    }
+
+    if (id === sesionActual?.user?.id) {
+        mostrarToast('No puedes eliminar tu propia cuenta.');
+        return;
+    }
+
+    const usuario = usuariosAdmin.find(item => item.id === id);
+    if (!usuario) {
+        mostrarToast('El usuario ya no aparece en la lista.');
+        return;
+    }
+
+    const identificador = usuario.nombre || usuario.email;
+    const confirmado = window.confirm(
+        `Eliminar definitivamente a ${identificador}?\n\nLa cuenta perdera el acceso y esta accion no se puede deshacer. Los informes historicos se conservaran.`
+    );
+    if (!confirmado) {
+        return;
+    }
+
+    const fila = document.querySelector(`[data-user-id="${id}"]`);
+    const botones = fila?.querySelectorAll('button');
+    const estado = obtenerElemento('usersAdminStatus');
+    botones?.forEach(boton => {
+        boton.disabled = true;
+    });
+
+    if (estado) {
+        estado.textContent = `Eliminando a ${identificador}...`;
+        estado.dataset.status = 'info';
+    }
+
+    try {
+        const { data, error } = await supabaseClient.functions.invoke('delete-user', {
+            body: { userId: id }
+        });
+
+        if (error || data?.error) {
+            const mensaje = data?.error || await obtenerMensajeErrorFuncion(error, 'No se pudo eliminar el usuario.');
+            throw new Error(mensaje);
+        }
+
+        usuariosAdmin = usuariosAdmin.filter(item => item.id !== id);
+        delete progresoUsuariosAdmin[id];
+        renderizarUsuariosAdmin();
+        if (estado) {
+            estado.textContent = `${identificador} fue eliminado correctamente.`;
+            estado.dataset.status = 'success';
+        }
+        mostrarToast(`Usuario eliminado: ${identificador}`);
+    } catch (error) {
+        console.warn('No se pudo eliminar usuario:', error);
+        if (estado) {
+            estado.textContent = error.message || 'No se pudo eliminar el usuario.';
+            estado.dataset.status = 'error';
+        }
+        botones?.forEach(boton => {
+            boton.disabled = false;
+        });
+    }
 }
 
 async function crearUsuarioDesdeAdmin(event) {
@@ -4650,6 +4746,12 @@ function configurarEventos() {
         const guardarUsuario = event.target.closest('button[data-save-user]');
         if (guardarUsuario) {
             guardarUsuarioAdmin(guardarUsuario.dataset.saveUser);
+            return;
+        }
+
+        const eliminarUsuario = event.target.closest('button[data-delete-user]');
+        if (eliminarUsuario) {
+            eliminarUsuarioAdmin(eliminarUsuario.dataset.deleteUser);
             return;
         }
 
