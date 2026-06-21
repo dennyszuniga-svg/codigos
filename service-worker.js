@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codigos-urbapark-v27';
+const CACHE_NAME = 'codigos-urbapark-v28';
 const APP_SHELL = [
     './',
     './index.html',
@@ -36,6 +36,10 @@ self.addEventListener('activate', event => {
                     .map(key => caches.delete(key))
             ))
             .then(() => self.clients.claim())
+            .then(() => self.clients.matchAll({ type: 'window' }))
+            .then(clientList => Promise.all(
+                clientList.map(client => client.navigate(client.url).catch(() => null))
+            ))
     );
 });
 
@@ -53,6 +57,21 @@ self.addEventListener('fetch', event => {
                     return response;
                 })
                 .catch(() => caches.match('./index.html'))
+        );
+        return;
+    }
+
+    const recursoActualizable = ['script', 'style'].includes(event.request.destination);
+
+    if (recursoActualizable) {
+        event.respondWith(
+            fetch(event.request)
+                .then(response => {
+                    const copy = response.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+                    return response;
+                })
+                .catch(() => caches.match(event.request))
         );
         return;
     }

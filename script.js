@@ -4691,7 +4691,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js')
+        navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' })
+            .then(registro => registro.update())
             .catch(error => console.warn('No se pudo registrar el service worker:', error));
     });
 }
