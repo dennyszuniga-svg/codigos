@@ -226,28 +226,15 @@
                 </div>
                 <form id="createUserForm" class="admin-guide-form create-user-form">
                     <label>
-                        Nombre
-                        <input id="newUserName" type="text" placeholder="Nombre del usuario" required>
-                    </label>
-                    <label>
-                        Correo
-                        <input id="newUserEmail" type="email" placeholder="usuario@urbapark.pe" required>
+                        Nombre de usuario
+                        <input id="newUserName" type="text" autocomplete="off" placeholder="Ej. Juan Perez" minlength="3" required>
                     </label>
                     <label>
                         Contrasena inicial
                         <input id="newUserPassword" type="password" minlength="6" placeholder="Minimo 6 caracteres" required>
                     </label>
-                    <label>
-                        Rol
-                        <select id="newUserRole" required>
-                            <option value="anfitrion">anfitrion</option>
-                            <option value="eco">eco</option>
-                            <option value="charly">charly</option>
-                            <option value="supervisor">supervisor</option>
-                            <option value="admin">admin</option>
-                        </select>
-                    </label>
                     <button class="finish-btn" type="submit">Crear usuario</button>
+                    <p class="form-helper">La cuenta se crea como anfitrion. Puedes cambiar su rol despues.</p>
                     <p id="createUserStatus" class="auth-status" role="status" aria-live="polite"></p>
                 </form>
                 <p id="usersAdminStatus" class="auth-status" role="status" aria-live="polite"></p>

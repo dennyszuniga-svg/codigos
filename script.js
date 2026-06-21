@@ -1791,9 +1791,13 @@ function renderizarUsuariosAdmin() {
         fila.dataset.userId = usuario.id;
         nombre.textContent = usuario.nombre || 'Sin nombre';
         const progreso = progresoUsuariosAdmin[usuario.id];
+        const esCorreoInterno = String(usuario.email || '').endsWith('@usuarios.urbapark.pe');
+        const acceso = esCorreoInterno
+            ? `Acceso: ${usuario.nombre || String(usuario.email).split('@')[0]}`
+            : usuario.email;
         email.textContent = progreso
-            ? `${usuario.email} - ${progreso.revisadas}/${guiasOperativas.length || progreso.total} guias revisadas`
-            : `${usuario.email} - sin avance registrado`;
+            ? `${acceso} - ${progreso.revisadas}/${guiasOperativas.length || progreso.total} guias revisadas`
+            : `${acceso} - sin avance registrado`;
         datos.append(nombre, email);
 
         ['admin', 'supervisor', 'eco', 'charly', 'anfitrion'].forEach(opcion => {
@@ -1952,13 +1956,11 @@ async function crearUsuarioDesdeAdmin(event) {
 
     const estado = obtenerElemento('createUserStatus');
     const nombre = obtenerElemento('newUserName')?.value.trim();
-    const email = obtenerElemento('newUserEmail')?.value.trim();
     const password = obtenerElemento('newUserPassword')?.value;
-    const rol = obtenerElemento('newUserRole')?.value;
 
-    if (!nombre || !email || !password || !rol) {
+    if (!nombre || !password) {
         if (estado) {
-            estado.textContent = 'Completa todos los datos del usuario.';
+            estado.textContent = 'Completa el nombre de usuario y la contrasena.';
             estado.dataset.status = 'error';
         }
         return;
@@ -1970,25 +1972,26 @@ async function crearUsuarioDesdeAdmin(event) {
     }
 
     try {
-        const { error } = await supabaseClient.functions.invoke('create-user', {
-            body: { nombre, email, password, rol }
+        const { data, error } = await supabaseClient.functions.invoke('create-user', {
+            body: { nombre, password }
         });
 
-        if (error) {
-            throw error;
+        if (error || data?.error) {
+            const mensaje = data?.error || await obtenerMensajeErrorFuncion(error, 'No se pudo crear el usuario.');
+            throw new Error(mensaje);
         }
 
         obtenerElemento('createUserForm')?.reset();
         if (estado) {
-            estado.textContent = 'Usuario creado correctamente.';
+            estado.textContent = `${nombre} fue creado correctamente como anfitrion.`;
             estado.dataset.status = 'success';
         }
-        mostrarToast(`Usuario creado: ${email}`);
+        mostrarToast(`Usuario creado: ${nombre}`);
         await cargarUsuariosAdmin();
     } catch (error) {
         console.warn('No se pudo crear usuario:', error);
         if (estado) {
-            estado.textContent = 'No se pudo crear usuario. Revisa correo, contrasena o permisos.';
+            estado.textContent = error.message || 'No se pudo crear el usuario.';
             estado.dataset.status = 'error';
         }
     }

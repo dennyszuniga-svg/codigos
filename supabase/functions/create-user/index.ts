@@ -7,12 +7,26 @@ const corsHeaders = {
 };
 
 const rolesPermitidos = new Set(['admin', 'supervisor', 'eco', 'charly', 'anfitrion']);
+const dominioInterno = 'usuarios.urbapark.pe';
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+function normalizarNombre(valor: string) {
+  return valor.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function crearAlias(valor: string) {
+  return valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '.')
+    .replace(/^\.+|\.+$/g, '');
 }
 
 Deno.serve(async (req) => {
@@ -51,13 +65,14 @@ Deno.serve(async (req) => {
   }
 
   const body = await req.json().catch(() => ({}));
-  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const password = typeof body.password === 'string' ? body.password : '';
   const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : '';
   const rol = typeof body.rol === 'string' ? body.rol : 'anfitrion';
+  const alias = crearAlias(nombre);
+  const email = `${alias}@${dominioInterno}`;
 
-  if (!email || !email.includes('@')) {
-    return jsonResponse({ error: 'Correo invalido' }, 400);
+  if (nombre.length < 3 || alias.length < 3) {
+    return jsonResponse({ error: 'El nombre de usuario debe tener al menos 3 letras o numeros' }, 400);
   }
 
   if (!password || password.length < 6) {
@@ -68,12 +83,32 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Rol invalido' }, 400);
   }
 
+  const { data: existingProfiles, error: existingError } = await supabase
+    .from('profiles')
+    .select('nombre,email');
+
+  if (existingError) {
+    return jsonResponse({ error: 'No se pudo validar el nombre de usuario' }, 500);
+  }
+
+  const nombreNormalizado = normalizarNombre(nombre);
+  const yaExiste = (existingProfiles || []).some((item) => {
+    const nombreExistente = normalizarNombre(String(item.nombre || ''));
+    const aliasExistente = String(item.email || '').split('@')[0].toLowerCase();
+    return nombreExistente === nombreNormalizado || aliasExistente === alias;
+  });
+
+  if (yaExiste) {
+    return jsonResponse({ error: 'Ese nombre de usuario ya esta registrado' }, 409);
+  }
+
   const { data: created, error: createError } = await supabase.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
     user_metadata: {
-      nombre: nombre || email.split('@')[0],
+      nombre,
+      usuario: alias,
     },
   });
 
@@ -86,19 +121,20 @@ Deno.serve(async (req) => {
     .upsert({
       id: created.user.id,
       email,
-      nombre: nombre || email.split('@')[0],
+      nombre,
       rol,
       activo: true,
     });
 
   if (profileUpsertError) {
+    await supabase.auth.admin.deleteUser(created.user.id);
     return jsonResponse({ error: profileUpsertError.message }, 500);
   }
 
   return jsonResponse({
     id: created.user.id,
-    email,
-    nombre: nombre || email.split('@')[0],
+    usuario: alias,
+    nombre,
     rol,
   });
 });
