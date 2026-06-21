@@ -3509,9 +3509,10 @@ function crearContenidoPdfGuias(guias) {
             const foto = paso.foto?.dataUrl
                 ? `<img src="${escaparHTML(paso.foto.dataUrl)}" alt="Foto de la tarea ${indicePaso + 1}">`
                 : '';
+            const claseFoto = foto ? ' class="has-photo"' : '';
 
             return `
-                <li>
+                <li${claseFoto}>
                     <div class="step-copy">
                         <h3>${escaparHTML(paso.titulo || `Tarea ${indicePaso + 1}`)}</h3>
                         <p>${escaparHTML(paso.descripcion)}</p>
@@ -3523,9 +3524,15 @@ function crearContenidoPdfGuias(guias) {
 
         return `
             <article class="guide${indiceGuia === 0 ? ' first-guide' : ''}">
-                <p class="module">${escaparHTML(etiquetasModulo[guia.modulo] || guia.modulo)}</p>
-                <h2>${escaparHTML(guia.titulo)}</h2>
-                ${guia.descripcion ? `<p class="description">${escaparHTML(guia.descripcion)}</p>` : ''}
+                <header class="guide-header">
+                    <div>
+                        <p class="module">${escaparHTML(etiquetasModulo[guia.modulo] || guia.modulo)}</p>
+                        <h2>${escaparHTML(guia.titulo)}</h2>
+                        ${guia.descripcion ? `<p class="description">${escaparHTML(guia.descripcion)}</p>` : ''}
+                        <p class="generated">Generado: ${escaparHTML(fechaGeneracion)}</p>
+                    </div>
+                    <img class="guide-logo" src="${escaparHTML(logoURL)}" alt="UrbaPark">
+                </header>
                 <ol>${pasos}</ol>
                 <footer>Guia ${indiceGuia + 1} de ${guias.length}</footer>
             </article>
@@ -3544,29 +3551,29 @@ function crearContenidoPdfGuias(guias) {
         main { max-width: 920px; margin: 0 auto; }
         .actions { margin-bottom: 18px; text-align: right; }
         button { min-height: 42px; padding: 10px 16px; border: 0; border-radius: 6px; background: #1474a8; color: #fff; font-weight: 700; cursor: pointer; }
-        .cover, .guide { padding: 28px; border: 1px solid #ccd8df; border-top: 8px solid #f04b23; border-radius: 8px; background: #fff; }
-        .cover { margin-bottom: 22px; }
-        .cover-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-        .cover img { width: 190px; max-width: 42%; height: auto; }
+        .guide { padding: 28px; border: 1px solid #ccd8df; border-top: 8px solid #f04b23; border-radius: 8px; background: #fff; }
+        .guide-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding-bottom: 18px; border-bottom: 1px solid #dce5ea; }
+        .guide-logo { width: 180px; max-width: 38%; height: auto; object-fit: contain; }
         h1, h2, h3, p { margin-top: 0; }
         h1 { margin-bottom: 8px; color: #1474a8; font-size: 30px; }
         h2 { margin-bottom: 8px; color: #172033; font-size: 26px; }
         h3 { margin-bottom: 6px; font-size: 17px; }
         .generated, .description { color: #526273; line-height: 1.5; }
         .module { display: inline-block; margin-bottom: 12px; padding: 5px 9px; border-radius: 4px; background: #e7f5fb; color: #0f668f; font-size: 12px; font-weight: 800; text-transform: uppercase; }
-        .guide { margin-bottom: 22px; break-inside: avoid; }
+        .guide { margin-bottom: 22px; }
         ol { margin: 22px 0 0; padding-left: 28px; }
-        li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 240px); gap: 18px; margin-bottom: 18px; padding: 16px; border: 1px solid #dce5ea; border-radius: 7px; background: #f8fbfc; break-inside: avoid; }
+        li { margin-bottom: 14px; padding: 14px; border: 1px solid #dce5ea; border-radius: 7px; background: #f8fbfc; break-inside: avoid; }
+        li.has-photo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 240px); gap: 18px; }
         li::marker { color: #f04b23; font-weight: 800; }
         li p { margin-bottom: 0; line-height: 1.55; white-space: pre-wrap; }
         li img { width: 100%; max-height: 180px; border-radius: 6px; object-fit: cover; }
         footer { margin-top: 18px; padding-top: 12px; border-top: 1px solid #dce5ea; color: #667785; font-size: 12px; text-align: right; }
-        @media (max-width: 620px) { li { grid-template-columns: 1fr; } }
+        @media (max-width: 620px) { li.has-photo { grid-template-columns: 1fr; } }
         @page { size: A4; margin: 14mm; }
         @media print {
             body { padding: 0; background: #fff; }
             .actions { display: none; }
-            .cover, .guide { border-right: 0; border-bottom: 0; border-left: 0; box-shadow: none; }
+            .guide { padding: 0; border-right: 0; border-bottom: 0; border-left: 0; box-shadow: none; }
             .guide:not(.first-guide) { break-before: page; }
         }
     </style>
@@ -3574,15 +3581,6 @@ function crearContenidoPdfGuias(guias) {
 <body>
     <main>
         <div class="actions"><button type="button" onclick="window.print()">Imprimir / guardar PDF</button></div>
-        <header class="cover">
-            <div class="cover-header">
-                <div>
-                    <h1>Guias operativas</h1>
-                    <p class="generated">${guias.length === 1 ? 'Guia operativa individual' : `${guias.length} guias disponibles`}<br>Generado: ${escaparHTML(fechaGeneracion)}</p>
-                </div>
-                <img src="${escaparHTML(logoURL)}" alt="UrbaPark">
-            </div>
-        </header>
         ${secciones}
     </main>
 </body>
