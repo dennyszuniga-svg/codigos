@@ -31,6 +31,15 @@
 
     <div class="container app-shell" id="appShell" hidden>
         <header class="app-header">
+            <button class="theme-toggle" type="button" id="toggleThemeButton" aria-pressed="false" aria-label="Activar modo oscuro" title="Activar modo oscuro">
+                <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <circle cx="12" cy="12" r="4"></circle>
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path>
+                </svg>
+                <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z"></path>
+                </svg>
+            </button>
             <div class="brand-block">
                 <img class="brand-logo" src="assets/urbapark-logo.png" alt="UrbaPark" width="475" height="106">
                 <div>
@@ -40,18 +49,24 @@
                 </div>
             </div>
             <div class="session-card" aria-label="Sesion activa">
-                <span id="syncStatus" class="status-chip">Sincronizando</span>
-                <span id="authUserLabel">Usuario conectado</span>
-                <button class="clear-btn" type="button" id="toggleThemeButton">Modo oscuro</button>
-                <button
-                    class="clear-btn header-history-btn"
-                    type="button"
-                    id="toggleActivityPanel"
-                    aria-expanded="false"
-                    aria-controls="activityPanel"
-                >Historial de actividades</button>
-                <button class="clear-btn" type="button" id="enableAlertsButton">Activar alertas</button>
-                <button class="clear-btn" type="button" id="signOutButton">Salir</button>
+                <div class="session-meta">
+                    <span id="syncStatus" class="status-chip">Sincronizando</span>
+                    <span id="authUserLabel" class="session-user">Usuario conectado</span>
+                </div>
+                <div class="session-actions">
+                    <button class="clear-btn header-history-btn" type="button" id="toggleActivityPanel" aria-expanded="false" aria-controls="activityPanel">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5M12 7v5l3 2"></path></svg>
+                        <span>Historial</span>
+                    </button>
+                    <button class="clear-btn" type="button" id="enableAlertsButton">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"></path></svg>
+                        <span>Alertas</span>
+                    </button>
+                    <button class="clear-btn sign-out-btn" type="button" id="signOutButton">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3M15 3h5a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-5"></path></svg>
+                        <span>Salir</span>
+                    </button>
+                </div>
             </div>
         </header>
 
@@ -81,7 +96,7 @@
                                 <circle cx="32" cy="32" r="9"/>
                             </svg>
                         </span>
-                        <span>Mantenimiento</span>
+                        <span class="module-copy"><strong>Mantenimiento</strong><small data-module-count="mantenimiento">0 guias</small></span>
                     </button>
                     <button class="module-button" type="button" data-module="operaciones">
                         <span class="module-icon module-icon-operations" aria-hidden="true">
@@ -92,7 +107,7 @@
                                 <circle cx="17" cy="47" r="4"/>
                             </svg>
                         </span>
-                        <span>Operaciones</span>
+                        <span class="module-copy"><strong>Operaciones</strong><small data-module-count="operaciones">0 guias</small></span>
                     </button>
                     <button class="module-button" type="button" data-module="caja">
                         <span class="module-icon module-icon-cash" aria-hidden="true">
@@ -102,7 +117,7 @@
                                 <circle cx="43" cy="38" r="5"/>
                             </svg>
                         </span>
-                        <span>Caja</span>
+                        <span class="module-copy"><strong>Caja</strong><small data-module-count="caja">0 guias</small></span>
                     </button>
                     <button class="module-button" type="button" data-module="ronda">
                         <span class="module-icon module-icon-rounds" aria-hidden="true">
@@ -111,7 +126,7 @@
                                 <path d="M24 32h16M32 24v16"/>
                             </svg>
                         </span>
-                        <span>Ronda</span>
+                        <span class="module-copy"><strong>Ronda</strong><small data-module-count="ronda">0 guias</small></span>
                     </button>
                     <button class="module-button module-button-primary" type="button" data-module="codigos">
                         <span class="module-icon module-icon-codes" aria-hidden="true">
@@ -120,7 +135,7 @@
                                 <path d="M32 22v15M32 45h.1"/>
                             </svg>
                         </span>
-                        <span>Codigos</span>
+                        <span class="module-copy"><strong>Codigos</strong><small data-module-count="codigos">9 protocolos</small></span>
                     </button>
                     <button class="module-button" type="button" data-module="capacitacion">
                         <span class="module-icon module-icon-training" aria-hidden="true">
@@ -130,7 +145,7 @@
                                 <path d="M54 18v18"/>
                             </svg>
                         </span>
-                        <span>Capacitacion</span>
+                        <span class="module-copy"><strong>Capacitacion</strong><small data-module-count="capacitacion">0% completado</small></span>
                     </button>
                 </div>
             </section>

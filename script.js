@@ -334,8 +334,9 @@ function actualizarBotonTema() {
     }
 
     const oscuro = document.body.classList.contains('dark-theme');
-    boton.textContent = oscuro ? 'Modo claro' : 'Modo oscuro';
     boton.setAttribute('aria-pressed', String(oscuro));
+    boton.setAttribute('aria-label', oscuro ? 'Activar modo claro' : 'Activar modo oscuro');
+    boton.title = oscuro ? 'Activar modo claro' : 'Activar modo oscuro';
 }
 
 function aplicarTemaGuardado() {
@@ -1028,12 +1029,15 @@ function crearGuiaElemento(guia) {
     const texto = document.createElement('span');
     const titulo = document.createElement('strong');
     const descripcion = document.createElement('small');
+    const estadoGuia = document.createElement('span');
     const cuerpo = document.createElement('div');
     const lista = document.createElement('ol');
     const meta = document.createElement('p');
 
     details.className = 'procedure-card';
     details.dataset.guideId = guia.id;
+    const revisada = Boolean(progresoGuias[guia.id]?.revisada);
+    details.classList.toggle('guide-reviewed', revisada);
     icono.className = 'procedure-icon';
     icono.setAttribute('aria-hidden', 'true');
     iconSvg.setAttribute('viewBox', '0 0 64 64');
@@ -1044,8 +1048,11 @@ function crearGuiaElemento(guia) {
 
     titulo.textContent = guia.titulo;
     descripcion.textContent = guia.descripcion || 'Guia operativa agregada por administrador.';
+    texto.className = 'procedure-copy';
+    estadoGuia.className = 'guide-status-badge';
+    estadoGuia.textContent = revisada ? 'Revisada' : 'Pendiente';
     texto.append(titulo, descripcion);
-    summary.append(icono, texto);
+    summary.append(icono, texto, estadoGuia);
 
     cuerpo.className = 'procedure-body';
     lista.className = 'procedure-steps';
@@ -1143,6 +1150,38 @@ function renderizarGuiasOperativas() {
             .filter(guia => guia.modulo === modulo)
             .forEach(guia => contenedor.appendChild(crearGuiaElemento(guia)));
     });
+    actualizarContadoresModulos();
+}
+
+function actualizarContadoresModulos() {
+    ['mantenimiento', 'operaciones', 'caja', 'ronda'].forEach(modulo => {
+        const contador = document.querySelector(`[data-module-count="${modulo}"]`);
+        const boton = document.querySelector(`button[data-module="${modulo}"]`);
+        if (!contador) {
+            return;
+        }
+
+        const total = document.querySelectorAll(`#module-${modulo} .procedure-card`).length;
+        const revisadas = guiasOperativas.filter(guia =>
+            guia.modulo === modulo && progresoGuias[guia.id]?.revisada
+        ).length;
+        const etiquetaTotal = total === 1 ? '1 guia' : `${total} guias`;
+        contador.textContent = revisadas ? `${etiquetaTotal} · ${revisadas} revisadas` : etiquetaTotal;
+        boton?.setAttribute('aria-label', `${modulo}. ${contador.textContent}`);
+    });
+
+    const contadorCodigos = document.querySelector('[data-module-count="codigos"]');
+    if (contadorCodigos) {
+        contadorCodigos.textContent = `${ordenCodigos.length} protocolos`;
+    }
+
+    const total = guiasOperativas.length;
+    const revisadas = guiasOperativas.filter(guia => progresoGuias[guia.id]?.revisada).length;
+    const porcentaje = total ? Math.round((revisadas / total) * 100) : 0;
+    const contadorCapacitacion = document.querySelector('[data-module-count="capacitacion"]');
+    if (contadorCapacitacion) {
+        contadorCapacitacion.textContent = total ? `${porcentaje}% completado` : 'Sin avance registrado';
+    }
 }
 
 function crearTareaBorrador(descripcion = '', foto = null) {
@@ -1680,6 +1719,7 @@ function actualizarProgresoCapacitacionUI() {
     texto.textContent = total
         ? `${revisadas} de ${total} guias revisadas en este dispositivo.`
         : 'Aun no hay guias operativas agregadas.';
+    actualizarContadoresModulos();
 }
 
 async function cargarUsuariosAdmin() {
