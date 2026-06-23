@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#179bd7">
+    <title>Informe de Intervenci&oacute;n UrbaPark</title>
+    <link rel="stylesheet" href="informe-incidentes.css">
+</head>
+<body>
+    <main class="app-shell">
+        <nav class="report-nav" aria-label="Navegacion del informe">
+            <a class="back-link" id="backToApp" href="index.html" aria-label="Volver a mantenimiento">
+                <span aria-hidden="true">&#8592;</span>
+                Volver a Mantenimiento
+            </a>
+            <span>Borrador automatico activo</span>
+        </nav>
+        <header class="header">
+            <img src="assets/urbapark-logo.png" alt="UrbaPark" class="brand-logo">
+            <div>
+                <p class="eyebrow">Informe de mantenimiento</p>
+                <h1>Registro de intervenci&oacute;n</h1>
+                <p>Complete los datos, registre cada tarea con evidencia fotogr&aacute;fica y guarde el informe final.</p>
+            </div>
+        </header>
+
+        <section class="workspace" aria-label="Generador de informes">
+            <form id="incidentForm" novalidate>
+                <div class="section-heading">
+                    <h2>Datos de la intervenci&oacute;n</h2>
+                    <p>Todos los campos marcados con asterisco son obligatorios para guardar el informe.</p>
+                </div>
+
+                <div class="progress-panel" aria-label="Progreso del informe">
+                    <div class="progress-copy">
+                        <strong id="progressText">Datos 0% completos</strong>
+                        <span id="reportNumberLabel">Informe -</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group" id="numeroInformeGroup">
+                        <label for="numeroInforme">N&uacute;mero de informe</label>
+                        <input type="text" id="numeroInforme" name="numeroInforme" readonly>
+                    </div>
+
+                    <div class="form-group" id="clienteAreaGroup">
+                        <label for="clienteArea" class="required">Cliente / &aacute;rea solicitante</label>
+                        <input type="text" id="clienteArea" name="clienteArea" placeholder="Cliente o &aacute;rea que solicita la intervenci&oacute;n" required>
+                        <p class="error-message">Ingrese el cliente o &aacute;rea solicitante.</p>
+                    </div>
+
+                    <div class="form-group" id="personalGroup">
+                        <label for="personal" class="required">Personal que realiz&oacute; la intervenci&oacute;n</label>
+                        <input type="text" id="personal" name="personal" placeholder="Nombre y apellido" required>
+                        <p class="error-message">Ingrese el nombre del personal.</p>
+                    </div>
+
+                    <div class="form-group" id="sedeGroup">
+                        <label for="sede" class="required">Sede</label>
+                        <input type="text" id="sede" name="sede" placeholder="Sede donde se realiza la intervenci&oacute;n" required>
+                        <p class="error-message">Ingrese la sede.</p>
+                    </div>
+
+                    <div class="form-group" id="equipoGroup">
+                        <label for="equipo" class="required">Equipo a intervenir</label>
+                        <input type="text" id="equipo" name="equipo" placeholder="Nombre o c&oacute;digo del equipo" required>
+                        <p class="error-message">Ingrese el equipo a intervenir.</p>
+                    </div>
+
+                    <div class="form-group" id="prioridadGroup">
+                        <label for="prioridad" class="required">Prioridad</label>
+                        <select id="prioridad" name="prioridad" required>
+                            <option value="">Seleccione una opci&oacute;n</option>
+                            <option value="Baja">Baja</option>
+                            <option value="Media">Media</option>
+                            <option value="Alta">Alta</option>
+                            <option value="Cr&iacute;tica">Cr&iacute;tica</option>
+                        </select>
+                        <p class="error-message">Seleccione la prioridad.</p>
+                    </div>
+
+                    <div class="form-group" id="tipoMantenimientoGroup">
+                        <label for="tipoMantenimiento" class="required">Tipo de mantenimiento</label>
+                        <select id="tipoMantenimiento" name="tipoMantenimiento" required>
+                            <option value="">Seleccione una opci&oacute;n</option>
+                            <option value="Preventivo">Preventivo</option>
+                            <option value="Correctivo">Correctivo</option>
+                            <option value="Verificaci&oacute;n">Verificaci&oacute;n</option>
+                        </select>
+                        <p class="error-message">Seleccione el tipo de mantenimiento.</p>
+                    </div>
+
+                    <div class="form-group" id="estadoInicialGroup">
+                        <label for="estadoInicial" class="required">Estado inicial del equipo</label>
+                        <select id="estadoInicial" name="estadoInicial" required>
+                            <option value="">Seleccione una opci&oacute;n</option>
+                            <option value="Funcional">Funcional</option>
+                            <option value="No enciende">No enciende</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                        <p class="error-message">Seleccione el estado inicial.</p>
+                    </div>
+
+                    <div class="form-group conditional-field" id="estadoInicialOtroGroup">
+                        <label for="estadoInicialOtro">Detalle del estado inicial</label>
+                        <input type="text" id="estadoInicialOtro" name="estadoInicialOtro" placeholder="Describa el estado inicial">
+                        <p class="error-message">Detalle el estado inicial del equipo.</p>
+                    </div>
+
+                    <div class="form-group" id="horaInicioGroup">
+                        <label for="horaInicio" class="required">Hora de inicio</label>
+                        <input type="time" id="horaInicio" name="horaInicio" required>
+                        <p class="error-message">Ingrese la hora de inicio.</p>
+                    </div>
+
+                    <div class="form-group" id="horaFinalGroup">
+                        <label for="horaFinal" class="required">Hora final</label>
+                        <input type="time" id="horaFinal" name="horaFinal" readonly required>
+                        <p class="error-message">Registre la firma del supervisor o administrador de turno para colocar la hora final.</p>
+                    </div>
+
+                    <div class="form-group" id="duracionGroup">
+                        <label for="duracion">Duraci&oacute;n autom&aacute;tica</label>
+                        <input type="text" id="duracion" name="duracion" readonly placeholder="Se calcula con inicio y final">
+                    </div>
+                </div>
+
+                <div class="form-group" id="incidenteGroup">
+                    <label for="incidente" class="required">Informe del incidente / requerimiento</label>
+                    <textarea
+                        id="incidente"
+                        name="incidente"
+                        placeholder="Describa el incidente, requerimiento o motivo de la intervenci&oacute;n."
+                        required
+                    ></textarea>
+                    <p class="error-message">Describa el motivo de la intervenci&oacute;n.</p>
+                </div>
+
+                <div class="form-group activity-builder" id="activityTasksGroup">
+                    <div class="field-header">
+                        <div>
+                            <label class="required">Actividades realizadas</label>
+                            <p>Marque cada tarea, describa lo realizado y tome al menos una foto con subt&iacute;tulo.</p>
+                        </div>
+                    </div>
+                    <div class="task-list" id="taskList"></div>
+                    <p class="error-message" id="activityTasksError">Complete al menos una tarea con detalle, foto y subt&iacute;tulo.</p>
+                </div>
+
+                <div class="form-group" id="solucionGroup">
+                    <label for="solucion" class="required">Soluci&oacute;n realizada</label>
+                    <textarea
+                        id="solucion"
+                        name="solucion"
+                        placeholder="Describa la soluci&oacute;n implementada y los resultados obtenidos."
+                        required
+                    ></textarea>
+                    <p class="error-message">Describa la soluci&oacute;n realizada.</p>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group" id="resultadoFinalGroup">
+                        <label for="resultadoFinal" class="required">Resultado final</label>
+                        <select id="resultadoFinal" name="resultadoFinal" required>
+                            <option value="">Seleccione una opci&oacute;n</option>
+                            <option value="Operativo">Operativo</option>
+                            <option value="Pendiente">Pendiente</option>
+                            <option value="Requiere repuesto">Requiere repuesto</option>
+                            <option value="Requiere visita adicional">Requiere visita adicional</option>
+                        </select>
+                        <p class="error-message">Seleccione el resultado final.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="repuestos">Repuestos utilizados</label>
+                        <textarea
+                            id="repuestos"
+                            name="repuestos"
+                            class="small"
+                            placeholder="Liste repuestos, c&oacute;digos o cantidades. Si no aplica, deje en blanco."
+                        ></textarea>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="observaciones">Observaciones</label>
+                    <textarea
+                        id="observaciones"
+                        name="observaciones"
+                        class="small"
+                        placeholder="Incluya observaciones adicionales relevantes."
+                    ></textarea>
+                </div>
+
+                <div class="form-group" id="conclusionesGroup">
+                    <label for="conclusiones" class="required">Conclusiones</label>
+                    <textarea
+                        id="conclusiones"
+                        name="conclusiones"
+                        class="small"
+                        placeholder="Registre conclusiones, recomendaciones o lecciones aprendidas."
+                        required
+                    ></textarea>
+                    <p class="error-message">Ingrese las conclusiones.</p>
+                </div>
+
+                <div class="signature-grid">
+                    <div class="form-group signature-card" id="firmaTecnicoGroup">
+                        <label class="required">Firma digital del t&eacute;cnico</label>
+                        <canvas id="firmaTecnico" width="560" height="180" aria-label="Firma digital del tecnico"></canvas>
+                        <div class="signature-meta">
+                            <label for="firmaTecnicoNombre">Nombre del t&eacute;cnico</label>
+                            <input type="text" id="firmaTecnicoNombre" name="firmaTecnicoNombre" readonly placeholder="Se completa con el personal registrado al inicio">
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-small" data-clear-signature="firmaTecnico">Limpiar firma</button>
+                        <p class="error-message">Registre la firma del t&eacute;cnico.</p>
+                    </div>
+
+                    <div class="form-group signature-card" id="firmaSupervisorGroup">
+                        <label class="required">Firma digital del supervisor o administrador de turno</label>
+                        <canvas id="firmaSupervisor" width="560" height="180" aria-label="Firma digital del supervisor o administrador de turno"></canvas>
+                        <div class="signature-meta">
+                            <label for="firmaSupervisorNombre" class="required">Nombre del supervisor o administrador</label>
+                            <input type="text" id="firmaSupervisorNombre" name="firmaSupervisorNombre" placeholder="Nombre y apellido" required>
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-small" data-clear-signature="firmaSupervisor">Limpiar firma</button>
+                        <p class="error-message">Registre la firma y el nombre del supervisor o administrador de turno.</p>
+                    </div>
+                </div>
+
+                <div class="button-group" aria-label="Acciones del formulario">
+                    <button type="button" class="btn btn-secondary" id="btnLimpiar">Limpiar</button>
+                    <button type="button" class="btn btn-primary" id="btnPrevisualizar">Previsualizar</button>
+                    <button type="button" class="btn btn-secondary" id="btnCopiar">Copiar</button>
+                    <button type="button" class="btn btn-success" id="btnDescargar">Guardar informe</button>
+                    <button type="submit" class="btn btn-secondary" id="btnGenerar">Exportar PDF</button>
+                </div>
+
+                <p class="status-message" id="statusMessage" role="status" aria-live="polite"></p>
+            </form>
+
+            <article class="preview-section" id="previewSection" aria-live="polite">
+                <div class="report-header">
+                    <img src="assets/urbapark-logo.png" alt="UrbaPark" class="report-logo">
+                    <div>
+                        <p class="report-label">Reporte generado</p>
+                        <h2>Informe t&eacute;cnico de intervenci&oacute;n</h2>
+                        <p id="previewFechaGuardado">-</p>
+                    </div>
+                </div>
+
+                <div class="preview-grid">
+                    <section class="preview-item">
+                        <h3>Datos generales</h3>
+                        <dl class="report-details" id="previewDatosGenerales"></dl>
+                    </section>
+
+                    <section class="preview-item">
+                        <h3>Informe del incidente / requerimiento</h3>
+                        <p id="previewIncidente">-</p>
+                    </section>
+
+                    <section class="preview-item">
+                        <h3>Actividades realizadas</h3>
+                        <div class="report-tasks" id="previewActividades">-</div>
+                    </section>
+
+                    <section class="preview-item">
+                        <h3>Soluci&oacute;n realizada</h3>
+                        <p id="previewSolucion">-</p>
+                    </section>
+
+                    <section class="preview-item">
+                        <h3>Observaciones</h3>
+                        <p id="previewObservaciones">-</p>
+                    </section>
+
+                    <section class="preview-item">
+                        <h3>Conclusiones</h3>
+                        <p id="previewConclusiones">-</p>
+                    </section>
+
+                    <section class="preview-item">
+                        <h3>Firmas</h3>
+                        <div class="report-signatures" id="previewFirmas"></div>
+                    </section>
+                </div>
+            </article>
+        </section>
+    </main>
+
+    <script src="informe-incidentes.js"></script>
+</body>
+</html>

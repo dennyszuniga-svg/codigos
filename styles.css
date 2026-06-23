@@ -1057,6 +1057,83 @@ body.dark-theme .search-result-card {
     gap: 14px;
 }
 
+.maintenance-report-action {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    margin: 18px 0 22px;
+    padding: 16px;
+    border: 1px solid #b8ddeb;
+    border-left: 5px solid #f15a24;
+    border-radius: 8px;
+    background: #eef9fd;
+}
+
+.maintenance-report-icon {
+    display: grid;
+    width: 52px;
+    height: 52px;
+    place-items: center;
+    border-radius: 50%;
+    background: #1474a8;
+    color: #fff;
+}
+
+.maintenance-report-icon svg {
+    width: 28px;
+    height: 28px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+}
+
+.maintenance-report-action strong {
+    color: #0f4f70;
+    font-size: 17px;
+}
+
+.maintenance-report-action p {
+    margin: 3px 0 0;
+    color: #526471;
+    line-height: 1.45;
+}
+
+.maintenance-report-link {
+    min-width: 132px;
+    padding: 11px 14px;
+    border-radius: 6px;
+    background: #1474a8;
+    color: #fff;
+    font-weight: 800;
+    text-align: center;
+    text-decoration: none;
+}
+
+.maintenance-report-link:hover {
+    background: #0f5d88;
+}
+
+.maintenance-report-link:focus-visible {
+    outline: 3px solid #f15a24;
+    outline-offset: 3px;
+}
+
+body.dark-theme .maintenance-report-action {
+    border-color: #35657a;
+    background: #182b35;
+}
+
+body.dark-theme .maintenance-report-action strong {
+    color: #d8f2fc;
+}
+
+body.dark-theme .maintenance-report-action p {
+    color: #b6c8d1;
+}
+
 .procedure-card {
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -2428,6 +2505,20 @@ body.dark-theme .modal-dialog {
 }
 
 @media (max-width: 760px) {
+    .maintenance-report-action {
+        grid-template-columns: 44px minmax(0, 1fr);
+    }
+
+    .maintenance-report-icon {
+        width: 44px;
+        height: 44px;
+    }
+
+    .maintenance-report-link {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+
     body {
         padding: 14px 14px 96px;
     }

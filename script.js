@@ -446,6 +446,22 @@ function obtenerNombreUsuarioActivo() {
     return perfilActual?.nombre || sesionActual?.user?.email || 'Usuario conectado';
 }
 
+function prepararEnlaceInformeMantenimiento() {
+    const enlace = obtenerElemento('openMaintenanceReport');
+    if (!enlace) {
+        return;
+    }
+
+    const parametros = new URLSearchParams({
+        tecnico: obtenerNombreUsuarioActivo(),
+        usuarioId: sesionActual?.user?.id || '',
+        sede: obtenerNombreSede(obtenerSedeActual()),
+        sedeId: obtenerSedeActual() || '',
+        regreso: 'index.html'
+    });
+    enlace.href = `informe-incidentes.html?${parametros.toString()}`;
+}
+
 function actualizarSesionUI() {
     const etiqueta = obtenerElemento('authUserLabel');
 
@@ -5009,6 +5025,7 @@ function configurarEventos() {
     obtenerElemento('toggleGuideAdmin')?.addEventListener('click', () => alternarPanelAdmin('guias'));
     obtenerElemento('toggleUsersAdmin')?.addEventListener('click', () => alternarPanelAdmin('usuarios'));
     obtenerElemento('createUserForm')?.addEventListener('submit', crearUsuarioDesdeAdmin);
+    obtenerElemento('openMaintenanceReport')?.addEventListener('click', prepararEnlaceInformeMantenimiento);
     obtenerElemento('adminGuideForm')?.addEventListener('input', event => {
         if (!event.target.matches('input[type="file"]')) {
             programarGuardadoBorradorGuia();
