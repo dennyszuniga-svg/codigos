@@ -252,7 +252,7 @@ function readAppContext() {
         tecnico: params.get('tecnico')?.trim() || '',
         usuarioId: params.get('usuarioId')?.trim() || '',
         sede: params.get('sede')?.trim() || '',
-        regreso: params.get('regreso') || 'index.html'
+        regreso: params.get('regreso') || 'index.html?module=mantenimiento'
     };
 }
 

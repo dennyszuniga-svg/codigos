@@ -21,6 +21,7 @@ const SUPABASE_ESM_SOURCES = [
 const VAPID_PUBLIC_KEY = 'BPA1HvZlxREjSH6MTsm1lK150EAsO-rk6v_ANrYesBXgnCDfBpFQ5HrHnvvGUvvT7ObMR21kRIpD98uwXIBFbjE';
 const GUIDE_IMAGE_BUCKET = 'guide-images';
 const GUIDE_IMAGE_URL_TTL = 60 * 60;
+const MAINTENANCE_ACCESS_SESSION_KEY = 'urbapark-maintenance-area-unlocked';
 const SEDES_OPERACION = [
     { id: 'puruchuco', nombre: 'Real Plaza Puruchuco' },
     { id: 'salaverry', nombre: 'Real Plaza Salaverry' },
@@ -297,6 +298,9 @@ let canalGuiasOperativas = null;
 let busquedaGlobal = '';
 let elementoRetornoPanelAdmin = null;
 let temporizadorBorradorGuia = null;
+let accesoMantenimientoActivo = false;
+let inventarioRepuestos = [];
+let canalInventario = null;
 let sedeActivaPorModulo = {
     mantenimiento: 'puruchuco',
     caja: 'gama',
@@ -457,9 +461,325 @@ function prepararEnlaceInformeMantenimiento() {
         usuarioId: sesionActual?.user?.id || '',
         sede: obtenerNombreSede(obtenerSedeActual()),
         sedeId: obtenerSedeActual() || '',
-        regreso: 'index.html'
+        regreso: 'index.html?module=mantenimiento'
     });
     enlace.href = `informe-incidentes.html?${parametros.toString()}`;
+}
+
+function aplicarModuloSolicitadoDesdeURL() {
+    const modulo = new URLSearchParams(window.location.search).get('module');
+    if (!modulo || !obtenerElemento(`module-${modulo}`)) {
+        return;
+    }
+    seleccionarModulo(modulo, { desplazar: false });
+    window.history.replaceState(null, '', window.location.pathname);
+}
+
+function obtenerClaveSesionMantenimiento() {
+    return `accesoMantenimiento:${sesionActual?.user?.id || 'sin-usuario'}`;
+}
+
+function usuarioPuedeGestionarInventario() {
+    return perfilActual?.activo !== false && ['admin', 'supervisor'].includes(perfilActual?.rol);
+}
+
+function actualizarEstadoAccesoMantenimiento(mensaje = '', estado = 'info') {
+    const salida = obtenerElemento('maintenanceAccessStatus');
+    if (salida) {
+        salida.textContent = mensaje;
+        salida.dataset.status = estado;
+    }
+}
+
+function actualizarEstadoInventario(mensaje = '', estado = 'info') {
+    const salida = obtenerElemento('inventoryStatus');
+    if (salida) {
+        salida.textContent = mensaje;
+        salida.dataset.status = estado;
+    }
+}
+
+function actualizarAreaMantenimientoUI() {
+    const acceso = obtenerElemento('maintenanceAccessGate');
+    const contenido = obtenerElemento('maintenancePrivateContent');
+    const formularioInventario = obtenerElemento('inventoryForm');
+    const sede = obtenerElemento('maintenanceSiteLabel');
+
+    if (acceso) {
+        acceso.hidden = accesoMantenimientoActivo;
+    }
+    if (contenido) {
+        contenido.hidden = !accesoMantenimientoActivo;
+    }
+    if (formularioInventario) {
+        formularioInventario.hidden = !usuarioPuedeGestionarInventario();
+    }
+    if (sede) {
+        sede.textContent = obtenerSedeActual()
+            ? `Inventario: ${obtenerNombreSede(obtenerSedeActual())}`
+            : 'Inventario sin sede asignada';
+    }
+}
+
+async function validarAccesoMantenimiento(event) {
+    event.preventDefault();
+    const campo = obtenerElemento('maintenanceAccessPassword');
+    const boton = event.currentTarget.querySelector('button[type="submit"]');
+    const clave = campo?.value || '';
+
+    if (!clave || !supabaseClient || !sesionActual?.user) {
+        actualizarEstadoAccesoMantenimiento('Ingresa la contrasena del area.', 'error');
+        return;
+    }
+
+    if (boton) {
+        boton.disabled = true;
+        boton.textContent = 'Verificando...';
+    }
+    actualizarEstadoAccesoMantenimiento('Verificando acceso...', 'info');
+
+    const { data, error } = await supabaseClient.rpc('validar_acceso_mantenimiento', { clave_ingresada: clave });
+
+    if (boton) {
+        boton.disabled = false;
+        boton.textContent = 'Ingresar';
+    }
+
+    if (error) {
+        console.warn('No se pudo validar el acceso de mantenimiento:', error);
+        actualizarEstadoAccesoMantenimiento('No se pudo verificar la contrasena. Intenta nuevamente.', 'error');
+        return;
+    }
+
+    if (!data) {
+        actualizarEstadoAccesoMantenimiento('Contrasena incorrecta.', 'error');
+        campo?.select();
+        return;
+    }
+
+    accesoMantenimientoActivo = true;
+    try {
+        sessionStorage.setItem(obtenerClaveSesionMantenimiento(), '1');
+        sessionStorage.setItem(MAINTENANCE_ACCESS_SESSION_KEY, '1');
+    } catch (errorSesion) {
+        console.warn('No se pudo conservar el acceso de mantenimiento:', errorSesion);
+    }
+    if (campo) {
+        campo.value = '';
+    }
+    actualizarEstadoAccesoMantenimiento('', 'success');
+    actualizarAreaMantenimientoUI();
+    prepararEnlaceInformeMantenimiento();
+    await cargarInventarioRepuestos();
+    suscribirInventarioRepuestos();
+}
+
+function restaurarAccesoMantenimiento() {
+    accesoMantenimientoActivo = false;
+    try {
+        accesoMantenimientoActivo = sessionStorage.getItem(obtenerClaveSesionMantenimiento()) === '1';
+        if (accesoMantenimientoActivo) {
+            sessionStorage.setItem(MAINTENANCE_ACCESS_SESSION_KEY, '1');
+        }
+    } catch (error) {
+        console.warn('No se pudo restaurar el acceso de mantenimiento:', error);
+    }
+    actualizarAreaMantenimientoUI();
+    if (accesoMantenimientoActivo) {
+        cargarInventarioRepuestos();
+        suscribirInventarioRepuestos();
+    }
+}
+
+function bloquearAreaMantenimiento() {
+    accesoMantenimientoActivo = false;
+    inventarioRepuestos = [];
+    try {
+        sessionStorage.removeItem(obtenerClaveSesionMantenimiento());
+        sessionStorage.removeItem(MAINTENANCE_ACCESS_SESSION_KEY);
+    } catch (error) {
+        console.warn('No se pudo cerrar el acceso de mantenimiento:', error);
+    }
+    if (canalInventario && supabaseClient) {
+        supabaseClient.removeChannel(canalInventario);
+        canalInventario = null;
+    }
+    actualizarAreaMantenimientoUI();
+    renderizarInventarioRepuestos();
+    obtenerElemento('maintenanceAccessPassword')?.focus();
+}
+
+async function cargarInventarioRepuestos() {
+    if (!accesoMantenimientoActivo || !supabaseClient || !sesionActual?.user || !obtenerSedeActual()) {
+        return;
+    }
+
+    actualizarEstadoInventario('Cargando inventario...', 'info');
+    const { data, error } = await supabaseClient
+        .from('inventario_repuestos')
+        .select('id,sede,codigo,nombre,categoria,stock,stock_minimo,unidad,ubicacion,updated_at')
+        .eq('sede', obtenerSedeActual())
+        .order('nombre', { ascending: true });
+
+    if (error) {
+        console.warn('No se pudo cargar el inventario:', error);
+        actualizarEstadoInventario('No se pudo cargar el inventario de la sede.', 'error');
+        return;
+    }
+
+    inventarioRepuestos = Array.isArray(data) ? data : [];
+    actualizarEstadoInventario(`${inventarioRepuestos.length} repuestos registrados.`, 'success');
+    renderizarInventarioRepuestos();
+}
+
+function renderizarInventarioRepuestos() {
+    const contenedor = obtenerElemento('inventoryList');
+    if (!contenedor) {
+        return;
+    }
+
+    limpiarElemento(contenedor);
+    const texto = obtenerElemento('inventorySearch')?.value.trim().toLowerCase() || '';
+    const visibles = inventarioRepuestos.filter(item => (
+        [item.codigo, item.nombre, item.categoria, item.ubicacion]
+            .some(valor => String(valor || '').toLowerCase().includes(texto))
+    ));
+
+    if (!visibles.length) {
+        contenedor.appendChild(crearMensajeVacio(
+            texto ? 'No hay repuestos que coincidan con la busqueda.' : 'Aun no hay repuestos registrados para esta sede.',
+            'inventory-empty'
+        ));
+        return;
+    }
+
+    visibles.forEach(item => {
+        const tarjeta = document.createElement('article');
+        const datos = document.createElement('div');
+        const nombre = document.createElement('strong');
+        const detalle = document.createElement('small');
+        const stock = document.createElement('div');
+        const stockValor = document.createElement('span');
+        const stockDetalle = document.createElement('small');
+        const ubicacion = document.createElement('div');
+        const ubicacionTitulo = document.createElement('span');
+        const ubicacionDetalle = document.createElement('small');
+
+        tarjeta.className = 'inventory-item';
+        nombre.textContent = item.nombre;
+        detalle.textContent = `${item.codigo} - ${item.categoria || 'General'}`;
+        datos.append(nombre, detalle);
+
+        stockValor.className = 'inventory-stock';
+        stockValor.classList.toggle('is-low', Number(item.stock) <= Number(item.stock_minimo));
+        stockValor.textContent = `${item.stock} ${item.unidad || 'unidad'}`;
+        stockDetalle.textContent = `Minimo: ${item.stock_minimo}`;
+        stock.append(stockValor, stockDetalle);
+
+        ubicacionTitulo.textContent = 'Ubicacion';
+        ubicacionDetalle.textContent = item.ubicacion || 'Sin indicar';
+        ubicacion.append(ubicacionTitulo, ubicacionDetalle);
+        tarjeta.append(datos, stock, ubicacion);
+
+        if (usuarioPuedeGestionarInventario()) {
+            const eliminar = document.createElement('button');
+            eliminar.type = 'button';
+            eliminar.className = 'clear-btn';
+            eliminar.dataset.deleteInventory = item.id;
+            eliminar.textContent = 'Eliminar';
+            eliminar.setAttribute('aria-label', `Eliminar ${item.nombre}`);
+            tarjeta.appendChild(eliminar);
+        }
+
+        contenedor.appendChild(tarjeta);
+    });
+}
+
+async function guardarRepuestoInventario(event) {
+    event.preventDefault();
+    if (!accesoMantenimientoActivo || !usuarioPuedeGestionarInventario() || !obtenerSedeActual()) {
+        actualizarEstadoInventario('No tienes permisos para modificar el inventario.', 'error');
+        return;
+    }
+
+    const payload = {
+        sede: obtenerSedeActual(),
+        codigo: obtenerElemento('inventoryCode').value.trim().toUpperCase(),
+        nombre: obtenerElemento('inventoryName').value.trim(),
+        categoria: obtenerElemento('inventoryCategory').value.trim() || 'General',
+        stock: Number(obtenerElemento('inventoryStock').value),
+        stock_minimo: Number(obtenerElemento('inventoryMinimum').value),
+        unidad: obtenerElemento('inventoryUnit').value.trim() || 'unidad',
+        ubicacion: obtenerElemento('inventoryLocation').value.trim(),
+        actualizado_por: sesionActual.user.id
+    };
+
+    if (!payload.codigo || !payload.nombre || !Number.isFinite(payload.stock) || payload.stock < 0) {
+        actualizarEstadoInventario('Completa codigo, repuesto y stock valido.', 'error');
+        return;
+    }
+
+    actualizarEstadoInventario('Guardando repuesto...', 'info');
+    const { error } = await supabaseClient
+        .from('inventario_repuestos')
+        .upsert(payload, { onConflict: 'sede,codigo' });
+
+    if (error) {
+        console.warn('No se pudo guardar el repuesto:', error);
+        actualizarEstadoInventario('No se pudo guardar el repuesto.', 'error');
+        return;
+    }
+
+    event.currentTarget.reset();
+    obtenerElemento('inventoryMinimum').value = '0';
+    obtenerElemento('inventoryUnit').value = 'unidad';
+    actualizarEstadoInventario('Repuesto guardado correctamente.', 'success');
+    await cargarInventarioRepuestos();
+}
+
+async function eliminarRepuestoInventario(id) {
+    const item = inventarioRepuestos.find(repuesto => repuesto.id === id);
+    if (!item || !usuarioPuedeGestionarInventario()) {
+        return;
+    }
+
+    if (!window.confirm(`Eliminar ${item.nombre} del inventario de ${obtenerNombreSede(obtenerSedeActual())}?`)) {
+        return;
+    }
+
+    const { error } = await supabaseClient
+        .from('inventario_repuestos')
+        .delete()
+        .eq('id', id)
+        .eq('sede', obtenerSedeActual());
+
+    if (error) {
+        actualizarEstadoInventario('No se pudo eliminar el repuesto.', 'error');
+        return;
+    }
+    await cargarInventarioRepuestos();
+}
+
+function suscribirInventarioRepuestos() {
+    if (!accesoMantenimientoActivo || !supabaseClient || !obtenerSedeActual()) {
+        return;
+    }
+    if (canalInventario) {
+        supabaseClient.removeChannel(canalInventario);
+    }
+    canalInventario = supabaseClient
+        .channel(`inventario-${obtenerSedeActual()}-${sesionActual.user.id}`)
+        .on(
+            'postgres_changes',
+            {
+                event: '*',
+                schema: 'public',
+                table: 'inventario_repuestos',
+                filter: `sede=eq.${obtenerSedeActual()}`
+            },
+            () => cargarInventarioRepuestos()
+        )
+        .subscribe();
 }
 
 function actualizarSesionUI() {
@@ -2637,6 +2957,13 @@ async function aplicarSesion(session) {
 
     if (!session?.user) {
         perfilActual = null;
+        accesoMantenimientoActivo = false;
+        inventarioRepuestos = [];
+        try {
+            sessionStorage.removeItem(MAINTENANCE_ACCESS_SESSION_KEY);
+        } catch (error) {
+            console.warn('No se pudo limpiar el acceso de mantenimiento:', error);
+        }
         if (canalEstadoOperativo && supabaseClient) {
             supabaseClient.removeChannel(canalEstadoOperativo);
             canalEstadoOperativo = null;
@@ -2644,6 +2971,10 @@ async function aplicarSesion(session) {
         if (canalGuiasOperativas && supabaseClient) {
             supabaseClient.removeChannel(canalGuiasOperativas);
             canalGuiasOperativas = null;
+        }
+        if (canalInventario && supabaseClient) {
+            supabaseClient.removeChannel(canalInventario);
+            canalInventario = null;
         }
         mostrarAppAutenticada(false);
         actualizarEstadoAuth('Ingresa con tu usuario asignado.', 'info');
@@ -2657,6 +2988,7 @@ async function aplicarSesion(session) {
     actualizarSesionUI();
     actualizarBotonAlertas();
     await cargarPerfilActual();
+    restaurarAccesoMantenimiento();
     restaurarBorradorGuia();
     if ('Notification' in window && Notification.permission === 'granted') {
         registrarSuscripcionPush();
@@ -2668,6 +3000,7 @@ async function aplicarSesion(session) {
     await cargarEstadoOperativoRemoto();
     suscribirEstadoOperativo();
     suscribirGuiasOperativas();
+    aplicarModuloSolicitadoDesdeURL();
 }
 
 async function iniciarSesion(event) {
@@ -5026,6 +5359,17 @@ function configurarEventos() {
     obtenerElemento('toggleUsersAdmin')?.addEventListener('click', () => alternarPanelAdmin('usuarios'));
     obtenerElemento('createUserForm')?.addEventListener('submit', crearUsuarioDesdeAdmin);
     obtenerElemento('openMaintenanceReport')?.addEventListener('click', prepararEnlaceInformeMantenimiento);
+    obtenerElemento('maintenanceAccessForm')?.addEventListener('submit', validarAccesoMantenimiento);
+    obtenerElemento('lockMaintenanceArea')?.addEventListener('click', bloquearAreaMantenimiento);
+    obtenerElemento('refreshInventory')?.addEventListener('click', cargarInventarioRepuestos);
+    obtenerElemento('inventoryForm')?.addEventListener('submit', guardarRepuestoInventario);
+    obtenerElemento('inventorySearch')?.addEventListener('input', renderizarInventarioRepuestos);
+    obtenerElemento('inventoryList')?.addEventListener('click', event => {
+        const boton = event.target.closest('button[data-delete-inventory]');
+        if (boton) {
+            eliminarRepuestoInventario(boton.dataset.deleteInventory);
+        }
+    });
     obtenerElemento('adminGuideForm')?.addEventListener('input', event => {
         if (!event.target.matches('input[type="file"]')) {
             programarGuardadoBorradorGuia();

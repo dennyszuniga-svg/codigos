@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#179bd7">
     <title>Informe de Intervenci&oacute;n UrbaPark</title>
+    <script>
+        if (sessionStorage.getItem('urbapark-maintenance-area-unlocked') !== '1') {
+            window.location.replace('index.html?module=mantenimiento');
+        }
+    </script>
     <link rel="stylesheet" href="informe-incidentes.css">
 </head>
 <body>

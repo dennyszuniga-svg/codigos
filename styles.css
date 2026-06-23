@@ -1057,6 +1057,87 @@ body.dark-theme .search-result-card {
     gap: 14px;
 }
 
+.maintenance-private-shell {
+    margin: 18px 0 22px;
+    padding: 18px;
+    border: 1px solid #c9dbe4;
+    border-left: 5px solid #1474a8;
+    border-radius: 8px;
+    background: #f8fbfd;
+}
+
+.maintenance-private-heading h3,
+.inventory-heading h4 {
+    margin: 2px 0 4px;
+    color: #0f4f70;
+}
+
+.maintenance-private-heading p,
+.inventory-heading p {
+    margin: 0;
+    color: #526471;
+    line-height: 1.45;
+}
+
+.maintenance-access-gate {
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid #d4e2e9;
+    border-radius: 7px;
+    background: #fff;
+}
+
+.maintenance-access-form {
+    max-width: 560px;
+}
+
+.maintenance-access-form > label,
+.inventory-search {
+    display: block;
+    margin-bottom: 7px;
+    color: #344054;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.maintenance-password-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+}
+
+.maintenance-password-row input,
+.inventory-search input,
+.inventory-form input {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid #b8cbd5;
+    border-radius: 6px;
+    background: #fff;
+    color: #182230;
+    font: inherit;
+}
+
+.maintenance-private-content {
+    margin-top: 16px;
+}
+
+.maintenance-private-toolbar,
+.inventory-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.maintenance-private-toolbar {
+    padding-bottom: 12px;
+    border-bottom: 1px solid #d5e2e8;
+    color: #344054;
+    font-size: 13px;
+    font-weight: 800;
+}
+
 .maintenance-report-action {
     display: grid;
     grid-template-columns: 52px minmax(0, 1fr) auto;
@@ -1132,6 +1213,117 @@ body.dark-theme .maintenance-report-action strong {
 
 body.dark-theme .maintenance-report-action p {
     color: #b6c8d1;
+}
+
+.inventory-panel {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid #d5e2e8;
+}
+
+.inventory-search {
+    margin-top: 16px;
+}
+
+.inventory-search input {
+    margin-top: 6px;
+}
+
+.inventory-form {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+    padding: 14px;
+    border: 1px solid #cfe0e8;
+    border-radius: 7px;
+    background: #eef7fb;
+}
+
+.inventory-form[hidden] {
+    display: none;
+}
+
+.inventory-form label {
+    color: #344054;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.inventory-form input {
+    margin-top: 5px;
+}
+
+.inventory-location {
+    grid-column: span 2;
+}
+
+.inventory-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.inventory-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(90px, 0.6fr)) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 13px;
+    border: 1px solid #d6e3e9;
+    border-radius: 7px;
+    background: #fff;
+}
+
+.inventory-item strong,
+.inventory-item span {
+    display: block;
+}
+
+.inventory-item small {
+    color: #667085;
+}
+
+.inventory-stock {
+    color: #027a48;
+    font-weight: 900;
+}
+
+.inventory-stock.is-low {
+    color: #b42318;
+}
+
+.inventory-empty {
+    padding: 20px;
+    border: 1px dashed #b8cbd5;
+    border-radius: 7px;
+    color: #667085;
+    text-align: center;
+}
+
+body.dark-theme .maintenance-private-shell,
+body.dark-theme .maintenance-access-gate,
+body.dark-theme .inventory-form,
+body.dark-theme .inventory-item {
+    border-color: #395869;
+    background: #15242d;
+}
+
+body.dark-theme .maintenance-private-heading h3,
+body.dark-theme .inventory-heading h4,
+body.dark-theme .maintenance-access-form > label,
+body.dark-theme .inventory-search,
+body.dark-theme .inventory-form label,
+body.dark-theme .maintenance-private-toolbar {
+    color: #d8f2fc;
+}
+
+body.dark-theme .maintenance-password-row input,
+body.dark-theme .inventory-search input,
+body.dark-theme .inventory-form input {
+    border-color: #456575;
+    background: #0f1d24;
+    color: #f0f7fa;
 }
 
 .procedure-card {
@@ -2505,6 +2697,22 @@ body.dark-theme .modal-dialog {
 }
 
 @media (max-width: 760px) {
+    .maintenance-password-row,
+    .inventory-form,
+    .inventory-item {
+        grid-template-columns: 1fr;
+    }
+
+    .maintenance-private-toolbar,
+    .inventory-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .inventory-location {
+        grid-column: auto;
+    }
+
     .maintenance-report-action {
         grid-template-columns: 44px minmax(0, 1fr);
     }
