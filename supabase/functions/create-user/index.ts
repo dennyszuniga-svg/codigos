@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const rolesPermitidos = new Set(['admin', 'supervisor', 'eco', 'charly', 'anfitrion']);
+const sedesPermitidas = new Set(['puruchuco', 'salaverry', 'primavera', 'civico', 'gama']);
 const dominioInterno = 'usuarios.urbapark.pe';
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
@@ -68,6 +69,7 @@ Deno.serve(async (req) => {
   const password = typeof body.password === 'string' ? body.password : '';
   const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : '';
   const rol = typeof body.rol === 'string' ? body.rol : 'anfitrion';
+  const sede = typeof body.sede === 'string' ? body.sede.trim().toLowerCase() : '';
   const alias = crearAlias(nombre);
   const email = `${alias}@${dominioInterno}`;
 
@@ -81,6 +83,10 @@ Deno.serve(async (req) => {
 
   if (!rolesPermitidos.has(rol)) {
     return jsonResponse({ error: 'Rol invalido' }, 400);
+  }
+
+  if (!sedesPermitidas.has(sede)) {
+    return jsonResponse({ error: 'Sede invalida' }, 400);
   }
 
   const { data: existingProfiles, error: existingError } = await supabase
@@ -109,6 +115,7 @@ Deno.serve(async (req) => {
     user_metadata: {
       nombre,
       usuario: alias,
+      sede,
     },
   });
 
@@ -123,6 +130,7 @@ Deno.serve(async (req) => {
       email,
       nombre,
       rol,
+      sede,
       activo: true,
     });
 
@@ -136,5 +144,6 @@ Deno.serve(async (req) => {
     usuario: alias,
     nombre,
     rol,
+    sede,
   });
 });

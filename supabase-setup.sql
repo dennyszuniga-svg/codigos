@@ -9,6 +9,8 @@ create table if not exists public.profiles (
     nombre text,
     rol text not null default 'anfitrion'
         check (rol in ('admin', 'supervisor', 'eco', 'charly', 'anfitrion')),
+    sede text not null default 'gama'
+        check (sede in ('puruchuco', 'salaverry', 'primavera', 'civico', 'gama')),
     activo boolean not null default true,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
@@ -26,19 +28,23 @@ create table if not exists public.registros_codigos (
     cerrado_en timestamptz,
     pasos jsonb not null default '[]'::jsonb,
     controles jsonb not null default '{}'::jsonb,
+    sede text not null default 'gama'
+        check (sede in ('puruchuco', 'salaverry', 'primavera', 'civico', 'gama')),
     creado_por uuid references auth.users(id),
     creado_por_email text,
     created_at timestamptz not null default now()
 );
 
 create table if not exists public.estado_operativo (
-    id text primary key default 'global',
+    id text primary key,
+    sede text not null
+        check (sede in ('puruchuco', 'salaverry', 'primavera', 'civico', 'gama')),
     codigo_activo text,
     checklist_estado jsonb not null default '{}'::jsonb,
     actualizado_por uuid references auth.users(id),
     actualizado_por_email text,
     updated_at timestamptz not null default now(),
-    constraint estado_operativo_global check (id = 'global')
+    constraint estado_operativo_id_sede_check check (id = sede)
 );
 
 create table if not exists public.push_subscriptions (
@@ -147,6 +153,20 @@ as $$
     );
 $$;
 
+create or replace function public.usuario_sede()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+    select sede
+    from public.profiles
+    where id = auth.uid()
+      and activo = true
+    limit 1;
+$$;
+
 alter table public.profiles enable row level security;
 alter table public.registros_codigos enable row level security;
 alter table public.estado_operativo enable row level security;
@@ -174,43 +194,43 @@ create policy "registros_select_authenticated"
 on public.registros_codigos
 for select
 to authenticated
-using (true);
+using (sede = public.usuario_sede());
 
 drop policy if exists "registros_insert_authenticated" on public.registros_codigos;
 create policy "registros_insert_authenticated"
 on public.registros_codigos
 for insert
 to authenticated
-with check (creado_por = auth.uid());
+with check (creado_por = auth.uid() and sede = public.usuario_sede());
 
 drop policy if exists "registros_delete_admin" on public.registros_codigos;
 create policy "registros_delete_admin"
 on public.registros_codigos
 for delete
 to authenticated
-using (public.es_admin());
+using (public.es_admin() and sede = public.usuario_sede());
 
 drop policy if exists "estado_operativo_select_authenticated" on public.estado_operativo;
 create policy "estado_operativo_select_authenticated"
 on public.estado_operativo
 for select
 to authenticated
-using (true);
+using (sede = public.usuario_sede());
 
 drop policy if exists "estado_operativo_insert_authenticated" on public.estado_operativo;
 create policy "estado_operativo_insert_authenticated"
 on public.estado_operativo
 for insert
 to authenticated
-with check (id = 'global' and actualizado_por = auth.uid());
+with check (id = sede and sede = public.usuario_sede() and actualizado_por = auth.uid());
 
 drop policy if exists "estado_operativo_update_authenticated" on public.estado_operativo;
 create policy "estado_operativo_update_authenticated"
 on public.estado_operativo
 for update
 to authenticated
-using (id = 'global')
-with check (id = 'global' and actualizado_por = auth.uid());
+using (sede = public.usuario_sede())
+with check (id = sede and sede = public.usuario_sede() and actualizado_por = auth.uid());
 
 drop policy if exists "push_select_own_or_admin" on public.push_subscriptions;
 create policy "push_select_own_or_admin"
@@ -292,8 +312,13 @@ to authenticated
 using (user_id = auth.uid())
 with check (user_id = auth.uid());
 
-insert into public.estado_operativo (id, codigo_activo, checklist_estado)
-values ('global', null, '{}'::jsonb)
+insert into public.estado_operativo (id, sede, codigo_activo, checklist_estado)
+values
+    ('puruchuco', 'puruchuco', null, '{}'::jsonb),
+    ('salaverry', 'salaverry', null, '{}'::jsonb),
+    ('primavera', 'primavera', null, '{}'::jsonb),
+    ('civico', 'civico', null, '{}'::jsonb),
+    ('gama', 'gama', null, '{}'::jsonb)
 on conflict (id) do nothing;
 
 alter table public.estado_operativo replica identity full;
@@ -317,6 +342,15 @@ on public.registros_codigos (created_at desc);
 
 create index if not exists registros_codigos_codigo_idx
 on public.registros_codigos (codigo);
+
+create index if not exists registros_codigos_sede_created_at_idx
+on public.registros_codigos (sede, created_at desc);
+
+create index if not exists profiles_sede_idx
+on public.profiles (sede);
+
+create index if not exists estado_operativo_sede_idx
+on public.estado_operativo (sede);
 
 create index if not exists push_subscriptions_user_id_idx
 on public.push_subscriptions (user_id);

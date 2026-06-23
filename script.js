@@ -339,6 +339,30 @@ function guardarEstadoLocalStorage(clave, valor) {
     }
 }
 
+function obtenerSedeActual() {
+    const sede = perfilActual?.sede;
+    return SEDES_OPERACION.some(item => item.id === sede) ? sede : null;
+}
+
+function obtenerClaveLocalPorSede(claveBase) {
+    const sede = obtenerSedeActual();
+    return sede ? `${claveBase}:${sede}` : claveBase;
+}
+
+function migrarDatosLocalesInicialesDeSede() {
+    const sede = obtenerSedeActual();
+    if (sede !== 'gama') {
+        return;
+    }
+
+    [STORAGE_KEYS.history, STORAGE_KEYS.checklist].forEach(claveBase => {
+        const claveSede = obtenerClaveLocalPorSede(claveBase);
+        if (localStorage.getItem(claveSede) === null && localStorage.getItem(claveBase) !== null) {
+            localStorage.setItem(claveSede, localStorage.getItem(claveBase));
+        }
+    });
+}
+
 function actualizarBotonTema() {
     const boton = obtenerElemento('toggleThemeButton');
 
@@ -433,7 +457,8 @@ function actualizarSesionUI() {
     }
 
     const rol = perfilActual?.rol ? ` - ${perfilActual.rol}` : '';
-    etiqueta.textContent = `${obtenerNombreUsuarioActivo()}${rol}`;
+    const sede = obtenerSedeActual() ? ` - ${obtenerNombreSede(obtenerSedeActual())}` : '';
+    etiqueta.textContent = `${obtenerNombreUsuarioActivo()}${rol}${sede}`;
 }
 
 function usuarioEsAdmin() {
@@ -805,7 +830,7 @@ async function cargarPerfilActual() {
 
     const { data, error } = await supabaseClient
         .from('profiles')
-        .select('nombre, rol, activo')
+        .select('nombre, rol, activo, sede')
         .eq('id', sesionActual.user.id)
         .maybeSingle();
 
@@ -813,6 +838,11 @@ async function cargarPerfilActual() {
         console.warn('No se pudo cargar perfil:', error);
     } else if (data) {
         perfilActual = data;
+        migrarDatosLocalesInicialesDeSede();
+        historial = cargarHistorial();
+        checklistEstado = cargarChecklistEstado();
+        actualizarHistorialUI();
+        actualizarResumenUI();
     }
 
     actualizarSesionUI();
@@ -838,6 +868,7 @@ function normalizarRegistroRemoto(registro) {
         prioridad: registro.prioridad || 'media',
         activadoEn: registro.activado_en || '',
         cerradoEn: registro.cerrado_en || '',
+        sede: registro.sede || obtenerSedeActual() || '',
         remoto: true,
         creadoPorEmail: registro.creado_por_email || ''
     };
@@ -852,7 +883,7 @@ async function cargarHistorialRemoto() {
 
     const { data, error } = await supabaseClient
         .from('registros_codigos')
-        .select('id,codigo,nombre,descripcion,encargado,modo,prioridad,activado_en,cerrado_en,created_at,creado_por_email')
+        .select('id,codigo,nombre,descripcion,encargado,modo,prioridad,activado_en,cerrado_en,sede,created_at,creado_por_email')
         .order('created_at', { ascending: false })
         .limit(MAX_HISTORIAL);
 
@@ -1863,7 +1894,7 @@ async function cargarUsuariosAdmin() {
 
     const { data, error } = await supabaseClient
         .from('profiles')
-        .select('id,email,nombre,rol,activo,created_at')
+        .select('id,email,nombre,rol,activo,sede,created_at')
         .order('created_at', { ascending: true });
 
     if (error) {
@@ -1910,6 +1941,7 @@ function renderizarUsuariosAdmin() {
         const nombre = document.createElement('strong');
         const email = document.createElement('span');
         const rol = document.createElement('select');
+        const sede = document.createElement('select');
         const activo = document.createElement('select');
         const guardar = document.createElement('button');
         const eliminar = document.createElement('button');
@@ -1937,6 +1969,16 @@ function renderizarUsuariosAdmin() {
             rol.appendChild(option);
         });
         rol.dataset.userRole = usuario.id;
+
+        SEDES_OPERACION.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.id;
+            option.textContent = item.nombre;
+            option.selected = usuario.sede === item.id;
+            sede.appendChild(option);
+        });
+        sede.dataset.userSite = usuario.id;
+        sede.setAttribute('aria-label', `Sede de ${usuario.nombre || usuario.email}`);
 
         [
             ['true', 'Activo'],
@@ -1966,7 +2008,7 @@ function renderizarUsuariosAdmin() {
 
         acciones.className = 'user-admin-actions';
         acciones.append(guardar, eliminar);
-        fila.append(datos, rol, activo, acciones);
+        fila.append(datos, rol, sede, activo, acciones);
         lista.appendChild(fila);
     });
 }
@@ -1977,11 +2019,12 @@ async function guardarUsuarioAdmin(id) {
     }
 
     const rol = document.querySelector(`[data-user-role="${id}"]`)?.value;
+    const sede = document.querySelector(`[data-user-site="${id}"]`)?.value;
     const activo = document.querySelector(`[data-user-active="${id}"]`)?.value === 'true';
 
     const { error } = await supabaseClient
         .from('profiles')
-        .update({ rol, activo })
+        .update({ rol, sede, activo })
         .eq('id', id);
 
     if (error) {
@@ -1991,6 +2034,12 @@ async function guardarUsuarioAdmin(id) {
     }
 
     mostrarToast('Usuario actualizado.');
+    if (id === sesionActual?.user?.id) {
+        await cargarPerfilActual();
+        await cargarHistorialRemoto();
+        await cargarEstadoOperativoRemoto();
+        suscribirEstadoOperativo();
+    }
     await cargarUsuariosAdmin();
 }
 
@@ -2086,10 +2135,11 @@ async function crearUsuarioDesdeAdmin(event) {
     const estado = obtenerElemento('createUserStatus');
     const nombre = obtenerElemento('newUserName')?.value.trim();
     const password = obtenerElemento('newUserPassword')?.value;
+    const sede = obtenerElemento('newUserSite')?.value;
 
-    if (!nombre || !password) {
+    if (!nombre || !password || !sede) {
         if (estado) {
-            estado.textContent = 'Completa el nombre de usuario y la contrasena.';
+            estado.textContent = 'Completa el nombre de usuario, la contrasena y la sede.';
             estado.dataset.status = 'error';
         }
         return;
@@ -2102,7 +2152,7 @@ async function crearUsuarioDesdeAdmin(event) {
 
     try {
         const { data, error } = await supabaseClient.functions.invoke('create-user', {
-            body: { nombre, password }
+            body: { nombre, password, sede }
         });
 
         if (error || data?.error) {
@@ -2112,7 +2162,7 @@ async function crearUsuarioDesdeAdmin(event) {
 
         obtenerElemento('createUserForm')?.reset();
         if (estado) {
-            estado.textContent = `${nombre} fue creado correctamente como anfitrion.`;
+            estado.textContent = `${nombre} fue creado como anfitrion de ${obtenerNombreSede(sede)}.`;
             estado.dataset.status = 'success';
         }
         mostrarToast(`Usuario creado: ${nombre}`);
@@ -2224,7 +2274,8 @@ function actualizarResultadosBusquedaGlobal() {
 }
 
 async function guardarRegistroRemoto(entrada, estado) {
-    if (!supabaseClient || !sesionActual?.user) {
+    const sede = obtenerSedeActual();
+    if (!supabaseClient || !sesionActual?.user || !sede) {
         actualizarEstadoSincronizacion('Modo local', 'warning');
         return;
     }
@@ -2242,8 +2293,9 @@ async function guardarRegistroRemoto(entrada, estado) {
             cerrado_en: entrada.cerradoEn || null,
             pasos: estado?.pasos || [],
             controles: estado?.controles || {},
+            sede,
             creado_por: sesionActual.user.id,
-            creado_por_email: sesionActual.user.email || ''
+            creado_por_email: obtenerNombreUsuarioActivo()
         });
 
     if (error) {
@@ -2260,15 +2312,17 @@ async function guardarRegistroRemoto(entrada, estado) {
 
 function crearSnapshotEstadoOperativo() {
     return {
+        sede: obtenerSedeActual(),
         codigo_activo: codigoActivo,
         checklist_estado: checklistEstado,
         actualizado_por: sesionActual?.user?.id || null,
-        actualizado_por_email: sesionActual?.user?.email || null
+        actualizado_por_email: obtenerNombreUsuarioActivo()
     };
 }
 
 async function sincronizarEstadoOperativoRemoto() {
-    if (aplicandoEstadoRemoto || !supabaseClient || !sesionActual?.user) {
+    const sede = obtenerSedeActual();
+    if (aplicandoEstadoRemoto || !supabaseClient || !sesionActual?.user || !sede) {
         return;
     }
 
@@ -2276,7 +2330,8 @@ async function sincronizarEstadoOperativoRemoto() {
     const { error } = await supabaseClient
         .from('estado_operativo')
         .upsert({
-            id: 'global',
+            id: sede,
+            sede,
             codigo_activo: snapshot.codigo_activo,
             checklist_estado: snapshot.checklist_estado,
             actualizado_por: snapshot.actualizado_por,
@@ -2294,7 +2349,7 @@ async function sincronizarEstadoOperativoRemoto() {
 }
 
 function programarSincronizacionEstadoOperativo(retraso = 350) {
-    if (aplicandoEstadoRemoto || !supabaseClient || !sesionActual?.user) {
+    if (aplicandoEstadoRemoto || !supabaseClient || !sesionActual?.user || !obtenerSedeActual()) {
         return;
     }
 
@@ -2321,7 +2376,7 @@ function normalizarEstadoOperativoRemoto(estadoRemoto) {
 }
 
 function aplicarEstadoOperativoRemoto(registro) {
-    if (!registro) {
+    if (!registro || registro.sede !== obtenerSedeActual()) {
         return;
     }
 
@@ -2356,14 +2411,15 @@ function aplicarEstadoOperativoRemoto(registro) {
 }
 
 async function cargarEstadoOperativoRemoto() {
-    if (!supabaseClient || !sesionActual?.user) {
+    const sede = obtenerSedeActual();
+    if (!supabaseClient || !sesionActual?.user || !sede) {
         return;
     }
 
     const { data, error } = await supabaseClient
         .from('estado_operativo')
-        .select('id,codigo_activo,checklist_estado,actualizado_por,actualizado_por_email,updated_at')
-        .eq('id', 'global')
+        .select('id,sede,codigo_activo,checklist_estado,actualizado_por,actualizado_por_email,updated_at')
+        .eq('id', sede)
         .maybeSingle();
 
     if (error) {
@@ -2381,7 +2437,8 @@ async function cargarEstadoOperativoRemoto() {
 }
 
 function suscribirEstadoOperativo() {
-    if (!supabaseClient || !sesionActual?.user) {
+    const sede = obtenerSedeActual();
+    if (!supabaseClient || !sesionActual?.user || !sede) {
         return;
     }
 
@@ -2391,14 +2448,14 @@ function suscribirEstadoOperativo() {
     }
 
     canalEstadoOperativo = supabaseClient
-        .channel('estado-operativo-global')
+        .channel(`estado-operativo-${sede}`)
         .on(
             'postgres_changes',
             {
                 event: '*',
                 schema: 'public',
                 table: 'estado_operativo',
-                filter: 'id=eq.global'
+                filter: `id=eq.${sede}`
             },
             payload => {
                 const nuevoEstado = payload.new;
@@ -2474,10 +2531,10 @@ async function aplicarSesion(session) {
     actualizarEstadoAuth('Sesion iniciada.', 'success');
     actualizarSesionUI();
     actualizarBotonAlertas();
+    await cargarPerfilActual();
     if ('Notification' in window && Notification.permission === 'granted') {
         registrarSuscripcionPush();
     }
-    await cargarPerfilActual();
     await migrarFotosGuiasLegacy();
     await cargarGuiasRemotas();
     await cargarProgresoGuiasRemoto();
@@ -2787,7 +2844,7 @@ function obtenerEstadoChecklist(codigo) {
 }
 
 function cargarHistorial() {
-    const datos = safeParseJSON(localStorage.getItem(STORAGE_KEYS.history), []);
+    const datos = safeParseJSON(localStorage.getItem(obtenerClaveLocalPorSede(STORAGE_KEYS.history)), []);
 
     if (!Array.isArray(datos)) {
         return [];
@@ -2806,13 +2863,14 @@ function cargarHistorial() {
             encargado: entrada.encargado || '',
             modo: etiquetasModo[entrada.modo] ? entrada.modo : 'real',
             prioridad: etiquetasPrioridad[entrada.prioridad] ? entrada.prioridad : 'media',
+            sede: entrada.sede || obtenerSedeActual() || '',
             activadoEn: entrada.activadoEn || null,
             cerradoEn: entrada.cerradoEn || null
         }));
 }
 
 function cargarChecklistEstado() {
-    const datos = safeParseJSON(localStorage.getItem(STORAGE_KEYS.checklist), {});
+    const datos = safeParseJSON(localStorage.getItem(obtenerClaveLocalPorSede(STORAGE_KEYS.checklist)), {});
 
     if (!datos || typeof datos !== 'object' || Array.isArray(datos)) {
         return {};
@@ -2830,7 +2888,7 @@ function cargarChecklistEstado() {
 }
 
 function guardarChecklistEstado() {
-    guardarEstadoLocalStorage(STORAGE_KEYS.checklist, checklistEstado);
+    guardarEstadoLocalStorage(obtenerClaveLocalPorSede(STORAGE_KEYS.checklist), checklistEstado);
 }
 
 function obtenerFechaHoraActual() {
@@ -3635,7 +3693,7 @@ function actualizarPasoChecklistEnPantalla(codigo, indice) {
 }
 
 function guardarHistorial() {
-    guardarEstadoLocalStorage(STORAGE_KEYS.history, historial);
+    guardarEstadoLocalStorage(obtenerClaveLocalPorSede(STORAGE_KEYS.history), historial);
 }
 
 function agregarAlHistorial(codigo, encargado) {
@@ -3653,6 +3711,7 @@ function agregarAlHistorial(codigo, encargado) {
         encargado: encargado || '',
         modo: estado?.modo || 'real',
         prioridad: estado?.prioridad || 'media',
+        sede: obtenerSedeActual() || '',
         activadoEn: estado?.activadoEn || tiempo.iso,
         cerradoEn
     };
@@ -4347,6 +4406,10 @@ function crearContenidoInforme(codigo) {
             <div class="box">
                 <span class="label">Prioridad</span>
                 <span class="value">${escaparHTML(etiquetasPrioridad[estado.prioridad] || 'Media')}</span>
+            </div>
+            <div class="box">
+                <span class="label">Sede</span>
+                <span class="value">${escaparHTML(obtenerNombreSede(obtenerSedeActual()))}</span>
             </div>
             <div class="box">
                 <span class="label">Duracion</span>

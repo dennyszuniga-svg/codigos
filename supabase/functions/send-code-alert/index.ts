@@ -56,6 +56,19 @@ Deno.serve(async (req) => {
     });
   }
 
+  const { data: senderProfile, error: senderProfileError } = await supabase
+    .from('profiles')
+    .select('nombre,sede,activo')
+    .eq('id', userData.user.id)
+    .maybeSingle();
+
+  if (senderProfileError || !senderProfile?.sede || senderProfile.activo !== true) {
+    return new Response(JSON.stringify({ error: 'Usuario sin sede operativa activa' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   const body = await req.json().catch(() => ({}));
   const codigo = typeof body.codigo === 'string' ? body.codigo : '';
   const nombre = typeof body.nombre === 'string' ? body.nombre : nombresCodigo[codigo] || 'Codigo activado';
@@ -67,10 +80,31 @@ Deno.serve(async (req) => {
     });
   }
 
+  const { data: siteUsers, error: siteUsersError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('sede', senderProfile.sede)
+    .eq('activo', true)
+    .neq('id', userData.user.id);
+
+  if (siteUsersError) {
+    return new Response(JSON.stringify({ error: siteUsersError.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const recipientIds = (siteUsers || []).map((item) => item.id);
+  if (!recipientIds.length) {
+    return new Response(JSON.stringify({ sent: 0, sede: senderProfile.sede }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   const { data: subscriptions, error: subscriptionsError } = await supabase
     .from('push_subscriptions')
     .select('id,user_id,endpoint,p256dh,auth')
-    .neq('user_id', userData.user.id);
+    .in('user_id', recipientIds);
 
   if (subscriptionsError) {
     return new Response(JSON.stringify({ error: subscriptionsError.message }), {
@@ -83,9 +117,9 @@ Deno.serve(async (req) => {
 
   const payload = JSON.stringify({
     title: `${nombre} activado`,
-    body: `${userData.user.email || 'Un usuario'} activo ${nombre}. Revisa el checklist operativo.`,
-    tag: `codigo-activo-${codigo}`,
-    data: { codigo },
+    body: `${senderProfile.nombre || 'Un usuario'} activo ${nombre}. Revisa el checklist operativo.`,
+    tag: `codigo-activo-${senderProfile.sede}-${codigo}`,
+    data: { codigo, sede: senderProfile.sede },
   });
 
   const results = await Promise.allSettled(
@@ -118,7 +152,7 @@ Deno.serve(async (req) => {
     }),
   );
 
-  return new Response(JSON.stringify({ sent: results.length }), {
+  return new Response(JSON.stringify({ sent: results.length, sede: senderProfile.sede }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 });

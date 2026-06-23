@@ -968,7 +968,7 @@ body.dark-theme .site-button[aria-pressed="true"] {
 
 .user-admin-row {
     display: grid;
-    grid-template-columns: minmax(180px, 1.3fr) minmax(120px, 0.6fr) minmax(110px, 0.5fr) auto;
+    grid-template-columns: minmax(170px, 1.2fr) minmax(105px, 0.55fr) minmax(160px, 0.8fr) minmax(105px, 0.5fr) auto;
     gap: 10px;
     align-items: center;
     padding: 12px;
