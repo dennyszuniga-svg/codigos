@@ -2,6 +2,7 @@ const STORAGE_KEYS = {
     history: 'historialCodigos',
     checklist: 'estadoChecklistCodigos',
     guides: 'guiasOperativas',
+    guideDraft: 'borradorGuiaOperativa',
     guideProgress: 'progresoGuiasOperativas',
     guideImagesMigrated: 'fotosGuiasMigradasAStorage',
     theme: 'temaCodigosUrbapark'
@@ -295,6 +296,7 @@ let usuariosAdmin = [];
 let canalGuiasOperativas = null;
 let busquedaGlobal = '';
 let elementoRetornoPanelAdmin = null;
+let temporizadorBorradorGuia = null;
 let sedeActivaPorModulo = {
     mantenimiento: 'puruchuco',
     caja: 'gama',
@@ -1025,6 +1027,7 @@ function normalizarGuiaOperativa(guia) {
         id: guia.id || `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         modulo: guia.modulo,
         sede: normalizarSedeGuia(guia),
+        audiencia: guia.audiencia === 'supervision' ? 'supervision' : 'todos',
         titulo: guia.titulo || 'Guia sin titulo',
         descripcion: guia.descripcion || '',
         pasos,
@@ -1033,6 +1036,14 @@ function normalizarGuiaOperativa(guia) {
         updatedAt: guia.updated_at || guia.updatedAt || guia.created_at || guia.createdAt || new Date().toISOString(),
         remoto: Boolean(guia.id && !String(guia.id).startsWith('local-'))
     };
+}
+
+function usuarioPuedeVerGuia(guia) {
+    if (guia.audiencia !== 'supervision') {
+        return true;
+    }
+
+    return perfilActual?.rol === 'admin' || perfilActual?.rol === 'supervisor';
 }
 
 function obtenerFuenteFotoGuia(foto) {
@@ -1072,7 +1083,7 @@ async function cargarGuiasRemotas() {
 
     const { data, error } = await supabaseClient
         .from('guias_operativas')
-        .select('id,modulo,sede,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
+        .select('id,modulo,sede,audiencia,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
         .order('updated_at', { ascending: false });
 
     if (error) {
@@ -1119,6 +1130,7 @@ function crearGuiaElemento(guia) {
     details.dataset.guideId = guia.id;
     const revisada = Boolean(progresoGuias[guia.id]?.revisada);
     details.classList.toggle('guide-reviewed', revisada);
+    details.classList.toggle('guide-restricted', guia.audiencia === 'supervision');
     icono.className = 'procedure-icon';
     icono.setAttribute('aria-hidden', 'true');
     iconSvg.setAttribute('viewBox', '0 0 64 64');
@@ -1181,7 +1193,8 @@ function crearGuiaElemento(guia) {
     const autoria = guia.creadoPorEmail
         ? `Creado por ${guia.creadoPorEmail}`
         : 'Guia agregada por administrador';
-    meta.textContent = `${sedeTexto} - ${autoria}`;
+    const acceso = guia.audiencia === 'supervision' ? 'Solo supervision y administracion' : 'Todos los usuarios';
+    meta.textContent = `${sedeTexto} - ${acceso} - ${autoria}`;
 
     cuerpo.append(lista, meta);
 
@@ -1276,7 +1289,7 @@ function renderizarGuiasOperativas() {
         limpiarElemento(contenedor);
         const sedeActiva = sedeActivaPorModulo[modulo];
         const guiasModulo = guiasOperativas.filter(guia => {
-            if (guia.modulo !== modulo) {
+            if (guia.modulo !== modulo || !usuarioPuedeVerGuia(guia)) {
                 return false;
             }
             return !MODULOS_POR_SEDE.has(modulo)
@@ -1305,9 +1318,9 @@ function actualizarContadoresModulos() {
         }
 
         const guiasBase = modulo === 'mantenimiento' ? 2 : 0;
-        const total = guiasBase + guiasOperativas.filter(guia => guia.modulo === modulo).length;
+        const total = guiasBase + guiasOperativas.filter(guia => guia.modulo === modulo && usuarioPuedeVerGuia(guia)).length;
         const revisadas = guiasOperativas.filter(guia =>
-            guia.modulo === modulo && progresoGuias[guia.id]?.revisada
+            guia.modulo === modulo && usuarioPuedeVerGuia(guia) && progresoGuias[guia.id]?.revisada
         ).length;
         const etiquetaTotal = total === 1 ? '1 guia' : `${total} guias`;
         contador.textContent = revisadas ? `${etiquetaTotal} · ${revisadas} revisadas` : etiquetaTotal;
@@ -1319,8 +1332,9 @@ function actualizarContadoresModulos() {
         contadorCodigos.textContent = `${ordenCodigos.length} protocolos`;
     }
 
-    const total = guiasOperativas.length;
-    const revisadas = guiasOperativas.filter(guia => progresoGuias[guia.id]?.revisada).length;
+    const guiasVisibles = guiasOperativas.filter(usuarioPuedeVerGuia);
+    const total = guiasVisibles.length;
+    const revisadas = guiasVisibles.filter(guia => progresoGuias[guia.id]?.revisada).length;
     const porcentaje = total ? Math.round((revisadas / total) * 100) : 0;
     const contadorCapacitacion = document.querySelector('[data-module-count="capacitacion"]');
     if (contadorCapacitacion) {
@@ -1334,6 +1348,92 @@ function crearTareaBorrador(descripcion = '', foto = null) {
         descripcion,
         foto
     };
+}
+
+function obtenerClaveBorradorGuia() {
+    const usuario = sesionActual?.user?.id;
+    return usuario ? `${STORAGE_KEYS.guideDraft}:${usuario}` : STORAGE_KEYS.guideDraft;
+}
+
+function guardarBorradorGuia() {
+    if (!usuarioEsAdmin()) {
+        return;
+    }
+
+    const borrador = {
+        editandoId: obtenerElemento('guideEditingId')?.value || '',
+        modulo: obtenerElemento('guideModule')?.value || 'mantenimiento',
+        sede: obtenerElemento('guideSite')?.value || 'puruchuco',
+        audiencia: obtenerElemento('guideAudience')?.value || 'todos',
+        titulo: obtenerElemento('guideTitle')?.value || '',
+        descripcion: obtenerElemento('guideDescription')?.value || '',
+        tareas: guiaTareasBorrador.map(tarea => ({
+            descripcion: tarea.descripcion || '',
+            foto: tarea.foto || null
+        })),
+        actualizadoEn: new Date().toISOString()
+    };
+
+    const tieneContenido = borrador.editandoId
+        || borrador.titulo.trim()
+        || borrador.descripcion.trim()
+        || borrador.tareas.some(tarea => tarea.descripcion.trim() || tarea.foto);
+    if (!tieneContenido) {
+        return;
+    }
+
+    try {
+        localStorage.setItem(obtenerClaveBorradorGuia(), JSON.stringify(borrador));
+    } catch (error) {
+        console.warn('No se pudo guardar el borrador de guia:', error);
+        const estado = obtenerElemento('guideEditorStatus');
+        if (estado) {
+            estado.textContent = 'El borrador es demasiado grande para guardarse en este dispositivo.';
+            estado.dataset.status = 'warning';
+        }
+    }
+}
+
+function programarGuardadoBorradorGuia(retraso = 250) {
+    window.clearTimeout(temporizadorBorradorGuia);
+    temporizadorBorradorGuia = window.setTimeout(guardarBorradorGuia, retraso);
+}
+
+function borrarBorradorGuia() {
+    window.clearTimeout(temporizadorBorradorGuia);
+    localStorage.removeItem(obtenerClaveBorradorGuia());
+}
+
+function restaurarBorradorGuia() {
+    if (!usuarioEsAdmin()) {
+        return;
+    }
+
+    const borrador = safeParseJSON(localStorage.getItem(obtenerClaveBorradorGuia()), null);
+    if (!borrador || typeof borrador !== 'object') {
+        return;
+    }
+
+    obtenerElemento('guideEditingId').value = borrador.editandoId || '';
+    obtenerElemento('guideModule').value = borrador.modulo || 'mantenimiento';
+    actualizarCampoSedeGuia();
+    if (MODULOS_POR_SEDE.has(borrador.modulo) && SEDES_OPERACION.some(item => item.id === borrador.sede)) {
+        obtenerElemento('guideSite').value = borrador.sede;
+    }
+    obtenerElemento('guideAudience').value = borrador.audiencia === 'supervision' ? 'supervision' : 'todos';
+    obtenerElemento('guideTitle').value = borrador.titulo || '';
+    obtenerElemento('guideDescription').value = borrador.descripcion || '';
+    guiaTareasBorrador = Array.isArray(borrador.tareas) && borrador.tareas.length
+        ? borrador.tareas.map(tarea => crearTareaBorrador(tarea.descripcion || '', tarea.foto || null))
+        : [crearTareaBorrador()];
+    renderizarTareasBorrador();
+    obtenerElemento('cancelGuideEdit').hidden = !borrador.editandoId;
+
+    const estado = obtenerElemento('guideEditorStatus');
+    if (estado) {
+        estado.textContent = 'Borrador recuperado automaticamente.';
+        estado.dataset.status = 'success';
+    }
 }
 
 function renderizarTareasBorrador() {
@@ -1424,6 +1524,7 @@ function renderizarTareasBorrador() {
 function agregarTareaBorrador() {
     guiaTareasBorrador.push(crearTareaBorrador());
     renderizarTareasBorrador();
+    programarGuardadoBorradorGuia();
 }
 
 function reiniciarTareasBorrador() {
@@ -1481,6 +1582,7 @@ function cargarGuiaEnEditor(id) {
     if (MODULOS_POR_SEDE.has(guia.modulo) && guia.sede !== 'general') {
         obtenerElemento('guideSite').value = guia.sede;
     }
+    obtenerElemento('guideAudience').value = guia.audiencia;
     obtenerElemento('guideTitle').value = guia.titulo;
     obtenerElemento('guideDescription').value = guia.descripcion || '';
     guiaTareasBorrador = guia.pasos.map(paso => crearTareaBorrador(paso.descripcion, paso.foto));
@@ -1489,6 +1591,7 @@ function cargarGuiaEnEditor(id) {
     }
     renderizarTareasBorrador();
     obtenerElemento('cancelGuideEdit').hidden = false;
+    guardarBorradorGuia();
 
     if (estado) {
         estado.textContent = 'Editando guia existente.';
@@ -1499,6 +1602,7 @@ function cargarGuiaEnEditor(id) {
 }
 
 function cancelarEdicionGuia() {
+    borrarBorradorGuia();
     obtenerElemento('adminGuideForm')?.reset();
     obtenerElemento('guideEditingId').value = '';
     obtenerElemento('cancelGuideEdit').hidden = true;
@@ -1534,6 +1638,7 @@ async function actualizarFotoTareaBorrador(input) {
             agregadaEn: obtenerFechaHoraActual().iso
         };
         renderizarTareasBorrador();
+        guardarBorradorGuia();
 
         if (estado) {
             estado.textContent = 'Foto agregada a la tarea.';
@@ -1664,14 +1769,15 @@ async function guardarGuiaOperativa(event) {
     const sede = MODULOS_POR_SEDE.has(modulo)
         ? obtenerElemento('guideSite')?.value
         : 'general';
+    const audiencia = obtenerElemento('guideAudience')?.value;
     const titulo = obtenerElemento('guideTitle')?.value.trim();
     const descripcion = obtenerElemento('guideDescription')?.value.trim();
     const pasos = obtenerPasosBorrador();
     const editandoId = obtenerElemento('guideEditingId')?.value;
 
-    if (!modulo || !sede || !titulo || !pasos.length) {
+    if (!modulo || !sede || !['todos', 'supervision'].includes(audiencia) || !titulo || !pasos.length) {
         if (estado) {
-            estado.textContent = 'Completa sede, titulo y al menos un paso.';
+            estado.textContent = 'Completa sede, nivel de acceso, titulo y al menos un paso.';
             estado.dataset.status = 'error';
         }
         return;
@@ -1680,6 +1786,7 @@ async function guardarGuiaOperativa(event) {
     const guiaLocal = {
         modulo,
         sede,
+        audiencia,
         titulo,
         descripcion,
         pasos,
@@ -1728,17 +1835,18 @@ async function guardarGuiaOperativa(event) {
                 .update({
                     modulo,
                     sede,
+                    audiencia,
                     titulo,
                     descripcion,
                     pasos: pasosRemotos
                 })
                 .eq('id', editandoId)
-                .select('id,modulo,sede,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
+                .select('id,modulo,sede,audiencia,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
                 .single()
             : supabaseClient
                 .from('guias_operativas')
                 .insert(guiaRemota)
-                .select('id,modulo,sede,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
+                .select('id,modulo,sede,audiencia,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
                 .single();
 
         const { data, error } = await consulta;
@@ -1874,8 +1982,9 @@ function actualizarProgresoCapacitacionUI() {
         return;
     }
 
-    const total = guiasOperativas.length;
-    const revisadas = guiasOperativas.filter(guia => progresoGuias[guia.id]?.revisada).length;
+    const guiasVisibles = guiasOperativas.filter(usuarioPuedeVerGuia);
+    const total = guiasVisibles.length;
+    const revisadas = guiasVisibles.filter(guia => progresoGuias[guia.id]?.revisada).length;
     texto.textContent = total
         ? `${revisadas} de ${total} guias revisadas en este dispositivo.`
         : 'Aun no hay guias operativas agregadas.';
@@ -2201,7 +2310,7 @@ function obtenerItemsBusqueda() {
         }
     }));
 
-    const guias = guiasOperativas.map(guia => ({
+    const guias = guiasOperativas.filter(usuarioPuedeVerGuia).map(guia => ({
         tipo: `Guia - ${guia.modulo}${guia.sede !== 'general' ? ` - ${obtenerNombreSede(guia.sede)}` : ''}`,
         titulo: guia.titulo,
         detalle: `${guia.descripcion || ''} ${guia.sede !== 'general' ? obtenerNombreSede(guia.sede) : ''} ${guia.pasos.map(paso => paso.descripcion).join(' ')}`,
@@ -2532,6 +2641,7 @@ async function aplicarSesion(session) {
     actualizarSesionUI();
     actualizarBotonAlertas();
     await cargarPerfilActual();
+    restaurarBorradorGuia();
     if ('Notification' in window && Notification.permission === 'granted') {
         registrarSuscripcionPush();
     }
@@ -3975,9 +4085,10 @@ function actualizarActividadGeneralUI() {
 
     limpiarElemento(contenedor);
 
-    const totalGuias = guiasOperativas.length;
-    const revisadas = guiasOperativas.filter(guia => progresoGuias[guia.id]?.revisada).length;
-    const ultimasGuias = guiasOperativas.slice(0, 3);
+    const guiasVisibles = guiasOperativas.filter(usuarioPuedeVerGuia);
+    const totalGuias = guiasVisibles.length;
+    const revisadas = guiasVisibles.filter(guia => progresoGuias[guia.id]?.revisada).length;
+    const ultimasGuias = guiasVisibles.slice(0, 3);
     const entradas = [
         `Guias operativas: ${totalGuias}. Revisadas en este dispositivo: ${revisadas}.`,
         ...ultimasGuias.map(guia => `Guia reciente en ${guia.modulo}: ${guia.titulo}.`)
@@ -4888,13 +4999,27 @@ function configurarEventos() {
     obtenerElemento('toggleThemeButton')?.addEventListener('click', alternarTema);
     obtenerElemento('bottomNav')?.addEventListener('click', manejarNavegacionInferior);
     obtenerElemento('adminGuideForm')?.addEventListener('submit', guardarGuiaOperativa);
-    obtenerElemento('guideModule')?.addEventListener('change', actualizarCampoSedeGuia);
+    obtenerElemento('guideModule')?.addEventListener('change', () => {
+        actualizarCampoSedeGuia();
+        programarGuardadoBorradorGuia();
+    });
     obtenerElemento('addGuideTask')?.addEventListener('click', agregarTareaBorrador);
     obtenerElemento('cancelGuideEdit')?.addEventListener('click', cancelarEdicionGuia);
     obtenerElemento('refreshUsers')?.addEventListener('click', cargarUsuariosAdmin);
     obtenerElemento('toggleGuideAdmin')?.addEventListener('click', () => alternarPanelAdmin('guias'));
     obtenerElemento('toggleUsersAdmin')?.addEventListener('click', () => alternarPanelAdmin('usuarios'));
     obtenerElemento('createUserForm')?.addEventListener('submit', crearUsuarioDesdeAdmin);
+    obtenerElemento('adminGuideForm')?.addEventListener('input', event => {
+        if (!event.target.matches('input[type="file"]')) {
+            programarGuardadoBorradorGuia();
+        }
+    });
+    obtenerElemento('adminGuideForm')?.addEventListener('change', event => {
+        if (!event.target.matches('input[type="file"]')) {
+            programarGuardadoBorradorGuia();
+        }
+    });
+    window.addEventListener('pagehide', guardarBorradorGuia);
     obtenerElemento('globalSearchInput')?.addEventListener('input', event => {
         busquedaGlobal = event.target.value;
         actualizarResultadosBusquedaGlobal();
@@ -4990,6 +5115,7 @@ function configurarEventos() {
         const tarea = guiaTareasBorrador.find(item => item.id === campo.dataset.taskDescription);
         if (tarea) {
             tarea.descripcion = campo.value;
+            programarGuardadoBorradorGuia();
         }
     });
 
@@ -5008,6 +5134,7 @@ function configurarEventos() {
                 guiaTareasBorrador.push(crearTareaBorrador());
             }
             renderizarTareasBorrador();
+            programarGuardadoBorradorGuia();
             return;
         }
 
@@ -5019,6 +5146,7 @@ function configurarEventos() {
                 const [tarea] = guiaTareasBorrador.splice(indice, 1);
                 guiaTareasBorrador.splice(destino, 0, tarea);
                 renderizarTareasBorrador();
+                programarGuardadoBorradorGuia();
             }
         }
     });

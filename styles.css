@@ -1107,6 +1107,18 @@ body.dark-theme .search-result-card {
     color: #027a48;
 }
 
+.guide-restricted {
+    border-left: 5px solid #344054;
+}
+
+.guide-restricted summary {
+    background: #f8fafc;
+}
+
+body.dark-theme .guide-restricted summary {
+    background: #202b38;
+}
+
 .procedure-card summary::-webkit-details-marker {
     display: none;
 }

@@ -8,6 +8,8 @@ create table if not exists public.guias_operativas (
         check (modulo in ('mantenimiento', 'operaciones', 'caja', 'ronda')),
     sede text not null default 'general'
         check (sede in ('general', 'puruchuco', 'salaverry', 'primavera', 'civico', 'gama')),
+    audiencia text not null default 'todos'
+        check (audiencia in ('todos', 'supervision')),
     titulo text not null,
     descripcion text,
     pasos jsonb not null default '[]'::jsonb,
@@ -43,12 +45,28 @@ execute function public.set_updated_at();
 alter table public.guias_operativas enable row level security;
 alter table public.guia_progreso enable row level security;
 
+create or replace function public.puede_ver_guia(nivel text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+    select nivel = 'todos' or exists (
+        select 1
+        from public.profiles
+        where id = auth.uid()
+          and activo = true
+          and rol in ('admin', 'supervisor')
+    );
+$$;
+
 drop policy if exists "guias_select_authenticated" on public.guias_operativas;
 create policy "guias_select_authenticated"
 on public.guias_operativas
 for select
 to authenticated
-using (true);
+using (public.puede_ver_guia(audiencia));
 
 drop policy if exists "guias_insert_admin" on public.guias_operativas;
 create policy "guias_insert_admin"
@@ -106,6 +124,9 @@ on public.guias_operativas (modulo);
 
 create index if not exists guias_operativas_sede_idx
 on public.guias_operativas (modulo, sede);
+
+create index if not exists guias_operativas_audiencia_idx
+on public.guias_operativas (audiencia);
 
 create index if not exists guia_progreso_user_id_idx
 on public.guia_progreso (user_id);
