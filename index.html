@@ -193,16 +193,32 @@
                             <option value="ronda">Ronda</option>
                         </select>
                     </label>
-                    <label id="guideSiteField">
-                        Sede
-                        <select id="guideSite" required>
-                            <option value="puruchuco">Real Plaza Puruchuco</option>
-                            <option value="salaverry">Real Plaza Salaverry</option>
-                            <option value="primavera">Real Plaza Primavera</option>
-                            <option value="civico">Real Plaza Civico</option>
-                            <option value="gama">GAMA</option>
-                        </select>
-                    </label>
+                    <fieldset id="guideSiteField" class="guide-site-field">
+                        <legend>Sedes donde se publicara</legend>
+                        <div class="guide-site-options" id="guideSiteOptions">
+                            <label>
+                                <input type="checkbox" name="guideSites" value="puruchuco">
+                                <span>Real Plaza Puruchuco</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" name="guideSites" value="salaverry">
+                                <span>Real Plaza Salaverry</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" name="guideSites" value="primavera">
+                                <span>Real Plaza Primavera</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" name="guideSites" value="civico">
+                                <span>Real Plaza Civico</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" name="guideSites" value="gama">
+                                <span>GAMA</span>
+                            </label>
+                        </div>
+                        <p class="form-helper">Puedes marcar una o varias sedes para duplicar la guia en cada una.</p>
+                    </fieldset>
                     <label>
                         Compartir con
                         <select id="guideAudience" required>

@@ -1302,26 +1302,75 @@ function normalizarSedeGuia(guia) {
     return guia.modulo === 'caja' ? 'gama' : 'general';
 }
 
+function obtenerSedesGuia(guia) {
+    const sedes = Array.isArray(guia.sedes)
+        ? guia.sedes
+        : guia.sedes && typeof guia.sedes === 'string'
+            ? safeParseJSON(guia.sedes, [])
+            : [];
+    const sedesValidas = sedes
+        .map(sede => String(sede || '').toLowerCase())
+        .filter((sede, indice, lista) =>
+            (sede === 'general' || SEDES_OPERACION.some(item => item.id === sede))
+            && lista.indexOf(sede) === indice
+        );
+
+    if (sedesValidas.length) {
+        return sedesValidas;
+    }
+
+    return [normalizarSedeGuia(guia)];
+}
+
+function obtenerSedesSeleccionadasGuia() {
+    const checks = [...document.querySelectorAll('input[name="guideSites"]:checked')];
+    return checks
+        .map(check => check.value)
+        .filter(sede => SEDES_OPERACION.some(item => item.id === sede));
+}
+
+function establecerSedesSeleccionadasGuia(sedes) {
+    const valores = new Set(
+        (Array.isArray(sedes) && sedes.length ? sedes : ['puruchuco'])
+            .filter(sede => SEDES_OPERACION.some(item => item.id === sede))
+    );
+
+    document.querySelectorAll('input[name="guideSites"]').forEach(check => {
+        check.checked = valores.has(check.value);
+    });
+}
+
+function obtenerTextoSedesGuia(guia) {
+    const sedes = obtenerSedesGuia(guia);
+    if (sedes.includes('general')) {
+        return 'Todas las sedes';
+    }
+
+    return sedes.map(obtenerNombreSede).join(', ');
+}
+
 function actualizarCampoSedeGuia() {
     const modulo = obtenerElemento('guideModule')?.value;
     const campo = obtenerElemento('guideSiteField');
-    const selector = obtenerElemento('guideSite');
+    const checks = [...document.querySelectorAll('input[name="guideSites"]')];
     const usaSede = MODULOS_POR_SEDE.has(modulo);
 
-    if (!campo || !selector) {
+    if (!campo || !checks.length) {
         return;
     }
 
     campo.hidden = !usaSede;
-    selector.disabled = !usaSede;
+    checks.forEach(check => {
+        check.disabled = !usaSede;
+    });
     if (!usaSede) {
-        selector.value = 'puruchuco';
+        establecerSedesSeleccionadasGuia(['puruchuco']);
         return;
     }
 
     const sedePreferida = sedeActivaPorModulo[modulo] || 'puruchuco';
-    if (!SEDES_OPERACION.some(item => item.id === selector.value)) {
-        selector.value = sedePreferida;
+    if (!obtenerSedesSeleccionadasGuia().length) {
+        establecerSedesSeleccionadasGuia([sedePreferida]);
     }
 }
 
@@ -1363,6 +1412,7 @@ function normalizarGuiaOperativa(guia) {
         id: guia.id || `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         modulo: guia.modulo,
         sede: normalizarSedeGuia(guia),
+        sedes: obtenerSedesGuia(guia),
         audiencia: guia.audiencia === 'supervision' ? 'supervision' : 'todos',
         titulo: guia.titulo || 'Guia sin titulo',
         descripcion: guia.descripcion || '',
@@ -1525,7 +1575,7 @@ function crearGuiaElemento(guia) {
     });
 
     meta.className = 'guide-meta';
-    const sedeTexto = guia.sede === 'general' ? 'Todas las sedes' : obtenerNombreSede(guia.sede);
+    const sedeTexto = obtenerTextoSedesGuia(guia);
     const autoria = guia.creadoPorEmail
         ? `Creado por ${guia.creadoPorEmail}`
         : 'Guia agregada por administrador';
@@ -1629,8 +1679,8 @@ function renderizarGuiasOperativas() {
                 return false;
             }
             return !MODULOS_POR_SEDE.has(modulo)
-                || guia.sede === 'general'
-                || guia.sede === sedeActiva;
+                || obtenerSedesGuia(guia).includes('general')
+                || obtenerSedesGuia(guia).includes(sedeActiva);
         });
 
         guiasModulo.forEach(guia => contenedor.appendChild(crearGuiaElemento(guia)));
@@ -1699,7 +1749,7 @@ function guardarBorradorGuia() {
     const borrador = {
         editandoId: obtenerElemento('guideEditingId')?.value || '',
         modulo: obtenerElemento('guideModule')?.value || 'mantenimiento',
-        sede: obtenerElemento('guideSite')?.value || 'puruchuco',
+        sedes: obtenerSedesSeleccionadasGuia(),
         audiencia: obtenerElemento('guideAudience')?.value || 'todos',
         titulo: obtenerElemento('guideTitle')?.value || '',
         descripcion: obtenerElemento('guideDescription')?.value || '',
@@ -1753,8 +1803,11 @@ function restaurarBorradorGuia() {
     obtenerElemento('guideEditingId').value = borrador.editandoId || '';
     obtenerElemento('guideModule').value = borrador.modulo || 'mantenimiento';
     actualizarCampoSedeGuia();
-    if (MODULOS_POR_SEDE.has(borrador.modulo) && SEDES_OPERACION.some(item => item.id === borrador.sede)) {
-        obtenerElemento('guideSite').value = borrador.sede;
+    if (MODULOS_POR_SEDE.has(borrador.modulo)) {
+        const sedesBorrador = Array.isArray(borrador.sedes) && borrador.sedes.length
+            ? borrador.sedes
+            : [borrador.sede].filter(Boolean);
+        establecerSedesSeleccionadasGuia(sedesBorrador);
     }
     obtenerElemento('guideAudience').value = borrador.audiencia === 'supervision' ? 'supervision' : 'todos';
     obtenerElemento('guideTitle').value = borrador.titulo || '';
@@ -1915,8 +1968,8 @@ function cargarGuiaEnEditor(id) {
     obtenerElemento('guideEditingId').value = guia.id;
     obtenerElemento('guideModule').value = guia.modulo;
     actualizarCampoSedeGuia();
-    if (MODULOS_POR_SEDE.has(guia.modulo) && guia.sede !== 'general') {
-        obtenerElemento('guideSite').value = guia.sede;
+    if (MODULOS_POR_SEDE.has(guia.modulo)) {
+        establecerSedesSeleccionadasGuia(obtenerSedesGuia(guia).filter(sede => sede !== 'general'));
     }
     obtenerElemento('guideAudience').value = guia.audiencia;
     obtenerElemento('guideTitle').value = guia.titulo;
@@ -2011,6 +2064,24 @@ async function eliminarFotosGuias(rutas) {
     }
 }
 
+async function eliminarFotosGuiasSinUso(rutas, ignorarIds = []) {
+    const rutasUnicas = [...new Set(rutas.filter(Boolean))];
+    if (!rutasUnicas.length) {
+        return;
+    }
+
+    const idsIgnorados = new Set(ignorarIds.filter(Boolean).map(String));
+    const rutasUsadas = new Set();
+    guiasOperativas.forEach(guia => {
+        if (idsIgnorados.has(String(guia.id))) {
+            return;
+        }
+        obtenerRutasFotosPasos(guia.pasos).forEach(path => rutasUsadas.add(path));
+    });
+
+    await eliminarFotosGuias(rutasUnicas.filter(path => !rutasUsadas.has(path)));
+}
+
 async function subirFotosPasosGuia(pasos, guiaId) {
     const rutasNuevas = [];
     const carpetaGuia = guiaId && !String(guiaId).startsWith('local-')
@@ -2102,18 +2173,18 @@ async function guardarGuiaOperativa(event) {
 
     const estado = obtenerElemento('guideEditorStatus');
     const modulo = obtenerElemento('guideModule')?.value;
-    const sede = MODULOS_POR_SEDE.has(modulo)
-        ? obtenerElemento('guideSite')?.value
-        : 'general';
+    const sedesSeleccionadas = MODULOS_POR_SEDE.has(modulo)
+        ? obtenerSedesSeleccionadasGuia()
+        : ['general'];
     const audiencia = obtenerElemento('guideAudience')?.value;
     const titulo = obtenerElemento('guideTitle')?.value.trim();
     const descripcion = obtenerElemento('guideDescription')?.value.trim();
     const pasos = obtenerPasosBorrador();
     const editandoId = obtenerElemento('guideEditingId')?.value;
 
-    if (!modulo || !sede || !['todos', 'supervision'].includes(audiencia) || !titulo || !pasos.length) {
+    if (!modulo || !sedesSeleccionadas.length || !['todos', 'supervision'].includes(audiencia) || !titulo || !pasos.length) {
         if (estado) {
-            estado.textContent = 'Completa sede, nivel de acceso, titulo y al menos un paso.';
+            estado.textContent = 'Completa al menos una sede, nivel de acceso, titulo y al menos un paso.';
             estado.dataset.status = 'error';
         }
         return;
@@ -2121,7 +2192,8 @@ async function guardarGuiaOperativa(event) {
 
     const guiaLocal = {
         modulo,
-        sede,
+        sede: sedesSeleccionadas[0],
+        sedes: sedesSeleccionadas,
         audiencia,
         titulo,
         descripcion,
@@ -2160,17 +2232,17 @@ async function guardarGuiaOperativa(event) {
             return;
         }
 
-        const guiaRemota = {
-            ...guiaLocal,
-            pasos: pasosRemotos
-        };
+        const { sedes: _sedesLocales, ...guiaBaseRemota } = guiaLocal;
         const editandoRemota = editandoId && !String(editandoId).startsWith('local-');
-        const consulta = editandoRemota
-            ? supabaseClient
+        let data = null;
+        let error = null;
+
+        if (editandoRemota) {
+            const respuesta = await supabaseClient
                 .from('guias_operativas')
                 .update({
                     modulo,
-                    sede,
+                    sede: sedesSeleccionadas[0],
                     audiencia,
                     titulo,
                     descripcion,
@@ -2178,33 +2250,66 @@ async function guardarGuiaOperativa(event) {
                 })
                 .eq('id', editandoId)
                 .select('id,modulo,sede,audiencia,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
-                .single()
-            : supabaseClient
-                .from('guias_operativas')
-                .insert(guiaRemota)
-                .select('id,modulo,sede,audiencia,titulo,descripcion,pasos,creado_por_email,created_at,updated_at')
                 .single();
+            data = respuesta.data;
+            error = respuesta.error;
 
-        const { data, error } = await consulta;
+            if (!error && sedesSeleccionadas.length > 1) {
+                const copias = sedesSeleccionadas.slice(1).map(sedeDestino => ({
+                    ...guiaBaseRemota,
+                    sede: sedeDestino,
+                    pasos: pasosRemotos
+                }));
+                const insercion = await supabaseClient
+                    .from('guias_operativas')
+                    .insert(copias)
+                    .select('id,modulo,sede,audiencia,titulo,descripcion,pasos,creado_por_email,created_at,updated_at');
+                if (insercion.error) {
+                    error = insercion.error;
+                } else {
+                    data = [data, ...(insercion.data || [])];
+                }
+            }
+        } else {
+            const guiasRemotas = sedesSeleccionadas.map(sedeDestino => ({
+                ...guiaBaseRemota,
+                sede: sedeDestino,
+                pasos: pasosRemotos
+            }));
+            const respuesta = await supabaseClient
+                .from('guias_operativas')
+                .insert(guiasRemotas)
+                .select('id,modulo,sede,audiencia,titulo,descripcion,pasos,creado_por_email,created_at,updated_at');
+            data = respuesta.data;
+            error = respuesta.error;
+        }
 
         if (!error && data) {
-            const guiaGuardada = normalizarGuiaOperativa(data);
-            await hidratarFotosGuias([guiaGuardada]);
+            const guiasGuardadas = (Array.isArray(data) ? data : [data]).map(normalizarGuiaOperativa);
+            await hidratarFotosGuias(guiasGuardadas);
             const guiaAnterior = guiasOperativas.find(item => item.id === editandoId);
             const rutasAnteriores = guiaAnterior ? obtenerRutasFotosPasos(guiaAnterior.pasos) : [];
-            const rutasActuales = obtenerRutasFotosPasos(guiaGuardada.pasos);
-            await eliminarFotosGuias(rutasAnteriores.filter(path => !rutasActuales.includes(path)));
+            const rutasActuales = guiasGuardadas.flatMap(guiaGuardada => obtenerRutasFotosPasos(guiaGuardada.pasos));
+            await eliminarFotosGuiasSinUso(rutasAnteriores.filter(path => !rutasActuales.includes(path)), [editandoId]);
             guiasOperativas = editandoId
-                ? guiasOperativas.map(item => item.id === editandoId ? guiaGuardada : item)
-                : [guiaGuardada, ...guiasOperativas.filter(item => item.id !== guiaGuardada.id)];
+                ? [
+                    ...guiasGuardadas,
+                    ...guiasOperativas.filter(item => item.id !== editandoId && !guiasGuardadas.some(guardada => guardada.id === item.id))
+                ]
+                : [
+                    ...guiasGuardadas,
+                    ...guiasOperativas.filter(item => !guiasGuardadas.some(guardada => guardada.id === item.id))
+                ];
             guardarGuiasLocales();
-            if (MODULOS_POR_SEDE.has(modulo) && sede !== 'general') {
-                sedeActivaPorModulo[modulo] = sede;
+            if (MODULOS_POR_SEDE.has(modulo) && sedesSeleccionadas[0] !== 'general') {
+                sedeActivaPorModulo[modulo] = sedesSeleccionadas[0];
             }
             renderizarGuiasOperativas();
             cancelarEdicionGuia();
             if (estado) {
-                estado.textContent = editandoId ? 'Guia actualizada para todos.' : 'Guia guardada y compartida.';
+                estado.textContent = sedesSeleccionadas.length > 1
+                    ? `Guia guardada en ${sedesSeleccionadas.length} sedes.`
+                    : editandoId ? 'Guia actualizada para todos.' : 'Guia guardada y compartida.';
                 estado.dataset.status = 'success';
             }
             seleccionarModulo(modulo, { desplazar: false });
@@ -2227,11 +2332,17 @@ async function guardarGuiaOperativa(event) {
     if (editandoId) {
         guiasOperativas = guiasOperativas.map(item => item.id === editandoId ? local : item);
     } else {
-        guiasOperativas.unshift(local);
+        const locales = sedesSeleccionadas.map((sedeDestino, indice) => normalizarGuiaOperativa({
+            ...guiaLocal,
+            sede: sedeDestino,
+            id: `local-${Date.now()}-${indice}`,
+            createdAt: new Date().toISOString()
+        }));
+        guiasOperativas.unshift(...locales);
     }
     guardarGuiasLocales();
-    if (MODULOS_POR_SEDE.has(modulo) && sede !== 'general') {
-        sedeActivaPorModulo[modulo] = sede;
+    if (MODULOS_POR_SEDE.has(modulo) && sedesSeleccionadas[0] !== 'general') {
+        sedeActivaPorModulo[modulo] = sedesSeleccionadas[0];
     }
     renderizarGuiasOperativas();
     cancelarEdicionGuia();
@@ -2261,7 +2372,7 @@ async function eliminarGuiaOperativa(id) {
             .eq('id', id);
 
         if (!error) {
-            await eliminarFotosGuias(guia ? obtenerRutasFotosPasos(guia.pasos) : []);
+            await eliminarFotosGuiasSinUso(guia ? obtenerRutasFotosPasos(guia.pasos) : [], [id]);
             await cargarGuiasRemotas();
             return;
         }
@@ -2647,12 +2758,13 @@ function obtenerItemsBusqueda() {
     }));
 
     const guias = guiasOperativas.filter(usuarioPuedeVerGuia).map(guia => ({
-        tipo: `Guia - ${guia.modulo}${guia.sede !== 'general' ? ` - ${obtenerNombreSede(guia.sede)}` : ''}`,
+        tipo: `Guia - ${guia.modulo} - ${obtenerTextoSedesGuia(guia)}`,
         titulo: guia.titulo,
-        detalle: `${guia.descripcion || ''} ${guia.sede !== 'general' ? obtenerNombreSede(guia.sede) : ''} ${guia.pasos.map(paso => paso.descripcion).join(' ')}`,
+        detalle: `${guia.descripcion || ''} ${obtenerTextoSedesGuia(guia)} ${guia.pasos.map(paso => paso.descripcion).join(' ')}`,
         accion: () => {
-            if (MODULOS_POR_SEDE.has(guia.modulo) && guia.sede !== 'general') {
-                sedeActivaPorModulo[guia.modulo] = guia.sede;
+            const primeraSede = obtenerSedesGuia(guia).find(sede => sede !== 'general');
+            if (MODULOS_POR_SEDE.has(guia.modulo) && primeraSede) {
+                sedeActivaPorModulo[guia.modulo] = primeraSede;
                 renderizarGuiasOperativas();
             }
             seleccionarModulo(guia.modulo);
@@ -4507,7 +4619,7 @@ function crearContenidoPdfGuias(guias) {
             <article class="guide${indiceGuia === 0 ? ' first-guide' : ''}">
                 <header class="guide-header">
                     <div>
-                        <p class="module">${escaparHTML(`${etiquetasModulo[guia.modulo] || guia.modulo}${guia.sede !== 'general' ? ` - ${obtenerNombreSede(guia.sede)}` : ' - Todas las sedes'}`)}</p>
+                        <p class="module">${escaparHTML(`${etiquetasModulo[guia.modulo] || guia.modulo} - ${obtenerTextoSedesGuia(guia)}`)}</p>
                         <h2>${escaparHTML(guia.titulo)}</h2>
                         ${guia.descripcion ? `<p class="description">${escaparHTML(guia.descripcion)}</p>` : ''}
                         <p class="generated">Generado: ${escaparHTML(fechaGeneracion)}</p>
