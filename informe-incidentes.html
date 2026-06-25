@@ -73,7 +73,8 @@
 
                     <div class="form-group" id="equipoGroup">
                         <label for="equipo" class="required">Equipo a intervenir</label>
-                        <input type="text" id="equipo" name="equipo" placeholder="Nombre o c&oacute;digo del equipo" required>
+                        <input type="text" id="equipo" name="equipo" list="equipmentCatalog" placeholder="Nombre o c&oacute;digo del equipo" required>
+                        <datalist id="equipmentCatalog"></datalist>
                         <p class="error-message">Ingrese el equipo a intervenir.</p>
                     </div>
 
@@ -299,6 +300,7 @@
         </section>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="informe-incidentes.js"></script>
 </body>
 </html>

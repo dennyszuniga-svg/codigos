@@ -5,7 +5,8 @@ const STORAGE_KEYS = {
     guideDraft: 'borradorGuiaOperativa',
     guideProgress: 'progresoGuiasOperativas',
     guideImagesMigrated: 'fotosGuiasMigradasAStorage',
-    theme: 'temaCodigosUrbapark'
+    theme: 'temaCodigosUrbapark',
+    maintenanceReports: 'urbapark-maintenance-reports'
 };
 
 const SUPABASE_CONFIG = {
@@ -30,6 +31,16 @@ const SEDES_OPERACION = [
     { id: 'gama', nombre: 'GAMA' }
 ];
 const MODULOS_POR_SEDE = new Set(['mantenimiento', 'caja', 'ronda']);
+const EQUIPOS_MANTENIMIENTO = [
+    { sede: 'civico', codigo: 'ENTRADA 1', nombre: 'Carril de entrada 1', tipo: 'Carril de entrada', componentes: ['Ticketero', 'Barrera', 'LPR'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'ENTRADA 2', nombre: 'Carril de entrada 2', tipo: 'Carril de entrada', componentes: ['Ticketero', 'Barrera', 'LPR'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'SALIDA 1', nombre: 'Carril de salida 1', tipo: 'Carril de salida', componentes: ['Lector de tickets', 'Barrera', 'LPR'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'SALIDA 2', nombre: 'Carril de salida 2', tipo: 'Carril de salida', componentes: ['Lector de tickets', 'Barrera', 'LPR'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'TPA 1', nombre: 'Cajero automatico full 1', tipo: 'Cajero automatico full', componentes: ['Cajero automatico full'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'TPA 2', nombre: 'Cajero automatico full 2', tipo: 'Cajero automatico full', componentes: ['Cajero automatico full'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'TPA 3', nombre: 'Cajero automatico full 3', tipo: 'Cajero automatico full', componentes: ['Cajero automatico full'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'TPALITE1', nombre: 'Equipo de pago automatico con tarjeta', tipo: 'Pago automatico tarjeta', componentes: ['Pago con tarjeta'], preventivoMinutos: 120 }
+];
 
 const MAX_HISTORIAL = 10;
 
@@ -300,7 +311,9 @@ let elementoRetornoPanelAdmin = null;
 let temporizadorBorradorGuia = null;
 let accesoMantenimientoActivo = false;
 let inventarioRepuestos = [];
+let intervencionesMantenimiento = [];
 let canalInventario = null;
+let canalIntervencionesMantenimiento = null;
 let sedeActivaPorModulo = {
     mantenimiento: 'puruchuco',
     caja: 'gama',
@@ -559,6 +572,52 @@ function calcularKpisInventario() {
     };
 }
 
+function obtenerEquiposMantenimientoSede(sede = obtenerSedeActual()) {
+    return EQUIPOS_MANTENIMIENTO.filter(item => item.sede === sede);
+}
+
+function minutosAHorasTexto(minutos) {
+    const total = Number(minutos || 0);
+    const horas = Math.floor(total / 60);
+    const resto = Math.round(total % 60);
+    if (!horas) {
+        return `${resto} min`;
+    }
+    return resto ? `${horas} h ${resto} min` : `${horas} h`;
+}
+
+function calcularKpisIntervenciones() {
+    const registros = intervencionesMantenimiento.filter(item => Number(item.duracion_minutos || 0) >= 0);
+    const preventivos = registros.filter(item => item.tipo_mantenimiento === 'Preventivo');
+    const correctivos = registros.filter(item => item.tipo_mantenimiento === 'Correctivo');
+    const totalMinutos = registros.reduce((sum, item) => sum + Number(item.duracion_minutos || 0), 0);
+    const correctivoMinutos = correctivos.reduce((sum, item) => sum + Number(item.duracion_minutos || 0), 0);
+    const promedio = registros.length ? Math.round(totalMinutos / registros.length) : 0;
+    const preventivosEnTiempo = preventivos.filter(item => {
+        const esperado = Number(item.preventivo_estimado_minutos || 120);
+        return Number(item.duracion_minutos || 0) <= esperado;
+    });
+    const equiposSede = obtenerEquiposMantenimientoSede();
+    const equiposIntervenidos = new Set(registros.map(item => String(item.equipo_codigo || '').toUpperCase()).filter(Boolean));
+    const cobertura = equiposSede.length
+        ? Math.round((equiposSede.filter(item => equiposIntervenidos.has(item.codigo)).length / equiposSede.length) * 100)
+        : 0;
+    const mayorParada = [...registros].sort((a, b) => Number(b.duracion_minutos || 0) - Number(a.duracion_minutos || 0))[0];
+
+    return {
+        total: registros.length,
+        preventivos: preventivos.length,
+        correctivos: correctivos.length,
+        totalMinutos,
+        correctivoMinutos,
+        promedio,
+        preventivoCumplimiento: preventivos.length ? Math.round((preventivosEnTiempo.length / preventivos.length) * 100) : 0,
+        cobertura,
+        equiposSede: equiposSede.length,
+        mayorParada
+    };
+}
+
 function renderizarKpisMantenimiento() {
     const grid = obtenerElemento('maintenanceKpiGrid');
     const categorias = obtenerElemento('maintenanceKpiCategories');
@@ -579,37 +638,49 @@ function renderizarKpisMantenimiento() {
         return;
     }
 
-    const kpis = calcularKpisInventario();
-    const estadoSalud = kpis.salud >= 85 ? 'good' : kpis.salud >= 60 ? 'warning' : 'danger';
-    const estadoBajo = kpis.stockBajo ? 'danger' : 'good';
-    const estadoCritico = kpis.stockCritico ? 'danger' : 'good';
-    const estadoUbicacion = kpis.sinUbicacion ? 'warning' : 'good';
+    const inventario = calcularKpisInventario();
+    const intervenciones = calcularKpisIntervenciones();
+    const estadoSalud = inventario.salud >= 85 ? 'good' : inventario.salud >= 60 ? 'warning' : 'danger';
+    const estadoBajo = inventario.stockBajo ? 'danger' : 'good';
+    const estadoCritico = inventario.stockCritico ? 'danger' : 'good';
+    const estadoUbicacion = inventario.sinUbicacion ? 'warning' : 'good';
+    const estadoPreventivo = !intervenciones.preventivos || intervenciones.preventivoCumplimiento >= 90 ? 'good' : intervenciones.preventivoCumplimiento >= 70 ? 'warning' : 'danger';
 
     grid.append(
-        crearTarjetaKpiMantenimiento('Salud de stock', `${kpis.salud}%`, `${kpis.total - kpis.stockBajo} de ${kpis.total} repuestos sobre minimo`, estadoSalud),
-        crearTarjetaKpiMantenimiento('Repuestos registrados', String(kpis.total), `${kpis.conMinimo} con stock minimo definido`, 'neutral'),
-        crearTarjetaKpiMantenimiento('Stock bajo', String(kpis.stockBajo), 'Requieren reposicion o revision', estadoBajo),
-        crearTarjetaKpiMantenimiento('Criticos', String(kpis.stockCritico), 'Sin stock o al 50% del minimo', estadoCritico),
-        crearTarjetaKpiMantenimiento('Sin ubicacion', String(kpis.sinUbicacion), 'Pendientes de ordenar en almacen', estadoUbicacion),
-        crearTarjetaKpiMantenimiento('Actualizados 7 dias', String(kpis.actualizados7Dias), 'Movimientos recientes de inventario', 'neutral')
+        crearTarjetaKpiMantenimiento('Horas de parada', minutosAHorasTexto(intervenciones.totalMinutos), `${intervenciones.total} intervenciones registradas`, intervenciones.totalMinutos ? 'warning' : 'neutral'),
+        crearTarjetaKpiMantenimiento('Correctivos', String(intervenciones.correctivos), `${minutosAHorasTexto(intervenciones.correctivoMinutos)} de parada correctiva`, intervenciones.correctivos ? 'danger' : 'good'),
+        crearTarjetaKpiMantenimiento('Preventivos en tiempo', intervenciones.preventivos ? `${intervenciones.preventivoCumplimiento}%` : '0%', `${intervenciones.preventivos} preventivos contra 2 h esperadas`, estadoPreventivo),
+        crearTarjetaKpiMantenimiento('Promedio de atencion', minutosAHorasTexto(intervenciones.promedio), 'Duracion promedio por informe', intervenciones.promedio > 120 ? 'warning' : 'neutral'),
+        crearTarjetaKpiMantenimiento('Cobertura equipos', `${intervenciones.cobertura}%`, `${intervenciones.equiposSede} equipos catalogados en sede`, intervenciones.cobertura >= 80 ? 'good' : intervenciones.cobertura ? 'warning' : 'neutral'),
+        crearTarjetaKpiMantenimiento('Salud de stock', `${inventario.salud}%`, `${inventario.total - inventario.stockBajo} de ${inventario.total} repuestos sobre minimo`, estadoSalud),
+        crearTarjetaKpiMantenimiento('Repuestos registrados', String(inventario.total), `${inventario.conMinimo} con stock minimo definido`, 'neutral'),
+        crearTarjetaKpiMantenimiento('Stock bajo', String(inventario.stockBajo), 'Requieren reposicion o revision', estadoBajo),
+        crearTarjetaKpiMantenimiento('Criticos', String(inventario.stockCritico), 'Sin stock o al 50% del minimo', estadoCritico),
+        crearTarjetaKpiMantenimiento('Sin ubicacion', String(inventario.sinUbicacion), 'Pendientes de ordenar en almacen', estadoUbicacion),
+        crearTarjetaKpiMantenimiento('Actualizados 7 dias', String(inventario.actualizados7Dias), 'Movimientos recientes de inventario', 'neutral')
     );
 
     if (actualizado) {
-        actualizado.textContent = kpis.total
+        actualizado.textContent = inventario.total || intervenciones.total
             ? `Actualizado: ${new Date().toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}`
-            : 'Sin repuestos registrados';
+            : 'Sin registros de mantenimiento';
     }
 
-    if (!kpis.categorias.length) {
+    if (!inventario.categorias.length && !intervenciones.mayorParada) {
         categorias.appendChild(crearMensajeVacio('Aun no hay categorias para mostrar.', 'inventory-empty'));
         return;
     }
 
     const titulo = document.createElement('strong');
     const lista = document.createElement('div');
-    titulo.textContent = 'Resumen por categoria';
+    titulo.textContent = 'Resumen operativo';
     lista.className = 'maintenance-kpi-category-list';
-    kpis.categorias.forEach(([nombre, datos]) => {
+    if (intervenciones.mayorParada) {
+        const item = document.createElement('span');
+        item.textContent = `Mayor parada: ${intervenciones.mayorParada.equipo_codigo} (${minutosAHorasTexto(intervenciones.mayorParada.duracion_minutos)})`;
+        lista.appendChild(item);
+    }
+    inventario.categorias.forEach(([nombre, datos]) => {
         const item = document.createElement('span');
         item.textContent = `${nombre}: ${datos.total} repuestos${datos.bajo ? `, ${datos.bajo} en bajo stock` : ''}`;
         lista.appendChild(item);
@@ -689,8 +760,12 @@ async function validarAccesoMantenimiento(event) {
     actualizarEstadoAccesoMantenimiento('', 'success');
     actualizarAreaMantenimientoUI();
     prepararEnlaceInformeMantenimiento();
-    await cargarInventarioRepuestos();
+    await Promise.all([
+        cargarInventarioRepuestos(),
+        cargarIntervencionesMantenimiento()
+    ]);
     suscribirInventarioRepuestos();
+    suscribirIntervencionesMantenimiento();
 }
 
 function restaurarAccesoMantenimiento() {
@@ -706,7 +781,9 @@ function restaurarAccesoMantenimiento() {
     actualizarAreaMantenimientoUI();
     if (accesoMantenimientoActivo) {
         cargarInventarioRepuestos();
+        cargarIntervencionesMantenimiento();
         suscribirInventarioRepuestos();
+        suscribirIntervencionesMantenimiento();
     }
 }
 
@@ -722,6 +799,10 @@ function bloquearAreaMantenimiento() {
     if (canalInventario && supabaseClient) {
         supabaseClient.removeChannel(canalInventario);
         canalInventario = null;
+    }
+    if (canalIntervencionesMantenimiento && supabaseClient) {
+        supabaseClient.removeChannel(canalIntervencionesMantenimiento);
+        canalIntervencionesMantenimiento = null;
     }
     actualizarAreaMantenimientoUI();
     renderizarInventarioRepuestos();
@@ -751,6 +832,36 @@ async function cargarInventarioRepuestos() {
     actualizarEstadoInventario(`${inventarioRepuestos.length} repuestos registrados.`, 'success');
     renderizarKpisMantenimiento();
     renderizarInventarioRepuestos();
+}
+
+async function cargarIntervencionesMantenimiento() {
+    if (!accesoMantenimientoActivo || !supabaseClient || !sesionActual?.user || !obtenerSedeActual()) {
+        return;
+    }
+
+    const locales = safeParseJSON(localStorage.getItem(STORAGE_KEYS.maintenanceReports), [])
+        .filter(item => item?.sede === obtenerSedeActual());
+    const { data, error } = await supabaseClient
+        .from('intervenciones_mantenimiento')
+        .select('id,numero_informe,sede,equipo_codigo,equipo_nombre,equipo_tipo,tipo_mantenimiento,prioridad,resultado_final,tecnico,supervisor,hora_inicio,hora_final,duracion_minutos,preventivo_estimado_minutos,fecha_guardado')
+        .eq('sede', obtenerSedeActual())
+        .order('fecha_guardado', { ascending: false })
+        .limit(250);
+
+    if (error) {
+        intervencionesMantenimiento = locales;
+        console.warn('No se pudieron cargar intervenciones de mantenimiento:', error);
+        renderizarKpisMantenimiento();
+        return;
+    }
+
+    const remotas = Array.isArray(data) ? data : [];
+    const remotasPorInforme = new Set(remotas.map(item => item.numero_informe));
+    intervencionesMantenimiento = [
+        ...remotas,
+        ...locales.filter(item => !remotasPorInforme.has(item.numero_informe))
+    ];
+    renderizarKpisMantenimiento();
 }
 
 function renderizarInventarioRepuestos() {
@@ -899,6 +1010,28 @@ function suscribirInventarioRepuestos() {
                 filter: `sede=eq.${obtenerSedeActual()}`
             },
             () => cargarInventarioRepuestos()
+        )
+        .subscribe();
+}
+
+function suscribirIntervencionesMantenimiento() {
+    if (!accesoMantenimientoActivo || !supabaseClient || !obtenerSedeActual()) {
+        return;
+    }
+    if (canalIntervencionesMantenimiento) {
+        supabaseClient.removeChannel(canalIntervencionesMantenimiento);
+    }
+    canalIntervencionesMantenimiento = supabaseClient
+        .channel(`intervenciones-mantenimiento-${obtenerSedeActual()}-${sesionActual.user.id}`)
+        .on(
+            'postgres_changes',
+            {
+                event: '*',
+                schema: 'public',
+                table: 'intervenciones_mantenimiento',
+                filter: `sede=eq.${obtenerSedeActual()}`
+            },
+            () => cargarIntervencionesMantenimiento()
         )
         .subscribe();
 }
@@ -1778,6 +1911,13 @@ function seleccionarSedeModulo(modulo, sede, opciones = {}) {
 
     sedeActivaPorModulo[modulo] = sede;
     renderizarGuiasOperativas();
+
+    if (modulo === 'mantenimiento' && accesoMantenimientoActivo) {
+        cargarInventarioRepuestos();
+        cargarIntervencionesMantenimiento();
+        suscribirInventarioRepuestos();
+        suscribirIntervencionesMantenimiento();
+    }
 
     if (opciones.desplazar) {
         obtenerElemento(`module-${modulo}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3192,6 +3332,7 @@ async function aplicarSesion(session) {
         perfilActual = null;
         accesoMantenimientoActivo = false;
         inventarioRepuestos = [];
+        intervencionesMantenimiento = [];
         try {
             sessionStorage.removeItem(MAINTENANCE_ACCESS_SESSION_KEY);
         } catch (error) {
@@ -3208,6 +3349,10 @@ async function aplicarSesion(session) {
         if (canalInventario && supabaseClient) {
             supabaseClient.removeChannel(canalInventario);
             canalInventario = null;
+        }
+        if (canalIntervencionesMantenimiento && supabaseClient) {
+            supabaseClient.removeChannel(canalIntervencionesMantenimiento);
+            canalIntervencionesMantenimiento = null;
         }
         mostrarAppAutenticada(false);
         actualizarEstadoAuth('Ingresa con tu usuario asignado.', 'info');

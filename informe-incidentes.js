@@ -3,7 +3,29 @@ const PUBLIC_LOGO_SRC = 'https://dennyszuniga-svg.github.io/codigos/assets/urbap
 const APP_CONTEXT = readAppContext();
 const DRAFT_KEY = `urbapark-intervention-draft-v3:${APP_CONTEXT.usuarioId || 'sin-usuario'}`;
 const COUNTER_KEY = 'urbapark-report-counter';
+const MAINTENANCE_REPORTS_KEY = 'urbapark-maintenance-reports';
 const REPORT_PREFIX = `UP-${new Date().getFullYear()}`;
+const SUPABASE_CONFIG = {
+    url: 'https://uibiwhkxlyxdfytvudbn.supabase.co',
+    publishableKey: 'sb_publishable_R-auhGcSmwSl-1U9WdGe3g_ZYm5BZEt'
+};
+const SEDES = {
+    puruchuco: 'Real Plaza Puruchuco',
+    salaverry: 'Real Plaza Salaverry',
+    primavera: 'Real Plaza Primavera',
+    civico: 'Real Plaza Civico',
+    gama: 'GAMA'
+};
+const EQUIPOS_MANTENIMIENTO = [
+    { sede: 'civico', codigo: 'ENTRADA 1', nombre: 'Carril de entrada 1', tipo: 'Carril de entrada', componentes: ['Ticketero', 'Barrera', 'LPR'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'ENTRADA 2', nombre: 'Carril de entrada 2', tipo: 'Carril de entrada', componentes: ['Ticketero', 'Barrera', 'LPR'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'SALIDA 1', nombre: 'Carril de salida 1', tipo: 'Carril de salida', componentes: ['Lector de tickets', 'Barrera', 'LPR'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'SALIDA 2', nombre: 'Carril de salida 2', tipo: 'Carril de salida', componentes: ['Lector de tickets', 'Barrera', 'LPR'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'TPA 1', nombre: 'Cajero automatico full 1', tipo: 'Cajero automatico full', componentes: ['Cajero automatico full'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'TPA 2', nombre: 'Cajero automatico full 2', tipo: 'Cajero automatico full', componentes: ['Cajero automatico full'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'TPA 3', nombre: 'Cajero automatico full 3', tipo: 'Cajero automatico full', componentes: ['Cajero automatico full'], preventivoMinutos: 120 },
+    { sede: 'civico', codigo: 'TPALITE1', nombre: 'Equipo de pago automatico con tarjeta', tipo: 'Pago automatico tarjeta', componentes: ['Pago con tarjeta'], preventivoMinutos: 120 }
+];
 
 const form = document.getElementById('incidentForm');
 const previewSection = document.getElementById('previewSection');
@@ -75,6 +97,7 @@ let reportSaved = false;
 let lastGeneratedAt = null;
 let draftTimer = null;
 let signaturePads = {};
+let supabaseClient = null;
 
 initSignaturePads();
 initForm();
@@ -100,12 +123,18 @@ Object.entries(fields).forEach(([name, field]) => {
             setFieldError(name, false);
         }
 
+        if (name === 'sede') {
+            renderEquipmentCatalog();
+        }
         syncSignatureNames();
         updateComputedFields();
         scheduleDraftSave();
     });
     field.addEventListener('change', () => {
         updateEstadoInicialOtroVisibility();
+        if (name === 'sede') {
+            renderEquipmentCatalog();
+        }
         syncSignatureNames();
         updateComputedFields();
         scheduleDraftSave();
@@ -252,6 +281,7 @@ function readAppContext() {
         tecnico: params.get('tecnico')?.trim() || '',
         usuarioId: params.get('usuarioId')?.trim() || '',
         sede: params.get('sede')?.trim() || '',
+        sedeId: params.get('sedeId')?.trim() || '',
         regreso: params.get('regreso') || 'index.html?module=mantenimiento'
     };
 }
@@ -270,6 +300,46 @@ function applyAppContext() {
     if (volver) {
         volver.href = APP_CONTEXT.regreso;
     }
+    renderEquipmentCatalog();
+}
+
+function getActiveSiteId() {
+    if (SEDES[APP_CONTEXT.sedeId]) {
+        return APP_CONTEXT.sedeId;
+    }
+
+    const texto = fields.sede.value.trim().toLowerCase();
+    return Object.entries(SEDES).find(([, nombre]) => nombre.toLowerCase() === texto)?.[0] || '';
+}
+
+function getEquipmentInfo(code = fields.equipo.value) {
+    const sede = getActiveSiteId();
+    const codigo = String(code || '').trim().toUpperCase();
+    return EQUIPOS_MANTENIMIENTO.find(item =>
+        item.sede === sede
+        && (
+            item.codigo.toUpperCase() === codigo
+            || item.nombre.toUpperCase() === codigo
+        )
+    ) || null;
+}
+
+function renderEquipmentCatalog() {
+    const datalist = document.getElementById('equipmentCatalog');
+    if (!datalist) {
+        return;
+    }
+
+    datalist.innerHTML = '';
+    const sede = getActiveSiteId();
+    EQUIPOS_MANTENIMIENTO
+        .filter(item => item.sede === sede)
+        .forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.codigo;
+            option.label = `${item.nombre} - ${item.tipo}`;
+            datalist.appendChild(option);
+        });
 }
 
 function applyDraft(draft) {
@@ -718,7 +788,7 @@ async function copyReport() {
     }
 }
 
-function downloadReport() {
+async function downloadReport() {
     lastGeneratedAt = new Date();
     const report = getReportData();
 
@@ -728,7 +798,7 @@ function downloadReport() {
     }
 
     renderPreview();
-    markReportSaved();
+    await markReportSaved(report);
 
     const fileName = `${report.numeroInforme.toLowerCase()}-${formatFileDate(report.fechaGuardado)}.html`;
     const blob = new Blob([buildReportHtml(report)], { type: 'text/html;charset=utf-8' });
@@ -742,13 +812,13 @@ function downloadReport() {
     setStatus('Informe guardado en HTML con logo, colores, firmas y fotos comprimidas.');
 }
 
-function exportPdf() {
+async function exportPdf() {
     lastGeneratedAt = new Date();
     if (!renderPreview()) {
         lastGeneratedAt = null;
         return;
     }
-    markReportSaved();
+    await markReportSaved(getReportData());
     setStatus('Vista lista. En la ventana de impresion seleccione Guardar como PDF.');
     window.print();
 }
@@ -1002,6 +1072,105 @@ function saveDraft() {
     updateProgress();
 }
 
+function getReportDurationMinutes(report) {
+    return calculateDuration(report.horaInicio, report.horaFinal).minutes;
+}
+
+function buildMaintenanceSummary(report) {
+    const equipo = getEquipmentInfo(report.equipo);
+    const duracionMinutos = getReportDurationMinutes(report);
+    return {
+        numero_informe: report.numeroInforme,
+        sede: getActiveSiteId() || APP_CONTEXT.sedeId || '',
+        sede_nombre: report.sede,
+        equipo_codigo: equipo?.codigo || report.equipo,
+        equipo_nombre: equipo?.nombre || report.equipo,
+        equipo_tipo: equipo?.tipo || '',
+        componentes: equipo?.componentes || [],
+        tipo_mantenimiento: report.tipoMantenimiento,
+        prioridad: report.prioridad,
+        estado_inicial: report.estadoInicialTexto,
+        resultado_final: report.resultadoFinal,
+        tecnico: report.personal,
+        supervisor: report.firmaSupervisorNombre,
+        hora_inicio: report.horaInicio,
+        hora_final: report.horaFinal,
+        duracion_minutos: typeof duracionMinutos === 'number' ? duracionMinutos : null,
+        preventivo_estimado_minutos: report.tipoMantenimiento === 'Preventivo'
+            ? equipo?.preventivoMinutos || 120
+            : null,
+        motivo: report.incidente,
+        solucion: report.solucion,
+        repuestos: report.repuestos || '',
+        fecha_guardado: report.fechaGuardado?.toISOString?.() || new Date().toISOString()
+    };
+}
+
+function saveMaintenanceSummaryLocal(summary) {
+    try {
+        const current = JSON.parse(localStorage.getItem(MAINTENANCE_REPORTS_KEY) || '[]');
+        const next = [
+            summary,
+            ...current.filter(item => item.numero_informe !== summary.numero_informe)
+        ].slice(0, 250);
+        localStorage.setItem(MAINTENANCE_REPORTS_KEY, JSON.stringify(next));
+    } catch (error) {
+        console.warn('No se pudo guardar el resumen local de mantenimiento:', error);
+    }
+}
+
+async function getSupabaseClient() {
+    if (supabaseClient) {
+        return supabaseClient;
+    }
+
+    const createClient = window.supabase?.createClient;
+    if (!createClient) {
+        return null;
+    }
+
+    supabaseClient = createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.publishableKey, {
+        auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: false
+        }
+    });
+    return supabaseClient;
+}
+
+async function saveMaintenanceSummaryRemote(summary) {
+    const client = await getSupabaseClient();
+    if (!client) {
+        return false;
+    }
+
+    const { data: { session } = {} } = await client.auth.getSession();
+    if (!session?.user) {
+        return false;
+    }
+
+    const { error } = await client
+        .from('intervenciones_mantenimiento')
+        .upsert(summary, { onConflict: 'numero_informe' });
+
+    if (error) {
+        console.warn('No se pudo sincronizar resumen de mantenimiento:', error);
+        return false;
+    }
+
+    return true;
+}
+
+async function registerMaintenanceSummary(report) {
+    const summary = buildMaintenanceSummary(report);
+    saveMaintenanceSummaryLocal(summary);
+    const synced = await saveMaintenanceSummaryRemote(summary);
+    setStatus(synced
+        ? 'Informe guardado y sincronizado para KPIs de mantenimiento.'
+        : 'Informe guardado. La sincronizacion de KPIs quedo pendiente.');
+}
+
 function readDraft() {
     try {
         return JSON.parse(localStorage.getItem(DRAFT_KEY));
@@ -1014,12 +1183,13 @@ function clearDraft() {
     localStorage.removeItem(DRAFT_KEY);
 }
 
-function markReportSaved() {
+async function markReportSaved(report = getReportData()) {
     if (!reportSaved) {
         localStorage.setItem(COUNTER_KEY, String(Math.max(getStoredCounter(), reportSequence)));
         reportSaved = true;
         saveDraft();
     }
+    await registerMaintenanceSummary(report);
 }
 
 function getStoredCounter() {
