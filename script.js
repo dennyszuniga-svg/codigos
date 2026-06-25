@@ -499,6 +499,124 @@ function actualizarEstadoInventario(mensaje = '', estado = 'info') {
     }
 }
 
+function crearTarjetaKpiMantenimiento(etiqueta, valor, detalle, estado = 'neutral') {
+    const tarjeta = document.createElement('article');
+    const valorElemento = document.createElement('strong');
+    const etiquetaElemento = document.createElement('span');
+    const detalleElemento = document.createElement('small');
+
+    tarjeta.className = `maintenance-kpi-card kpi-${estado}`;
+    valorElemento.textContent = valor;
+    etiquetaElemento.textContent = etiqueta;
+    detalleElemento.textContent = detalle;
+    tarjeta.append(valorElemento, etiquetaElemento, detalleElemento);
+    return tarjeta;
+}
+
+function calcularKpisInventario() {
+    const total = inventarioRepuestos.length;
+    const conMinimo = inventarioRepuestos.filter(item => Number(item.stock_minimo || 0) > 0);
+    const stockBajo = inventarioRepuestos.filter(item =>
+        Number(item.stock || 0) <= Number(item.stock_minimo || 0)
+        && Number(item.stock_minimo || 0) > 0
+    );
+    const stockCritico = inventarioRepuestos.filter(item =>
+        Number(item.stock || 0) === 0
+        || (
+            Number(item.stock_minimo || 0) > 0
+            && Number(item.stock || 0) <= Number(item.stock_minimo || 0) * 0.5
+        )
+    );
+    const sinUbicacion = inventarioRepuestos.filter(item => !String(item.ubicacion || '').trim());
+    const ahora = Date.now();
+    const actualizados7Dias = inventarioRepuestos.filter(item => {
+        const fecha = item.updated_at ? new Date(item.updated_at).getTime() : 0;
+        return fecha && ahora - fecha <= 7 * 24 * 60 * 60 * 1000;
+    });
+    const salud = total ? Math.max(0, Math.round(((total - stockBajo.length) / total) * 100)) : 0;
+    const categorias = inventarioRepuestos.reduce((mapa, item) => {
+        const categoria = String(item.categoria || 'General').trim() || 'General';
+        const actual = mapa.get(categoria) || { total: 0, bajo: 0 };
+        actual.total += 1;
+        if (stockBajo.includes(item)) {
+            actual.bajo += 1;
+        }
+        mapa.set(categoria, actual);
+        return mapa;
+    }, new Map());
+
+    return {
+        total,
+        conMinimo: conMinimo.length,
+        stockBajo: stockBajo.length,
+        stockCritico: stockCritico.length,
+        sinUbicacion: sinUbicacion.length,
+        actualizados7Dias: actualizados7Dias.length,
+        salud,
+        categorias: [...categorias.entries()]
+            .sort((a, b) => b[1].total - a[1].total)
+            .slice(0, 4)
+    };
+}
+
+function renderizarKpisMantenimiento() {
+    const grid = obtenerElemento('maintenanceKpiGrid');
+    const categorias = obtenerElemento('maintenanceKpiCategories');
+    const actualizado = obtenerElemento('maintenanceKpiUpdated');
+
+    if (!grid || !categorias) {
+        return;
+    }
+
+    limpiarElemento(grid);
+    limpiarElemento(categorias);
+
+    if (!accesoMantenimientoActivo) {
+        if (actualizado) {
+            actualizado.textContent = 'Acceso pendiente';
+        }
+        grid.appendChild(crearMensajeVacio('Ingresa al area de mantenimiento para ver los KPIs.', 'inventory-empty'));
+        return;
+    }
+
+    const kpis = calcularKpisInventario();
+    const estadoSalud = kpis.salud >= 85 ? 'good' : kpis.salud >= 60 ? 'warning' : 'danger';
+    const estadoBajo = kpis.stockBajo ? 'danger' : 'good';
+    const estadoCritico = kpis.stockCritico ? 'danger' : 'good';
+    const estadoUbicacion = kpis.sinUbicacion ? 'warning' : 'good';
+
+    grid.append(
+        crearTarjetaKpiMantenimiento('Salud de stock', `${kpis.salud}%`, `${kpis.total - kpis.stockBajo} de ${kpis.total} repuestos sobre minimo`, estadoSalud),
+        crearTarjetaKpiMantenimiento('Repuestos registrados', String(kpis.total), `${kpis.conMinimo} con stock minimo definido`, 'neutral'),
+        crearTarjetaKpiMantenimiento('Stock bajo', String(kpis.stockBajo), 'Requieren reposicion o revision', estadoBajo),
+        crearTarjetaKpiMantenimiento('Criticos', String(kpis.stockCritico), 'Sin stock o al 50% del minimo', estadoCritico),
+        crearTarjetaKpiMantenimiento('Sin ubicacion', String(kpis.sinUbicacion), 'Pendientes de ordenar en almacen', estadoUbicacion),
+        crearTarjetaKpiMantenimiento('Actualizados 7 dias', String(kpis.actualizados7Dias), 'Movimientos recientes de inventario', 'neutral')
+    );
+
+    if (actualizado) {
+        actualizado.textContent = kpis.total
+            ? `Actualizado: ${new Date().toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}`
+            : 'Sin repuestos registrados';
+    }
+
+    if (!kpis.categorias.length) {
+        categorias.appendChild(crearMensajeVacio('Aun no hay categorias para mostrar.', 'inventory-empty'));
+        return;
+    }
+
+    const titulo = document.createElement('strong');
+    const lista = document.createElement('div');
+    titulo.textContent = 'Resumen por categoria';
+    lista.className = 'maintenance-kpi-category-list';
+    kpis.categorias.forEach(([nombre, datos]) => {
+        const item = document.createElement('span');
+        item.textContent = `${nombre}: ${datos.total} repuestos${datos.bajo ? `, ${datos.bajo} en bajo stock` : ''}`;
+        lista.appendChild(item);
+    });
+    categorias.append(titulo, lista);
+}
+
 function actualizarAreaMantenimientoUI() {
     const acceso = obtenerElemento('maintenanceAccessGate');
     const contenido = obtenerElemento('maintenancePrivateContent');
@@ -519,6 +637,7 @@ function actualizarAreaMantenimientoUI() {
             ? `Inventario: ${obtenerNombreSede(obtenerSedeActual())}`
             : 'Inventario sin sede asignada';
     }
+    renderizarKpisMantenimiento();
 }
 
 async function validarAccesoMantenimiento(event) {
@@ -606,6 +725,7 @@ function bloquearAreaMantenimiento() {
     }
     actualizarAreaMantenimientoUI();
     renderizarInventarioRepuestos();
+    renderizarKpisMantenimiento();
     obtenerElemento('maintenanceAccessPassword')?.focus();
 }
 
@@ -629,6 +749,7 @@ async function cargarInventarioRepuestos() {
 
     inventarioRepuestos = Array.isArray(data) ? data : [];
     actualizarEstadoInventario(`${inventarioRepuestos.length} repuestos registrados.`, 'success');
+    renderizarKpisMantenimiento();
     renderizarInventarioRepuestos();
 }
 

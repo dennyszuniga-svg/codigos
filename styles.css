@@ -1329,6 +1329,109 @@ body.dark-theme .maintenance-report-action p {
     background: #fff;
 }
 
+.maintenance-kpi-panel {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid #d6e3e9;
+    border-radius: 8px;
+    background: #f8fcff;
+}
+
+.maintenance-kpi-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.maintenance-kpi-heading h4 {
+    margin: 0 0 4px;
+    color: var(--brand-blue-dark);
+    font-size: 1.05rem;
+}
+
+.maintenance-kpi-heading p,
+.maintenance-kpi-heading span {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.86rem;
+    font-weight: 800;
+}
+
+.maintenance-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.maintenance-kpi-card {
+    display: grid;
+    gap: 4px;
+    min-height: 116px;
+    padding: 14px;
+    border: 1px solid #d6e3e9;
+    border-top: 5px solid #2a9fd6;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.maintenance-kpi-card strong {
+    color: var(--brand-blue-dark);
+    font-size: 1.85rem;
+    line-height: 1;
+}
+
+.maintenance-kpi-card span {
+    color: var(--text);
+    font-weight: 900;
+}
+
+.maintenance-kpi-card small {
+    color: var(--muted);
+    line-height: 1.25;
+}
+
+.maintenance-kpi-card.kpi-good {
+    border-top-color: #12b76a;
+}
+
+.maintenance-kpi-card.kpi-warning {
+    border-top-color: #f79009;
+}
+
+.maintenance-kpi-card.kpi-danger {
+    border-top-color: #f04438;
+}
+
+.maintenance-kpi-categories {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border: 1px dashed #b8cbd5;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.maintenance-kpi-categories > strong {
+    color: var(--brand-blue-dark);
+}
+
+.maintenance-kpi-category-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.maintenance-kpi-category-list span {
+    padding: 7px 9px;
+    border-radius: 999px;
+    background: #e8f7fd;
+    color: #135f87;
+    font-size: 0.82rem;
+    font-weight: 900;
+}
+
 .inventory-item strong,
 .inventory-item span {
     display: block;
@@ -1357,6 +1460,9 @@ body.dark-theme .maintenance-report-action p {
 
 body.dark-theme .maintenance-private-shell,
 body.dark-theme .maintenance-access-gate,
+body.dark-theme .maintenance-kpi-panel,
+body.dark-theme .maintenance-kpi-card,
+body.dark-theme .maintenance-kpi-categories,
 body.dark-theme .inventory-form,
 body.dark-theme .inventory-item {
     border-color: #395869;
@@ -1364,12 +1470,21 @@ body.dark-theme .inventory-item {
 }
 
 body.dark-theme .maintenance-private-heading h3,
+body.dark-theme .maintenance-kpi-heading h4,
+body.dark-theme .maintenance-kpi-card strong,
+body.dark-theme .maintenance-kpi-card span,
+body.dark-theme .maintenance-kpi-categories > strong,
 body.dark-theme .inventory-heading h4,
 body.dark-theme .maintenance-access-form > label,
 body.dark-theme .inventory-search,
 body.dark-theme .inventory-form label,
 body.dark-theme .maintenance-private-toolbar {
     color: #d8f2fc;
+}
+
+body.dark-theme .maintenance-kpi-category-list span {
+    background: #0f3345;
+    color: #a7e4fa;
 }
 
 body.dark-theme .maintenance-password-row input,
@@ -2736,6 +2851,10 @@ body.dark-theme .modal-dialog {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .maintenance-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .module-grid {
         grid-template-columns: repeat(3, minmax(86px, 1fr));
     }
@@ -2758,9 +2877,14 @@ body.dark-theme .modal-dialog {
     }
 
     .maintenance-private-toolbar,
+    .maintenance-kpi-heading,
     .inventory-heading {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .maintenance-kpi-grid {
+        grid-template-columns: 1fr;
     }
 
     .inventory-location {
