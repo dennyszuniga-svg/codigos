@@ -4,6 +4,11 @@ const APP_CONTEXT = readAppContext();
 const DRAFT_KEY = `urbapark-intervention-draft-v3:${APP_CONTEXT.usuarioId || 'sin-usuario'}`;
 const COUNTER_KEY = 'urbapark-report-counter';
 const MAINTENANCE_REPORTS_KEY = 'urbapark-maintenance-reports';
+const DRAFT_MAX_BYTES = 4_200_000;
+const PHOTO_COMPRESSION = {
+    normal: { maxSize: 1280, quality: 0.66 },
+    bulk: { maxSize: 960, quality: 0.58 }
+};
 const REPORT_PREFIX = `UP-${new Date().getFullYear()}`;
 const SUPABASE_CONFIG = {
     url: 'https://uibiwhkxlyxdfytvudbn.supabase.co',
@@ -353,7 +358,14 @@ function applyDraft(draft) {
     fields.numeroInforme.value = draft.reportNumber || formatReportNumber(reportSequence);
     reportNumberLabel.textContent = `Informe ${fields.numeroInforme.value}`;
     syncSignatureNames();
-    tasks = draft.tasks?.length ? draft.tasks : [];
+    tasks = draft.tasks?.length
+        ? draft.tasks.map(task => ({
+            ...task,
+            photos: Array.isArray(task.photos)
+                ? task.photos.filter(photo => photo?.dataUrl)
+                : []
+        }))
+        : [];
     nextTaskId = Math.max(0, ...tasks.map((task) => task.id || 0)) + 1;
 
     if (!tasks.length) {
@@ -496,17 +508,31 @@ async function readImageFiles(files) {
         ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)
     ));
 
-    return Promise.all(imageFiles.map(async (file) => ({
-        id: Date.now() + Math.floor(Math.random() * 100000),
-        name: file.name,
-        caption: '',
-        stage: '',
-        capturedAt: new Date().toISOString(),
-        dataUrl: await compressImage(file)
-    })));
+    const options = imageFiles.length >= 12 || getTotalPhotoCount() + imageFiles.length >= 60
+        ? PHOTO_COMPRESSION.bulk
+        : PHOTO_COMPRESSION.normal;
+    const photos = [];
+
+    for (const file of imageFiles) {
+        photos.push({
+            id: Date.now() + Math.floor(Math.random() * 100000),
+            name: file.name,
+            caption: '',
+            stage: '',
+            capturedAt: new Date().toISOString(),
+            dataUrl: await compressImage(file, options.maxSize, options.quality)
+        });
+        await new Promise(resolve => window.setTimeout(resolve, 0));
+    }
+
+    return photos;
 }
 
-function compressImage(file, maxSize = 1600, quality = 0.72) {
+function getTotalPhotoCount() {
+    return tasks.reduce((total, task) => total + task.photos.length, 0);
+}
+
+function compressImage(file, maxSize = PHOTO_COMPRESSION.normal.maxSize, quality = PHOTO_COMPRESSION.normal.quality) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
 
@@ -1065,9 +1091,26 @@ function saveDraft() {
         }
     };
     try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        let serialized = JSON.stringify(draft);
+        if (serialized.length > DRAFT_MAX_BYTES) {
+            const metadataOnlyDraft = {
+                ...draft,
+                tasks: tasks.map(task => ({
+                    ...task,
+                    photos: task.photos.map(photo => ({
+                        ...photo,
+                        dataUrl: ''
+                    }))
+                }))
+            };
+            serialized = JSON.stringify(metadataOnlyDraft);
+            localStorage.setItem(DRAFT_KEY, serialized);
+            setStatus('Borrador guardado sin imagenes por limite del celular. Genera o descarga el informe antes de cerrar.', true);
+        } else {
+            localStorage.setItem(DRAFT_KEY, serialized);
+        }
     } catch (error) {
-        setStatus('El borrador contiene demasiadas fotos para guardarse completo en este dispositivo.', true);
+        setStatus('El borrador contiene demasiadas fotos para guardarse completo. Genera o descarga el informe antes de cerrar.', true);
     }
     updateProgress();
 }
