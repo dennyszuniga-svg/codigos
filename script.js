@@ -622,9 +622,17 @@ function renderizarKpisMantenimiento() {
     const grid = obtenerElemento('maintenanceKpiGrid');
     const categorias = obtenerElemento('maintenanceKpiCategories');
     const actualizado = obtenerElemento('maintenanceKpiUpdated');
+    const tituloKpi = obtenerElemento('maintenanceKpiTitle');
+    const nombreSede = obtenerSedeActual()
+        ? obtenerNombreSede(obtenerSedeActual())
+        : 'sede no asignada';
 
     if (!grid || !categorias) {
         return;
+    }
+
+    if (tituloKpi) {
+        tituloKpi.textContent = `KPIs de mantenimiento - ${nombreSede}`;
     }
 
     limpiarElemento(grid);
@@ -632,7 +640,7 @@ function renderizarKpisMantenimiento() {
 
     if (!accesoMantenimientoActivo) {
         if (actualizado) {
-            actualizado.textContent = 'Acceso pendiente';
+            actualizado.textContent = `Acceso pendiente - ${nombreSede}`;
         }
         grid.appendChild(crearMensajeVacio('Ingresa al area de mantenimiento para ver los KPIs.', 'inventory-empty'));
         return;
@@ -662,8 +670,8 @@ function renderizarKpisMantenimiento() {
 
     if (actualizado) {
         actualizado.textContent = inventario.total || intervenciones.total
-            ? `Actualizado: ${new Date().toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}`
-            : 'Sin registros de mantenimiento';
+            ? `${nombreSede} - Actualizado: ${new Date().toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}`
+            : `${nombreSede} - Sin registros de mantenimiento`;
     }
 
     if (!inventario.categorias.length && !intervenciones.mayorParada) {
@@ -705,7 +713,7 @@ function actualizarAreaMantenimientoUI() {
     }
     if (sede) {
         sede.textContent = obtenerSedeActual()
-            ? `Inventario: ${obtenerNombreSede(obtenerSedeActual())}`
+            ? `Area de mantenimiento: ${obtenerNombreSede(obtenerSedeActual())}`
             : 'Inventario sin sede asignada';
     }
     renderizarKpisMantenimiento();
