@@ -2479,6 +2479,21 @@ body.dark-theme .modal-dialog {
     pointer-events: none;
 }
 
+.guide-task-photo-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.guide-task-file-input {
+    position: fixed;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
 .remove-photo-btn {
     width: fit-content;
     background: #b42318;

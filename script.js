@@ -2114,8 +2114,11 @@ function renderizarTareasBorrador() {
         const labelDescripcion = document.createElement('label');
         const descripcion = document.createElement('textarea');
         const fotoArea = document.createElement('div');
-        const fotoLabel = document.createElement('label');
-        const fotoInput = document.createElement('input');
+        const fotoAcciones = document.createElement('div');
+        const botonCamara = document.createElement('button');
+        const botonGaleria = document.createElement('button');
+        const fotoInputCamara = document.createElement('input');
+        const fotoInputGaleria = document.createElement('input');
         const fotoEstado = document.createElement('span');
 
         tarjeta.className = 'guide-task-card';
@@ -2151,16 +2154,30 @@ function renderizarTareasBorrador() {
         labelDescripcion.appendChild(descripcion);
 
         fotoArea.className = 'guide-task-photo';
-        fotoLabel.className = 'photo-capture-btn';
-        fotoLabel.textContent = tarea.foto ? 'Cambiar foto de tarea' : 'Agregar foto a tarea';
-        fotoInput.type = 'file';
-        fotoInput.accept = 'image/*';
-        fotoInput.capture = 'environment';
-        fotoInput.dataset.taskPhoto = tarea.id;
-        fotoLabel.appendChild(fotoInput);
+        fotoAcciones.className = 'guide-task-photo-actions';
+        botonCamara.className = 'photo-capture-btn';
+        botonCamara.type = 'button';
+        botonCamara.dataset.openTaskCamera = tarea.id;
+        botonCamara.textContent = tarea.foto ? 'Tomar otra foto' : 'Tomar foto';
+        botonGaleria.className = 'clear-btn';
+        botonGaleria.type = 'button';
+        botonGaleria.dataset.openTaskGallery = tarea.id;
+        botonGaleria.textContent = 'Elegir imagen';
+        fotoInputCamara.type = 'file';
+        fotoInputCamara.accept = 'image/*';
+        fotoInputCamara.setAttribute('capture', 'environment');
+        fotoInputCamara.dataset.taskPhoto = tarea.id;
+        fotoInputCamara.dataset.photoSource = 'camera';
+        fotoInputCamara.className = 'guide-task-file-input';
+        fotoInputGaleria.type = 'file';
+        fotoInputGaleria.accept = 'image/*';
+        fotoInputGaleria.dataset.taskPhoto = tarea.id;
+        fotoInputGaleria.dataset.photoSource = 'gallery';
+        fotoInputGaleria.className = 'guide-task-file-input';
+        fotoAcciones.append(botonCamara, botonGaleria, fotoInputCamara, fotoInputGaleria);
         fotoEstado.className = 'photo-status';
-        fotoEstado.textContent = tarea.foto ? 'Foto agregada' : 'Sin foto';
-        fotoArea.append(fotoLabel, fotoEstado);
+        fotoEstado.textContent = tarea.foto ? 'Foto agregada y guardada en el borrador' : 'Sin foto';
+        fotoArea.append(fotoAcciones, fotoEstado);
 
         const fuenteFoto = obtenerFuenteFotoGuia(tarea.foto);
         if (fuenteFoto) {
@@ -2289,7 +2306,13 @@ async function actualizarFotoTareaBorrador(input) {
         }
 
         const file = input.files[0];
+        if (!file.type.startsWith('image/')) {
+            throw new Error('El archivo seleccionado no es una imagen.');
+        }
         const dataUrl = await comprimirFoto(file, 860, 0.68);
+        if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+            throw new Error('La foto no pudo convertirse a un formato compatible.');
+        }
         tarea.foto = {
             dataUrl,
             nombre: file.name || 'foto-guia.jpg',
@@ -2305,7 +2328,7 @@ async function actualizarFotoTareaBorrador(input) {
     } catch (error) {
         console.warn('No se pudo agregar foto a la guia:', error);
         if (estado) {
-            estado.textContent = 'No se pudo agregar la foto.';
+            estado.textContent = `No se pudo agregar la foto. ${error.message || 'Intenta nuevamente.'}`;
             estado.dataset.status = 'error';
         }
     } finally {
@@ -5874,6 +5897,24 @@ function configurarEventos() {
     });
 
     obtenerElemento('guideTasksList')?.addEventListener('click', event => {
+        const abrirCamara = event.target.closest('button[data-open-task-camera]');
+        if (abrirCamara) {
+            const input = obtenerElemento('guideTasksList')?.querySelector(
+                `input[data-task-photo="${CSS.escape(abrirCamara.dataset.openTaskCamera)}"][data-photo-source="camera"]`
+            );
+            input?.click();
+            return;
+        }
+
+        const abrirGaleria = event.target.closest('button[data-open-task-gallery]');
+        if (abrirGaleria) {
+            const input = obtenerElemento('guideTasksList')?.querySelector(
+                `input[data-task-photo="${CSS.escape(abrirGaleria.dataset.openTaskGallery)}"][data-photo-source="gallery"]`
+            );
+            input?.click();
+            return;
+        }
+
         const boton = event.target.closest('button[data-remove-guide-task]');
         if (boton) {
             guiaTareasBorrador = guiaTareasBorrador.filter(tarea => tarea.id !== boton.dataset.removeGuideTask);
