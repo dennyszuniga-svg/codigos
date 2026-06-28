@@ -156,6 +156,7 @@ let supabaseClient = null;
 
 initSignaturePads();
 initForm();
+validarAccesoInforme();
 
 document.getElementById('btnLimpiar').addEventListener('click', resetForm);
 document.getElementById('btnPrevisualizar').addEventListener('click', () => {
@@ -1227,6 +1228,30 @@ async function getSupabaseClient() {
         }
     });
     return supabaseClient;
+}
+
+async function validarAccesoInforme() {
+    const client = await getSupabaseClient();
+    if (!client) {
+        window.location.replace('index.html?module=mantenimiento');
+        return;
+    }
+
+    const { data: { session } = {} } = await client.auth.getSession();
+    if (!session?.user) {
+        window.location.replace('index.html?module=mantenimiento');
+        return;
+    }
+
+    const { data: perfil, error } = await client
+        .from('profiles')
+        .select('rol,activo')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+    if (error || perfil?.activo === false || !['admin', 'tecnico'].includes(perfil?.rol)) {
+        window.location.replace('index.html?module=mantenimiento');
+    }
 }
 
 async function saveMaintenanceSummaryRemote(summary) {
