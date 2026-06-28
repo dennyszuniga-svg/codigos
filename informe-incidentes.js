@@ -81,6 +81,12 @@ const EQUIPOS_MANTENIMIENTO = [
     { sede: 'puruchuco', codigo: 'SALIDA 2 CARRETERA CENTRAL', nombre: 'Carril de salida 2 Carretera Central', tipo: 'Carril de salida', componentes: ['Lector de tickets', 'Barrera', 'LPR'], preventivoMinutos: 120 },
     { sede: 'puruchuco', codigo: 'SALIDA 3 CARRETERA CENTRAL', nombre: 'Carril de salida 3 Carretera Central', tipo: 'Carril de salida', componentes: ['Lector de tickets', 'Barrera', 'LPR'], preventivoMinutos: 120 }
 ];
+Object.keys(SEDES).forEach(sede => {
+    EQUIPOS_MANTENIMIENTO.push(
+        { sede, codigo: 'ESTACIONAMIENTO', nombre: 'Mejoras generales de estacionamiento', tipo: 'Infraestructura', componentes: ['Infraestructura del estacionamiento'], preventivoMinutos: 0 },
+        { sede, codigo: 'FORTALEZA', nombre: 'Trabajos de Fortaleza', tipo: 'Infraestructura', componentes: ['Infraestructura y seguridad vial'], preventivoMinutos: 0 }
+    );
+});
 
 const form = document.getElementById('incidentForm');
 const previewSection = document.getElementById('previewSection');
@@ -100,6 +106,7 @@ const fields = {
     equipo: document.getElementById('equipo'),
     prioridad: document.getElementById('prioridad'),
     tipoMantenimiento: document.getElementById('tipoMantenimiento'),
+    impactoOperativo: document.getElementById('impactoOperativo'),
     estadoInicial: document.getElementById('estadoInicial'),
     estadoInicialOtro: document.getElementById('estadoInicialOtro'),
     horaInicio: document.getElementById('horaInicio'),
@@ -120,6 +127,7 @@ const groups = {
     equipo: document.getElementById('equipoGroup'),
     prioridad: document.getElementById('prioridadGroup'),
     tipoMantenimiento: document.getElementById('tipoMantenimientoGroup'),
+    impactoOperativo: document.getElementById('impactoOperativoGroup'),
     estadoInicial: document.getElementById('estadoInicialGroup'),
     estadoInicialOtro: document.getElementById('estadoInicialOtroGroup'),
     horaInicio: document.getElementById('horaInicioGroup'),
@@ -180,7 +188,11 @@ Object.entries(fields).forEach(([name, field]) => {
         }
 
         if (name === 'sede') {
+            fields.equipo.value = '';
             renderEquipmentCatalog();
+        }
+        if (name === 'equipo' || name === 'tipoMantenimiento') {
+            actualizarImpactoOperativoSugerido();
         }
         syncSignatureNames();
         updateComputedFields();
@@ -190,6 +202,9 @@ Object.entries(fields).forEach(([name, field]) => {
         updateEstadoInicialOtroVisibility();
         if (name === 'sede') {
             renderEquipmentCatalog();
+        }
+        if (name === 'equipo' || name === 'tipoMantenimiento') {
+            actualizarImpactoOperativoSugerido();
         }
         syncSignatureNames();
         updateComputedFields();
@@ -393,6 +408,13 @@ function renderEquipmentCatalog() {
             option.label = `${item.nombre} - ${item.tipo}`;
             datalist.appendChild(option);
         });
+}
+
+function actualizarImpactoOperativoSugerido() {
+    const equipo = getEquipmentInfo();
+    const esMejora = fields.tipoMantenimiento.value === 'Mejora / Instalacion';
+    const esInfraestructura = equipo?.tipo === 'Infraestructura';
+    fields.impactoOperativo.value = esMejora || esInfraestructura ? 'sin_parada' : 'con_parada';
 }
 
 function applyDraft(draft) {
@@ -646,6 +668,7 @@ function getGeneralDetailItems(report) {
         ['Equipo', report.equipo],
         ['Prioridad', report.prioridad],
         ['Tipo de mantenimiento', report.tipoMantenimiento],
+        ['Impacto operativo', report.impactoOperativo === 'sin_parada' ? 'Sin parada operativa' : 'Con parada operativa'],
         ['Estado inicial', report.estadoInicialTexto],
         ['Hora de inicio', report.horaInicio],
         ['Hora final', report.horaFinal],
@@ -733,6 +756,7 @@ function validateReport(report) {
         'equipo',
         'prioridad',
         'tipoMantenimiento',
+        'impactoOperativo',
         'estadoInicial',
         'horaInicio',
         'horaFinal',
@@ -1007,6 +1031,7 @@ function updateProgress() {
         fields.equipo.value.trim(),
         fields.prioridad.value,
         fields.tipoMantenimiento.value,
+        fields.impactoOperativo.value,
         fields.estadoInicial.value && (fields.estadoInicial.value !== 'Otro' || fields.estadoInicialOtro.value.trim()),
         fields.horaInicio.value,
         fields.horaFinal.value && calculateDuration(fields.horaInicio.value, fields.horaFinal.value).minutes >= 0,
@@ -1179,6 +1204,7 @@ function buildMaintenanceSummary(report) {
         equipo_tipo: equipo?.tipo || '',
         componentes: equipo?.componentes || [],
         tipo_mantenimiento: report.tipoMantenimiento,
+        genera_parada: report.impactoOperativo !== 'sin_parada',
         prioridad: report.prioridad,
         estado_inicial: report.estadoInicialTexto,
         resultado_final: report.resultadoFinal,

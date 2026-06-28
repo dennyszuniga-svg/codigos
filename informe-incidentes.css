@@ -450,6 +450,13 @@ body {
     font-size: 13px;
 }
 
+.field-help {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 0.84rem;
+    line-height: 1.35;
+}
+
 .form-group.error .error-message,
 .activity-builder.error > .error-message {
     display: block;

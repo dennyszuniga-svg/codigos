@@ -91,6 +91,12 @@ const EQUIPOS_MANTENIMIENTO = [
     { sede: 'puruchuco', codigo: 'SALIDA 2 CARRETERA CENTRAL', nombre: 'Carril de salida 2 Carretera Central', tipo: 'Carril de salida', componentes: ['Lector de tickets', 'Barrera', 'LPR'], preventivoMinutos: 120 },
     { sede: 'puruchuco', codigo: 'SALIDA 3 CARRETERA CENTRAL', nombre: 'Carril de salida 3 Carretera Central', tipo: 'Carril de salida', componentes: ['Lector de tickets', 'Barrera', 'LPR'], preventivoMinutos: 120 }
 ];
+SEDES_OPERACION.forEach(sede => {
+    EQUIPOS_MANTENIMIENTO.push(
+        { sede: sede.id, codigo: 'ESTACIONAMIENTO', nombre: 'Mejoras generales de estacionamiento', tipo: 'Infraestructura', componentes: ['Infraestructura del estacionamiento'], preventivoMinutos: 0 },
+        { sede: sede.id, codigo: 'FORTALEZA', nombre: 'Trabajos de Fortaleza', tipo: 'Infraestructura', componentes: ['Infraestructura y seguridad vial'], preventivoMinutos: 0 }
+    );
+});
 
 const MAX_HISTORIAL = 10;
 
@@ -632,7 +638,7 @@ function calcularKpisInventario() {
 }
 
 function obtenerEquiposMantenimientoSede(sede = obtenerSedeMantenimientoActiva()) {
-    return EQUIPOS_MANTENIMIENTO.filter(item => item.sede === sede);
+    return EQUIPOS_MANTENIMIENTO.filter(item => item.sede === sede && item.tipo !== 'Infraestructura');
 }
 
 function minutosAHorasTexto(minutos) {
@@ -647,11 +653,15 @@ function minutosAHorasTexto(minutos) {
 
 function calcularKpisIntervenciones() {
     const registros = intervencionesMantenimiento.filter(item => Number(item.duracion_minutos || 0) >= 0);
+    const registrosConParada = registros.filter(item => item.genera_parada !== false);
+    const trabajosSinParada = registros.filter(item => item.genera_parada === false);
     const preventivos = registros.filter(item => item.tipo_mantenimiento === 'Preventivo');
     const correctivos = registros.filter(item => item.tipo_mantenimiento === 'Correctivo');
-    const totalMinutos = registros.reduce((sum, item) => sum + Number(item.duracion_minutos || 0), 0);
-    const correctivoMinutos = correctivos.reduce((sum, item) => sum + Number(item.duracion_minutos || 0), 0);
-    const promedio = registros.length ? Math.round(totalMinutos / registros.length) : 0;
+    const totalMinutos = registrosConParada.reduce((sum, item) => sum + Number(item.duracion_minutos || 0), 0);
+    const correctivoMinutos = correctivos
+        .filter(item => item.genera_parada !== false)
+        .reduce((sum, item) => sum + Number(item.duracion_minutos || 0), 0);
+    const promedio = registrosConParada.length ? Math.round(totalMinutos / registrosConParada.length) : 0;
     const preventivosEnTiempo = preventivos.filter(item => {
         const esperado = Number(item.preventivo_estimado_minutos || 120);
         return Number(item.duracion_minutos || 0) <= esperado;
@@ -661,12 +671,13 @@ function calcularKpisIntervenciones() {
     const cobertura = equiposSede.length
         ? Math.round((equiposSede.filter(item => equiposIntervenidos.has(item.codigo)).length / equiposSede.length) * 100)
         : 0;
-    const mayorParada = [...registros].sort((a, b) => Number(b.duracion_minutos || 0) - Number(a.duracion_minutos || 0))[0];
+    const mayorParada = [...registrosConParada].sort((a, b) => Number(b.duracion_minutos || 0) - Number(a.duracion_minutos || 0))[0];
 
     return {
         total: registros.length,
         preventivos: preventivos.length,
         correctivos: correctivos.length,
+        trabajosSinParada: trabajosSinParada.length,
         totalMinutos,
         correctivoMinutos,
         promedio,
@@ -714,6 +725,7 @@ function renderizarKpisMantenimiento() {
     grid.append(
         crearTarjetaKpiMantenimiento('Horas de parada', minutosAHorasTexto(intervenciones.totalMinutos), `${intervenciones.total} intervenciones registradas`, intervenciones.totalMinutos ? 'warning' : 'neutral'),
         crearTarjetaKpiMantenimiento('Correctivos', String(intervenciones.correctivos), `${minutosAHorasTexto(intervenciones.correctivoMinutos)} de parada correctiva`, intervenciones.correctivos ? 'danger' : 'good'),
+        crearTarjetaKpiMantenimiento('Trabajos sin parada', String(intervenciones.trabajosSinParada), 'Mejoras e instalaciones sin afectar equipos', 'good'),
         crearTarjetaKpiMantenimiento('Preventivos en tiempo', intervenciones.preventivos ? `${intervenciones.preventivoCumplimiento}%` : '0%', `${intervenciones.preventivos} preventivos contra 2 h esperadas`, estadoPreventivo),
         crearTarjetaKpiMantenimiento('Promedio de atencion', minutosAHorasTexto(intervenciones.promedio), 'Duracion promedio por informe', intervenciones.promedio > 120 ? 'warning' : 'neutral'),
         crearTarjetaKpiMantenimiento('Cobertura equipos', `${intervenciones.cobertura}%`, `${intervenciones.equiposSede} equipos catalogados en sede`, intervenciones.cobertura >= 80 ? 'good' : intervenciones.cobertura ? 'warning' : 'neutral'),
@@ -930,7 +942,7 @@ async function cargarIntervencionesMantenimiento() {
         .filter(item => item?.sede === obtenerSedeMantenimientoActiva());
     const { data, error } = await supabaseClient
         .from('intervenciones_mantenimiento')
-        .select('id,numero_informe,sede,equipo_codigo,equipo_nombre,equipo_tipo,tipo_mantenimiento,prioridad,resultado_final,tecnico,supervisor,hora_inicio,hora_final,duracion_minutos,preventivo_estimado_minutos,fecha_guardado')
+        .select('id,numero_informe,sede,equipo_codigo,equipo_nombre,equipo_tipo,tipo_mantenimiento,prioridad,resultado_final,tecnico,supervisor,hora_inicio,hora_final,duracion_minutos,preventivo_estimado_minutos,genera_parada,fecha_guardado')
         .eq('sede', obtenerSedeMantenimientoActiva())
         .order('fecha_guardado', { ascending: false })
         .limit(250);
