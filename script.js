@@ -413,6 +413,11 @@ function obtenerSedeActual() {
     return SEDES_OPERACION.some(item => item.id === sede) ? sede : null;
 }
 
+function obtenerSedeMantenimientoActiva() {
+    const sede = sedeActivaPorModulo.mantenimiento;
+    return SEDES_OPERACION.some(item => item.id === sede) ? sede : 'puruchuco';
+}
+
 function obtenerClaveLocalPorSede(claveBase) {
     const sede = obtenerSedeActual();
     return sede ? `${claveBase}:${sede}` : claveBase;
@@ -522,8 +527,8 @@ function prepararEnlaceInformeMantenimiento() {
     const parametros = new URLSearchParams({
         tecnico: obtenerNombreUsuarioActivo(),
         usuarioId: sesionActual?.user?.id || '',
-        sede: obtenerNombreSede(obtenerSedeActual()),
-        sedeId: obtenerSedeActual() || '',
+        sede: obtenerNombreSede(obtenerSedeMantenimientoActiva()),
+        sedeId: obtenerSedeMantenimientoActiva(),
         regreso: 'index.html?module=mantenimiento'
     });
     enlace.href = `informe-incidentes.html?${parametros.toString()}`;
@@ -626,7 +631,7 @@ function calcularKpisInventario() {
     };
 }
 
-function obtenerEquiposMantenimientoSede(sede = obtenerSedeActual()) {
+function obtenerEquiposMantenimientoSede(sede = obtenerSedeMantenimientoActiva()) {
     return EQUIPOS_MANTENIMIENTO.filter(item => item.sede === sede);
 }
 
@@ -677,9 +682,7 @@ function renderizarKpisMantenimiento() {
     const categorias = obtenerElemento('maintenanceKpiCategories');
     const actualizado = obtenerElemento('maintenanceKpiUpdated');
     const tituloKpi = obtenerElemento('maintenanceKpiTitle');
-    const nombreSede = obtenerSedeActual()
-        ? obtenerNombreSede(obtenerSedeActual())
-        : 'sede no asignada';
+    const nombreSede = obtenerNombreSede(obtenerSedeMantenimientoActiva());
 
     if (!grid || !categorias) {
         return;
@@ -773,9 +776,7 @@ function actualizarAreaMantenimientoUI() {
         formularioInventario.hidden = !usuarioPuedeGestionarInventario();
     }
     if (sede) {
-        sede.textContent = obtenerSedeActual()
-            ? `Area de mantenimiento: ${obtenerNombreSede(obtenerSedeActual())}`
-            : 'Inventario sin sede asignada';
+        sede.textContent = `Area de mantenimiento: ${obtenerNombreSede(obtenerSedeMantenimientoActiva())}`;
     }
     renderizarKpisMantenimiento();
 }
@@ -876,7 +877,7 @@ function bloquearAreaMantenimiento() {
 }
 
 async function cargarInventarioRepuestos() {
-    if (!accesoMantenimientoActivo || !supabaseClient || !sesionActual?.user || !obtenerSedeActual()) {
+    if (!accesoMantenimientoActivo || !supabaseClient || !sesionActual?.user) {
         return;
     }
 
@@ -884,7 +885,7 @@ async function cargarInventarioRepuestos() {
     const { data, error } = await supabaseClient
         .from('inventario_repuestos')
         .select('id,sede,codigo,nombre,categoria,stock,stock_minimo,unidad,ubicacion,updated_at')
-        .eq('sede', obtenerSedeActual())
+        .eq('sede', obtenerSedeMantenimientoActiva())
         .order('nombre', { ascending: true });
 
     if (error) {
@@ -900,16 +901,16 @@ async function cargarInventarioRepuestos() {
 }
 
 async function cargarIntervencionesMantenimiento() {
-    if (!accesoMantenimientoActivo || !supabaseClient || !sesionActual?.user || !obtenerSedeActual()) {
+    if (!accesoMantenimientoActivo || !supabaseClient || !sesionActual?.user) {
         return;
     }
 
     const locales = safeParseJSON(localStorage.getItem(STORAGE_KEYS.maintenanceReports), [])
-        .filter(item => item?.sede === obtenerSedeActual());
+        .filter(item => item?.sede === obtenerSedeMantenimientoActiva());
     const { data, error } = await supabaseClient
         .from('intervenciones_mantenimiento')
         .select('id,numero_informe,sede,equipo_codigo,equipo_nombre,equipo_tipo,tipo_mantenimiento,prioridad,resultado_final,tecnico,supervisor,hora_inicio,hora_final,duracion_minutos,preventivo_estimado_minutos,fecha_guardado')
-        .eq('sede', obtenerSedeActual())
+        .eq('sede', obtenerSedeMantenimientoActiva())
         .order('fecha_guardado', { ascending: false })
         .limit(250);
 
@@ -994,13 +995,13 @@ function renderizarInventarioRepuestos() {
 
 async function guardarRepuestoInventario(event) {
     event.preventDefault();
-    if (!accesoMantenimientoActivo || !usuarioPuedeGestionarInventario() || !obtenerSedeActual()) {
+    if (!accesoMantenimientoActivo || !usuarioPuedeGestionarInventario()) {
         actualizarEstadoInventario('No tienes permisos para modificar el inventario.', 'error');
         return;
     }
 
     const payload = {
-        sede: obtenerSedeActual(),
+        sede: obtenerSedeMantenimientoActiva(),
         codigo: obtenerElemento('inventoryCode').value.trim().toUpperCase(),
         nombre: obtenerElemento('inventoryName').value.trim(),
         categoria: obtenerElemento('inventoryCategory').value.trim() || 'General',
@@ -1040,7 +1041,7 @@ async function eliminarRepuestoInventario(id) {
         return;
     }
 
-    if (!window.confirm(`Eliminar ${item.nombre} del inventario de ${obtenerNombreSede(obtenerSedeActual())}?`)) {
+    if (!window.confirm(`Eliminar ${item.nombre} del inventario de ${obtenerNombreSede(obtenerSedeMantenimientoActiva())}?`)) {
         return;
     }
 
@@ -1048,7 +1049,7 @@ async function eliminarRepuestoInventario(id) {
         .from('inventario_repuestos')
         .delete()
         .eq('id', id)
-        .eq('sede', obtenerSedeActual());
+        .eq('sede', obtenerSedeMantenimientoActiva());
 
     if (error) {
         actualizarEstadoInventario('No se pudo eliminar el repuesto.', 'error');
@@ -1058,21 +1059,21 @@ async function eliminarRepuestoInventario(id) {
 }
 
 function suscribirInventarioRepuestos() {
-    if (!accesoMantenimientoActivo || !supabaseClient || !obtenerSedeActual()) {
+    if (!accesoMantenimientoActivo || !supabaseClient) {
         return;
     }
     if (canalInventario) {
         supabaseClient.removeChannel(canalInventario);
     }
     canalInventario = supabaseClient
-        .channel(`inventario-${obtenerSedeActual()}-${sesionActual.user.id}`)
+        .channel(`inventario-${obtenerSedeMantenimientoActiva()}-${sesionActual.user.id}`)
         .on(
             'postgres_changes',
             {
                 event: '*',
                 schema: 'public',
                 table: 'inventario_repuestos',
-                filter: `sede=eq.${obtenerSedeActual()}`
+                filter: `sede=eq.${obtenerSedeMantenimientoActiva()}`
             },
             () => cargarInventarioRepuestos()
         )
@@ -1080,21 +1081,21 @@ function suscribirInventarioRepuestos() {
 }
 
 function suscribirIntervencionesMantenimiento() {
-    if (!accesoMantenimientoActivo || !supabaseClient || !obtenerSedeActual()) {
+    if (!accesoMantenimientoActivo || !supabaseClient) {
         return;
     }
     if (canalIntervencionesMantenimiento) {
         supabaseClient.removeChannel(canalIntervencionesMantenimiento);
     }
     canalIntervencionesMantenimiento = supabaseClient
-        .channel(`intervenciones-mantenimiento-${obtenerSedeActual()}-${sesionActual.user.id}`)
+        .channel(`intervenciones-mantenimiento-${obtenerSedeMantenimientoActiva()}-${sesionActual.user.id}`)
         .on(
             'postgres_changes',
             {
                 event: '*',
                 schema: 'public',
                 table: 'intervenciones_mantenimiento',
-                filter: `sede=eq.${obtenerSedeActual()}`
+                filter: `sede=eq.${obtenerSedeMantenimientoActiva()}`
             },
             () => cargarIntervencionesMantenimiento()
         )
@@ -1978,6 +1979,8 @@ function seleccionarSedeModulo(modulo, sede, opciones = {}) {
     renderizarGuiasOperativas();
 
     if (modulo === 'mantenimiento' && accesoMantenimientoActivo) {
+        prepararEnlaceInformeMantenimiento();
+        actualizarAreaMantenimientoUI();
         cargarInventarioRepuestos();
         cargarIntervencionesMantenimiento();
         suscribirInventarioRepuestos();

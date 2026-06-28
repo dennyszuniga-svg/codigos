@@ -67,8 +67,15 @@
 
                     <div class="form-group" id="sedeGroup">
                         <label for="sede" class="required">Sede</label>
-                        <input type="text" id="sede" name="sede" placeholder="Sede donde se realiza la intervenci&oacute;n" required>
-                        <p class="error-message">Ingrese la sede.</p>
+                        <select id="sede" name="sede" required>
+                            <option value="">Selecciona la sede intervenida</option>
+                            <option value="Real Plaza Puruchuco">Real Plaza Puruchuco</option>
+                            <option value="Real Plaza Salaverry">Real Plaza Salaverry</option>
+                            <option value="Real Plaza Primavera">Real Plaza Primavera</option>
+                            <option value="Real Plaza Civico">Real Plaza Civico</option>
+                            <option value="GAMA">GAMA</option>
+                        </select>
+                        <p class="error-message">Seleccione la sede.</p>
                     </div>
 
                     <div class="form-group" id="equipoGroup">

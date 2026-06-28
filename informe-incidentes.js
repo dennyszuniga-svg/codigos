@@ -359,12 +359,9 @@ function applyAppContext() {
 }
 
 function getActiveSiteId() {
-    if (SEDES[APP_CONTEXT.sedeId]) {
-        return APP_CONTEXT.sedeId;
-    }
-
     const texto = fields.sede.value.trim().toLowerCase();
-    return Object.entries(SEDES).find(([, nombre]) => nombre.toLowerCase() === texto)?.[0] || '';
+    const sedeSeleccionada = Object.entries(SEDES).find(([, nombre]) => nombre.toLowerCase() === texto)?.[0];
+    return sedeSeleccionada || (SEDES[APP_CONTEXT.sedeId] ? APP_CONTEXT.sedeId : '');
 }
 
 function getEquipmentInfo(code = fields.equipo.value) {
