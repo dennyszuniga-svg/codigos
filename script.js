@@ -753,6 +753,27 @@ function renderizarKpisMantenimiento() {
     categorias.append(titulo, lista);
 }
 
+function establecerPanelKpisMantenimiento(abierto, { enfocar = false } = {}) {
+    const panel = obtenerElemento('maintenanceKpiPanel');
+    const boton = obtenerElemento('toggleMaintenanceKpis');
+    if (!panel || !boton) {
+        return;
+    }
+
+    panel.hidden = !abierto;
+    boton.setAttribute('aria-expanded', String(abierto));
+    boton.textContent = abierto ? 'Ocultar KPIs' : 'Ver KPIs';
+    if (abierto) {
+        renderizarKpisMantenimiento();
+        if (enfocar) {
+            panel.focus({ preventScroll: true });
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    } else if (enfocar) {
+        boton.focus();
+    }
+}
+
 function actualizarAreaMantenimientoUI() {
     const contenedorPrivado = obtenerElemento('maintenancePrivateShell');
     const acceso = obtenerElemento('maintenanceAccessGate');
@@ -5832,6 +5853,12 @@ function configurarEventos() {
     obtenerElemento('maintenanceAccessForm')?.addEventListener('submit', validarAccesoMantenimiento);
     obtenerElemento('lockMaintenanceArea')?.addEventListener('click', bloquearAreaMantenimiento);
     obtenerElemento('refreshInventory')?.addEventListener('click', cargarInventarioRepuestos);
+    obtenerElemento('toggleMaintenanceKpis')?.addEventListener('click', event => {
+        establecerPanelKpisMantenimiento(event.currentTarget.getAttribute('aria-expanded') !== 'true', { enfocar: true });
+    });
+    obtenerElemento('closeMaintenanceKpis')?.addEventListener('click', () => {
+        establecerPanelKpisMantenimiento(false, { enfocar: true });
+    });
     obtenerElemento('inventoryForm')?.addEventListener('submit', guardarRepuestoInventario);
     obtenerElemento('inventorySearch')?.addEventListener('input', renderizarInventarioRepuestos);
     obtenerElemento('inventoryList')?.addEventListener('click', event => {

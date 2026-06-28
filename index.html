@@ -475,16 +475,22 @@
                         <div id="maintenancePrivateContent" class="maintenance-private-content" hidden>
                             <div class="maintenance-private-toolbar">
                                 <span id="maintenanceSiteLabel">Inventario de la sede asignada</span>
-                                <span class="maintenance-role-badge">Acceso por rol</span>
+                                <div class="maintenance-toolbar-actions">
+                                    <span class="maintenance-role-badge">Acceso por rol</span>
+                                    <button class="finish-btn" id="toggleMaintenanceKpis" type="button" aria-expanded="false" aria-controls="maintenanceKpiPanel">Ver KPIs</button>
+                                </div>
                             </div>
 
-                            <section class="maintenance-kpi-panel" aria-labelledby="maintenanceKpiTitle">
+                            <section class="maintenance-kpi-panel" id="maintenanceKpiPanel" aria-labelledby="maintenanceKpiTitle" tabindex="-1" hidden>
                                 <div class="maintenance-kpi-heading">
                                     <div>
                                         <h4 id="maintenanceKpiTitle">KPIs de mantenimiento</h4>
                                         <p>Indicadores rapidos del inventario operativo de la sede.</p>
                                     </div>
-                                    <span id="maintenanceKpiUpdated">Sin datos cargados</span>
+                                    <div class="maintenance-kpi-heading-actions">
+                                        <span id="maintenanceKpiUpdated">Sin datos cargados</span>
+                                        <button class="modal-close maintenance-kpi-close" id="closeMaintenanceKpis" type="button" aria-label="Cerrar KPIs" title="Cerrar KPIs">&times;</button>
+                                    </div>
                                 </div>
                                 <div id="maintenanceKpiGrid" class="maintenance-kpi-grid" aria-live="polite"></div>
                                 <div id="maintenanceKpiCategories" class="maintenance-kpi-categories"></div>

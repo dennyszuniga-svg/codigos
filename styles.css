@@ -1202,6 +1202,19 @@ body.dark-theme .search-result-card {
     white-space: nowrap;
 }
 
+.maintenance-toolbar-actions,
+.maintenance-kpi-heading-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.maintenance-toolbar-actions .finish-btn {
+    min-height: 36px;
+    padding: 7px 12px;
+}
+
 .maintenance-report-action {
     display: grid;
     grid-template-columns: 52px minmax(0, 1fr) auto;
@@ -1346,6 +1359,24 @@ body.dark-theme .maintenance-report-action p {
     border: 1px solid #d6e3e9;
     border-radius: 8px;
     background: #f8fcff;
+}
+
+.maintenance-kpi-panel[hidden] {
+    display: none;
+}
+
+.maintenance-kpi-panel:focus-visible {
+    outline: 3px solid var(--brand-orange);
+    outline-offset: 3px;
+}
+
+.maintenance-kpi-heading-actions {
+    justify-content: flex-end;
+}
+
+.maintenance-kpi-close {
+    position: static;
+    flex: 0 0 auto;
 }
 
 .maintenance-kpi-heading {
