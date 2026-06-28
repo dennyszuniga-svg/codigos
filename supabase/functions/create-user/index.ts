@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const rolesPermitidos = new Set(['admin', 'supervisor', 'eco', 'charly', 'anfitrion']);
+const rolesPermitidos = new Set(['admin', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion']);
 const sedesPermitidas = new Set(['puruchuco', 'salaverry', 'primavera', 'civico', 'gama']);
 const dominioInterno = 'usuarios.urbapark.pe';
 

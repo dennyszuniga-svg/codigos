@@ -276,8 +276,19 @@
                             <option value="gama">GAMA</option>
                         </select>
                     </label>
+                    <label>
+                        Rol
+                        <select id="newUserRole" required>
+                            <option value="anfitrion">Anfitrion</option>
+                            <option value="tecnico">Tecnico de mantenimiento</option>
+                            <option value="charly">Charly</option>
+                            <option value="eco">ECO</option>
+                            <option value="supervisor">Supervisor</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </label>
                     <button class="finish-btn" type="submit">Crear usuario</button>
-                    <p class="form-helper">La cuenta se crea como anfitrion y recibira alertas solo de su sede.</p>
+                    <p class="form-helper">Los administradores y tecnicos acceden al area tecnica de mantenimiento. Las alertas se limitan a la sede asignada.</p>
                     <p id="createUserStatus" class="auth-status" role="status" aria-live="polite"></p>
                 </form>
                 <p id="usersAdminStatus" class="auth-status" role="status" aria-live="polite"></p>
@@ -441,7 +452,7 @@
                     <div class="site-navigation" data-site-navigation="mantenimiento" aria-label="Seleccionar sede de mantenimiento"></div>
                     <p class="site-context" id="siteContext-mantenimiento"></p>
 
-                    <section class="maintenance-private-shell" aria-labelledby="maintenancePrivateTitle">
+                    <section class="maintenance-private-shell" id="maintenancePrivateShell" aria-labelledby="maintenancePrivateTitle" hidden>
                         <div class="maintenance-private-heading">
                             <div>
                                 <p class="eyebrow">Acceso restringido</p>
@@ -464,7 +475,7 @@
                         <div id="maintenancePrivateContent" class="maintenance-private-content" hidden>
                             <div class="maintenance-private-toolbar">
                                 <span id="maintenanceSiteLabel">Inventario de la sede asignada</span>
-                                <button class="clear-btn" id="lockMaintenanceArea" type="button">Cerrar area</button>
+                                <span class="maintenance-role-badge">Acceso por rol</span>
                             </div>
 
                             <section class="maintenance-kpi-panel" aria-labelledby="maintenanceKpiTitle">

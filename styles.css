@@ -1192,6 +1192,16 @@ body.dark-theme .search-result-card {
     font-weight: 800;
 }
 
+.maintenance-role-badge {
+    padding: 5px 9px;
+    border: 1px solid #a7d8c2;
+    border-radius: 999px;
+    background: #ecfdf3;
+    color: #067647;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
 .maintenance-report-action {
     display: grid;
     grid-template-columns: 52px minmax(0, 1fr) auto;

@@ -542,8 +542,12 @@ function obtenerClaveSesionMantenimiento() {
     return `accesoMantenimiento:${sesionActual?.user?.id || 'sin-usuario'}`;
 }
 
+function usuarioPuedeAccederMantenimiento() {
+    return perfilActual?.activo !== false && ['admin', 'tecnico'].includes(perfilActual?.rol);
+}
+
 function usuarioPuedeGestionarInventario() {
-    return perfilActual?.activo !== false && ['admin', 'supervisor'].includes(perfilActual?.rol);
+    return usuarioPuedeAccederMantenimiento();
 }
 
 function actualizarEstadoAccesoMantenimiento(mensaje = '', estado = 'info') {
@@ -747,13 +751,20 @@ function renderizarKpisMantenimiento() {
 }
 
 function actualizarAreaMantenimientoUI() {
+    const contenedorPrivado = obtenerElemento('maintenancePrivateShell');
     const acceso = obtenerElemento('maintenanceAccessGate');
     const contenido = obtenerElemento('maintenancePrivateContent');
     const formularioInventario = obtenerElemento('inventoryForm');
     const sede = obtenerElemento('maintenanceSiteLabel');
 
+    const autorizado = usuarioPuedeAccederMantenimiento();
+    accesoMantenimientoActivo = autorizado;
+
+    if (contenedorPrivado) {
+        contenedorPrivado.hidden = !autorizado;
+    }
     if (acceso) {
-        acceso.hidden = accesoMantenimientoActivo;
+        acceso.hidden = true;
     }
     if (contenido) {
         contenido.hidden = !accesoMantenimientoActivo;
@@ -827,15 +838,7 @@ async function validarAccesoMantenimiento(event) {
 }
 
 function restaurarAccesoMantenimiento() {
-    accesoMantenimientoActivo = false;
-    try {
-        accesoMantenimientoActivo = sessionStorage.getItem(obtenerClaveSesionMantenimiento()) === '1';
-        if (accesoMantenimientoActivo) {
-            sessionStorage.setItem(MAINTENANCE_ACCESS_SESSION_KEY, '1');
-        }
-    } catch (error) {
-        console.warn('No se pudo restaurar el acceso de mantenimiento:', error);
-    }
+    accesoMantenimientoActivo = usuarioPuedeAccederMantenimiento();
     actualizarAreaMantenimientoUI();
     if (accesoMantenimientoActivo) {
         cargarInventarioRepuestos();
@@ -846,6 +849,10 @@ function restaurarAccesoMantenimiento() {
 }
 
 function bloquearAreaMantenimiento() {
+    if (usuarioPuedeAccederMantenimiento()) {
+        mostrarToast('El acceso al area tecnica depende de tu rol de usuario.');
+        return;
+    }
     accesoMantenimientoActivo = false;
     inventarioRepuestos = [];
     try {
@@ -2859,7 +2866,7 @@ function renderizarUsuariosAdmin() {
             : `${acceso} - sin avance registrado`;
         datos.append(nombre, email);
 
-        ['admin', 'supervisor', 'eco', 'charly', 'anfitrion'].forEach(opcion => {
+        ['admin', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion'].forEach(opcion => {
             const option = document.createElement('option');
             option.value = opcion;
             option.textContent = opcion;
@@ -3034,8 +3041,9 @@ async function crearUsuarioDesdeAdmin(event) {
     const nombre = obtenerElemento('newUserName')?.value.trim();
     const password = obtenerElemento('newUserPassword')?.value;
     const sede = obtenerElemento('newUserSite')?.value;
+    const rol = obtenerElemento('newUserRole')?.value;
 
-    if (!nombre || !password || !sede) {
+    if (!nombre || !password || !sede || !rol) {
         if (estado) {
             estado.textContent = 'Completa el nombre de usuario, la contrasena y la sede.';
             estado.dataset.status = 'error';
@@ -3050,7 +3058,7 @@ async function crearUsuarioDesdeAdmin(event) {
 
     try {
         const { data, error } = await supabaseClient.functions.invoke('create-user', {
-            body: { nombre, password, sede }
+            body: { nombre, password, sede, rol }
         });
 
         if (error || data?.error) {
@@ -3060,7 +3068,7 @@ async function crearUsuarioDesdeAdmin(event) {
 
         obtenerElemento('createUserForm')?.reset();
         if (estado) {
-            estado.textContent = `${nombre} fue creado como anfitrion de ${obtenerNombreSede(sede)}.`;
+            estado.textContent = `${nombre} fue creado con rol ${rol} en ${obtenerNombreSede(sede)}.`;
             estado.dataset.status = 'success';
         }
         mostrarToast(`Usuario creado: ${nombre}`);
