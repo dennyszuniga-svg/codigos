@@ -489,9 +489,44 @@ body {
     cursor: pointer;
 }
 
+.inventory-consumption-group {
+    padding: 12px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+}
+
+.inventory-usage-list {
+    display: grid;
+    gap: 10px;
+}
+
+.inventory-usage-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) 110px minmax(160px, 0.8fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: #ffffff;
+}
+
+.inventory-usage-row select,
+.inventory-usage-row input {
+    width: 100%;
+    min-height: 40px;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font: inherit;
+}
+
 .form-group textarea:focus,
 .form-group input:focus,
 .form-group select:focus,
+.inventory-usage-row select:focus,
+.inventory-usage-row input:focus,
 .photo-body select:focus,
 .photo-body input:focus {
     outline: none;
@@ -816,6 +851,10 @@ body {
     }
 
     .photo-controls {
+        grid-template-columns: 1fr;
+    }
+
+    .inventory-usage-row {
         grid-template-columns: 1fr;
     }
 }

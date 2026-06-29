@@ -368,8 +368,11 @@ let temporizadorBorradorGuia = null;
 let accesoMantenimientoActivo = false;
 let inventarioRepuestos = [];
 let intervencionesMantenimiento = [];
+let movimientosInventario = [];
+let mantenimientoProgramado = [];
 let canalInventario = null;
 let canalIntervencionesMantenimiento = null;
+let canalMantenimientoProgramado = null;
 let sedeActivaPorModulo = {
     mantenimiento: 'puruchuco',
     caja: 'gama',
@@ -688,6 +691,221 @@ function calcularKpisIntervenciones() {
     };
 }
 
+function obtenerMesGerencialActual() {
+    const campo = obtenerElemento('managementMonth');
+    if (campo?.value) {
+        return campo.value;
+    }
+    return new Date().toISOString().slice(0, 7);
+}
+
+function estaEnMes(fechaISO, mesYYYYMM = obtenerMesGerencialActual()) {
+    if (!fechaISO || !mesYYYYMM) {
+        return false;
+    }
+    const fecha = new Date(fechaISO);
+    return !Number.isNaN(fecha.getTime()) && fecha.toISOString().slice(0, 7) === mesYYYYMM;
+}
+
+function obtenerIntervencionesMes(mesYYYYMM = obtenerMesGerencialActual()) {
+    return intervencionesMantenimiento.filter(item => estaEnMes(item.fecha_guardado, mesYYYYMM));
+}
+
+function calcularDashboardGerencial() {
+    const registros = obtenerIntervencionesMes();
+    const conParada = registros.filter(item => item.genera_parada !== false);
+    const preventivos = registros.filter(item => item.tipo_mantenimiento === 'Preventivo');
+    const correctivos = registros.filter(item => item.tipo_mantenimiento === 'Correctivo');
+    const totalParada = conParada.reduce((sum, item) => sum + Number(item.duracion_minutos || 0), 0);
+    const equiposCorrectivos = correctivos.reduce((mapa, item) => {
+        const key = item.equipo_codigo || item.equipo_nombre || 'Sin equipo';
+        mapa.set(key, (mapa.get(key) || 0) + 1);
+        return mapa;
+    }, new Map());
+    const equipoMasFallas = [...equiposCorrectivos.entries()].sort((a, b) => b[1] - a[1])[0];
+    const pendientesPreventivos = mantenimientoProgramado.filter(item => {
+        const proximo = new Date(`${item.proximo_preventivo}T00:00:00`);
+        return !Number.isNaN(proximo.getTime()) && proximo <= new Date();
+    });
+
+    return {
+        registros,
+        preventivos,
+        correctivos,
+        totalParada,
+        promedioParada: conParada.length ? Math.round(totalParada / conParada.length) : 0,
+        equipoMasFallas,
+        stockBajo: calcularKpisInventario().stockBajo,
+        pendientesPreventivos
+    };
+}
+
+function crearTarjetaDashboard(titulo, valor, detalle, estado = 'neutral') {
+    const tarjeta = crearTarjetaKpiMantenimiento(titulo, valor, detalle, estado);
+    tarjeta.classList.add('management-card');
+    return tarjeta;
+}
+
+function renderizarDashboardGerencial() {
+    const panel = obtenerElemento('managementDashboardPanel');
+    const grid = obtenerElemento('managementDashboardGrid');
+    const agenda = obtenerElemento('preventiveSchedulePanel');
+    const campoMes = obtenerElemento('managementMonth');
+    if (!grid || !agenda) {
+        return;
+    }
+
+    if (campoMes && !campoMes.value) {
+        campoMes.value = obtenerMesGerencialActual();
+    }
+
+    limpiarElemento(grid);
+    limpiarElemento(agenda);
+
+    if (!accesoMantenimientoActivo) {
+        grid.appendChild(crearMensajeVacio('Ingresa al area de mantenimiento para ver el dashboard.', 'inventory-empty'));
+        return;
+    }
+
+    const datos = calcularDashboardGerencial();
+    grid.append(
+        crearTarjetaDashboard('Informes del mes', String(datos.registros.length), obtenerNombreSede(obtenerSedeMantenimientoActiva()), 'neutral'),
+        crearTarjetaDashboard('Preventivos', String(datos.preventivos.length), 'Intervenciones preventivas registradas', datos.preventivos.length ? 'good' : 'warning'),
+        crearTarjetaDashboard('Correctivos', String(datos.correctivos.length), 'Eventos que requieren analisis de causa', datos.correctivos.length ? 'warning' : 'good'),
+        crearTarjetaDashboard('Parada total', minutosAHorasTexto(datos.totalParada), `Promedio ${minutosAHorasTexto(datos.promedioParada)}`, datos.totalParada ? 'warning' : 'good'),
+        crearTarjetaDashboard('Equipo recurrente', datos.equipoMasFallas?.[0] || 'Sin recurrencia', datos.equipoMasFallas ? `${datos.equipoMasFallas[1]} correctivo(s)` : 'Sin fallas repetidas', datos.equipoMasFallas ? 'danger' : 'good'),
+        crearTarjetaDashboard('Stock bajo', String(datos.stockBajo), 'Repuestos por reponer', datos.stockBajo ? 'danger' : 'good'),
+        crearTarjetaDashboard('Preventivos vencidos', String(datos.pendientesPreventivos.length), 'Equipos pendientes o por vencer', datos.pendientesPreventivos.length ? 'danger' : 'good')
+    );
+
+    const titulo = document.createElement('strong');
+    const lista = document.createElement('div');
+    titulo.textContent = 'Programacion preventiva';
+    lista.className = 'preventive-schedule-list';
+
+    const programados = mantenimientoProgramado
+        .slice()
+        .sort((a, b) => String(a.proximo_preventivo).localeCompare(String(b.proximo_preventivo)))
+        .slice(0, 8);
+
+    if (!programados.length) {
+        lista.appendChild(crearMensajeVacio('Aun no hay preventivos programados para esta sede.', 'inventory-empty'));
+    } else {
+        programados.forEach(item => {
+            const fila = document.createElement('article');
+            const fecha = document.createElement('time');
+            const datosEquipo = document.createElement('div');
+            const codigo = document.createElement('strong');
+            const tipo = document.createElement('small');
+            const estado = document.createElement('span');
+            const proximo = new Date(`${item.proximo_preventivo}T00:00:00`);
+            const vencido = !Number.isNaN(proximo.getTime()) && proximo < new Date(new Date().toDateString());
+
+            fila.className = 'preventive-schedule-item';
+            fila.classList.toggle('is-overdue', vencido);
+            fecha.dateTime = item.proximo_preventivo;
+            fecha.textContent = item.proximo_preventivo || '-';
+            codigo.textContent = item.equipo_codigo || item.equipo_nombre;
+            tipo.textContent = item.equipo_tipo || 'Equipo';
+            datosEquipo.append(codigo, tipo);
+            estado.textContent = vencido ? 'Vencido' : item.estado || 'Pendiente';
+            fila.append(fecha, datosEquipo, estado);
+            lista.appendChild(fila);
+        });
+    }
+    agenda.append(titulo, lista);
+
+    if (!panel.hidden) {
+        panel.setAttribute('aria-busy', 'false');
+    }
+}
+
+function establecerDashboardGerencial(abierto, { enfocar = false } = {}) {
+    const panel = obtenerElemento('managementDashboardPanel');
+    const boton = obtenerElemento('toggleManagementDashboard');
+    if (!panel || !boton) {
+        return;
+    }
+
+    panel.hidden = !abierto;
+    boton.setAttribute('aria-expanded', String(abierto));
+    boton.textContent = abierto ? 'Ocultar dashboard' : 'Dashboard';
+    if (abierto) {
+        renderizarDashboardGerencial();
+        if (enfocar) {
+            panel.focus({ preventScroll: true });
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    } else if (enfocar) {
+        boton.focus();
+    }
+}
+
+function escaparCsv(valor) {
+    const texto = String(valor ?? '');
+    return `"${texto.replace(/"/g, '""')}"`;
+}
+
+function exportarMantenimientoMensual() {
+    if (!accesoMantenimientoActivo) {
+        mostrarToast('Ingresa al area de mantenimiento para exportar.');
+        return;
+    }
+
+    const mes = obtenerMesGerencialActual();
+    const registros = obtenerIntervencionesMes(mes);
+    if (!registros.length) {
+        mostrarToast('No hay informes de mantenimiento para exportar en ese mes.');
+        return;
+    }
+
+    const cabeceras = [
+        'Sede',
+        'Mes',
+        'Numero informe',
+        'Fecha',
+        'Equipo',
+        'Tipo',
+        'Prioridad',
+        'Resultado',
+        'Tecnico',
+        'Supervisor',
+        'Duracion minutos',
+        'Genera parada',
+        'Repuestos'
+    ];
+    const filas = registros.map(item => [
+        obtenerNombreSede(item.sede || obtenerSedeMantenimientoActiva()),
+        mes,
+        item.numero_informe,
+        item.fecha_guardado,
+        `${item.equipo_codigo || ''} ${item.equipo_nombre || ''}`.trim(),
+        item.tipo_mantenimiento,
+        item.prioridad,
+        item.resultado_final,
+        item.tecnico,
+        item.supervisor,
+        item.duracion_minutos,
+        item.genera_parada === false ? 'No' : 'Si',
+        Array.isArray(item.repuestos_usados)
+            ? item.repuestos_usados.map(rep => `${rep.codigo || rep.nombre} x ${rep.cantidad}`).join('; ')
+            : ''
+    ]);
+    const contenido = [cabeceras, ...filas]
+        .map(fila => fila.map(escaparCsv).join(','))
+        .join('\r\n');
+    const blob = new Blob([`\ufeff${contenido}`], { type: 'text/csv;charset=utf-8' });
+    const enlace = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    enlace.href = url;
+    enlace.download = `mantenimiento-${obtenerSedeMantenimientoActiva()}-${mes}.csv`;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    URL.revokeObjectURL(url);
+    mostrarToast('Exportacion mensual generada.');
+}
+
 function renderizarKpisMantenimiento() {
     const grid = obtenerElemento('maintenanceKpiGrid');
     const categorias = obtenerElemento('maintenanceKpiCategories');
@@ -812,6 +1030,7 @@ function actualizarAreaMantenimientoUI() {
         sede.textContent = `Area de mantenimiento: ${obtenerNombreSede(obtenerSedeMantenimientoActiva())}`;
     }
     renderizarKpisMantenimiento();
+    renderizarDashboardGerencial();
 }
 
 async function validarAccesoMantenimiento(event) {
@@ -865,10 +1084,13 @@ async function validarAccesoMantenimiento(event) {
     prepararEnlaceInformeMantenimiento();
     await Promise.all([
         cargarInventarioRepuestos(),
-        cargarIntervencionesMantenimiento()
+        cargarIntervencionesMantenimiento(),
+        cargarMovimientosInventario(),
+        cargarMantenimientoProgramado()
     ]);
     suscribirInventarioRepuestos();
     suscribirIntervencionesMantenimiento();
+    suscribirMantenimientoProgramado();
 }
 
 function restaurarAccesoMantenimiento() {
@@ -877,8 +1099,11 @@ function restaurarAccesoMantenimiento() {
     if (accesoMantenimientoActivo) {
         cargarInventarioRepuestos();
         cargarIntervencionesMantenimiento();
+        cargarMovimientosInventario();
+        cargarMantenimientoProgramado();
         suscribirInventarioRepuestos();
         suscribirIntervencionesMantenimiento();
+        suscribirMantenimientoProgramado();
     }
 }
 
@@ -902,6 +1127,10 @@ function bloquearAreaMantenimiento() {
     if (canalIntervencionesMantenimiento && supabaseClient) {
         supabaseClient.removeChannel(canalIntervencionesMantenimiento);
         canalIntervencionesMantenimiento = null;
+    }
+    if (canalMantenimientoProgramado && supabaseClient) {
+        supabaseClient.removeChannel(canalMantenimientoProgramado);
+        canalMantenimientoProgramado = null;
     }
     actualizarAreaMantenimientoUI();
     renderizarInventarioRepuestos();
@@ -930,6 +1159,7 @@ async function cargarInventarioRepuestos() {
     inventarioRepuestos = Array.isArray(data) ? data : [];
     actualizarEstadoInventario(`${inventarioRepuestos.length} repuestos registrados.`, 'success');
     renderizarKpisMantenimiento();
+    renderizarDashboardGerencial();
     renderizarInventarioRepuestos();
 }
 
@@ -942,7 +1172,7 @@ async function cargarIntervencionesMantenimiento() {
         .filter(item => item?.sede === obtenerSedeMantenimientoActiva());
     const { data, error } = await supabaseClient
         .from('intervenciones_mantenimiento')
-        .select('id,numero_informe,sede,equipo_codigo,equipo_nombre,equipo_tipo,tipo_mantenimiento,prioridad,resultado_final,tecnico,supervisor,hora_inicio,hora_final,duracion_minutos,preventivo_estimado_minutos,genera_parada,fecha_guardado')
+        .select('id,numero_informe,sede,equipo_codigo,equipo_nombre,equipo_tipo,tipo_mantenimiento,prioridad,resultado_final,tecnico,supervisor,hora_inicio,hora_final,duracion_minutos,preventivo_estimado_minutos,genera_parada,repuestos_usados,fecha_guardado')
         .eq('sede', obtenerSedeMantenimientoActiva())
         .order('fecha_guardado', { ascending: false })
         .limit(250);
@@ -960,7 +1190,85 @@ async function cargarIntervencionesMantenimiento() {
         ...remotas,
         ...locales.filter(item => !remotasPorInforme.has(item.numero_informe))
     ];
+    calcularProgramacionPreventivaBase();
     renderizarKpisMantenimiento();
+    renderizarDashboardGerencial();
+}
+
+async function cargarMovimientosInventario() {
+    if (!accesoMantenimientoActivo || !supabaseClient || !sesionActual?.user) {
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from('inventario_movimientos')
+        .select('id,sede,repuesto_codigo,repuesto_nombre,tipo,cantidad,unidad,numero_informe,observacion,created_at')
+        .eq('sede', obtenerSedeMantenimientoActiva())
+        .order('created_at', { ascending: false })
+        .limit(300);
+
+    if (error) {
+        console.warn('No se pudieron cargar movimientos de inventario:', error);
+        movimientosInventario = [];
+        return;
+    }
+
+    movimientosInventario = Array.isArray(data) ? data : [];
+    renderizarDashboardGerencial();
+}
+
+function calcularProgramacionPreventivaBase() {
+    const hoy = new Date();
+    const equipos = obtenerEquiposMantenimientoSede();
+    const preventivos = intervencionesMantenimiento
+        .filter(item => item.tipo_mantenimiento === 'Preventivo')
+        .slice()
+        .sort((a, b) => new Date(b.fecha_guardado) - new Date(a.fecha_guardado));
+
+    mantenimientoProgramado = equipos.map(equipo => {
+        const ultimo = preventivos.find(item => String(item.equipo_codigo || '').toUpperCase() === equipo.codigo);
+        const base = ultimo?.fecha_guardado ? new Date(ultimo.fecha_guardado) : new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+        const proximo = new Date(base);
+        proximo.setDate(proximo.getDate() + (ultimo ? 30 : 0));
+        const proximoTexto = proximo.toISOString().slice(0, 10);
+        return {
+            sede: equipo.sede,
+            equipo_codigo: equipo.codigo,
+            equipo_nombre: equipo.nombre,
+            equipo_tipo: equipo.tipo,
+            frecuencia_dias: 30,
+            ultimo_preventivo: ultimo?.fecha_guardado || '',
+            proximo_preventivo: proximoTexto,
+            estado: proximo < new Date(hoy.toDateString()) ? 'vencido' : 'pendiente'
+        };
+    });
+}
+
+async function cargarMantenimientoProgramado() {
+    calcularProgramacionPreventivaBase();
+
+    if (!accesoMantenimientoActivo || !supabaseClient || !sesionActual?.user) {
+        renderizarDashboardGerencial();
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from('mantenimiento_programado')
+        .select('id,sede,equipo_codigo,equipo_nombre,equipo_tipo,frecuencia_dias,ultimo_preventivo,proximo_preventivo,estado,observaciones')
+        .eq('sede', obtenerSedeMantenimientoActiva())
+        .order('proximo_preventivo', { ascending: true });
+
+    if (error) {
+        console.warn('No se pudo cargar mantenimiento programado:', error);
+        renderizarDashboardGerencial();
+        return;
+    }
+
+    if (Array.isArray(data) && data.length) {
+        const remotos = new Map(data.map(item => [item.equipo_codigo, item]));
+        mantenimientoProgramado = mantenimientoProgramado.map(item => remotos.get(item.equipo_codigo) || item);
+    }
+    renderizarDashboardGerencial();
 }
 
 function renderizarInventarioRepuestos() {
@@ -1131,6 +1439,28 @@ function suscribirIntervencionesMantenimiento() {
                 filter: `sede=eq.${obtenerSedeMantenimientoActiva()}`
             },
             () => cargarIntervencionesMantenimiento()
+        )
+        .subscribe();
+}
+
+function suscribirMantenimientoProgramado() {
+    if (!accesoMantenimientoActivo || !supabaseClient) {
+        return;
+    }
+    if (canalMantenimientoProgramado) {
+        supabaseClient.removeChannel(canalMantenimientoProgramado);
+    }
+    canalMantenimientoProgramado = supabaseClient
+        .channel(`mantenimiento-programado-${obtenerSedeMantenimientoActiva()}-${sesionActual.user.id}`)
+        .on(
+            'postgres_changes',
+            {
+                event: '*',
+                schema: 'public',
+                table: 'mantenimiento_programado',
+                filter: `sede=eq.${obtenerSedeMantenimientoActiva()}`
+            },
+            () => cargarMantenimientoProgramado()
         )
         .subscribe();
 }
@@ -2031,8 +2361,11 @@ function seleccionarSedeModulo(modulo, sede, opciones = {}) {
         actualizarAreaMantenimientoUI();
         cargarInventarioRepuestos();
         cargarIntervencionesMantenimiento();
+        cargarMovimientosInventario();
+        cargarMantenimientoProgramado();
         suscribirInventarioRepuestos();
         suscribirIntervencionesMantenimiento();
+        suscribirMantenimientoProgramado();
     }
 
     if (opciones.desplazar) {
@@ -3493,6 +3826,10 @@ async function aplicarSesion(session) {
         if (canalIntervencionesMantenimiento && supabaseClient) {
             supabaseClient.removeChannel(canalIntervencionesMantenimiento);
             canalIntervencionesMantenimiento = null;
+        }
+        if (canalMantenimientoProgramado && supabaseClient) {
+            supabaseClient.removeChannel(canalMantenimientoProgramado);
+            canalMantenimientoProgramado = null;
         }
         mostrarAppAutenticada(false);
         actualizarEstadoAuth('Ingresa con tu usuario asignado.', 'info');
@@ -5880,6 +6217,14 @@ function configurarEventos() {
     obtenerElemento('maintenanceAccessForm')?.addEventListener('submit', validarAccesoMantenimiento);
     obtenerElemento('lockMaintenanceArea')?.addEventListener('click', bloquearAreaMantenimiento);
     obtenerElemento('refreshInventory')?.addEventListener('click', cargarInventarioRepuestos);
+    obtenerElemento('toggleManagementDashboard')?.addEventListener('click', event => {
+        establecerDashboardGerencial(event.currentTarget.getAttribute('aria-expanded') !== 'true', { enfocar: true });
+    });
+    obtenerElemento('closeManagementDashboard')?.addEventListener('click', () => {
+        establecerDashboardGerencial(false, { enfocar: true });
+    });
+    obtenerElemento('managementMonth')?.addEventListener('change', renderizarDashboardGerencial);
+    obtenerElemento('exportMonthlyMaintenance')?.addEventListener('click', exportarMantenimientoMensual);
     obtenerElemento('toggleMaintenanceKpis')?.addEventListener('click', event => {
         establecerPanelKpisMantenimiento(event.currentTarget.getAttribute('aria-expanded') !== 'true', { enfocar: true });
     });

@@ -161,6 +161,9 @@ let lastGeneratedAt = null;
 let draftTimer = null;
 let signaturePads = {};
 let supabaseClient = null;
+let inventarioInforme = [];
+let repuestosUsados = [];
+let nextRepuestoUsoId = 1;
 
 initSignaturePads();
 initForm();
@@ -174,6 +177,11 @@ document.getElementById('btnPrevisualizar').addEventListener('click', () => {
 });
 document.getElementById('btnCopiar').addEventListener('click', copyReport);
 document.getElementById('btnDescargar').addEventListener('click', downloadReport);
+document.getElementById('addInventoryUsage')?.addEventListener('click', () => {
+    agregarUsoInventario();
+    renderizarUsoInventario();
+    scheduleDraftSave();
+});
 
 form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -190,6 +198,7 @@ Object.entries(fields).forEach(([name, field]) => {
         if (name === 'sede') {
             fields.equipo.value = '';
             renderEquipmentCatalog();
+            cargarInventarioInforme();
         }
         if (name === 'equipo' || name === 'tipoMantenimiento') {
             actualizarImpactoOperativoSugerido();
@@ -202,6 +211,7 @@ Object.entries(fields).forEach(([name, field]) => {
         updateEstadoInicialOtroVisibility();
         if (name === 'sede') {
             renderEquipmentCatalog();
+            cargarInventarioInforme();
         }
         if (name === 'equipo' || name === 'tipoMantenimiento') {
             actualizarImpactoOperativoSugerido();
@@ -314,6 +324,50 @@ taskList.addEventListener('click', (event) => {
     updateProgress();
     scheduleDraftSave();
     clearStatus();
+});
+
+document.getElementById('inventoryUsageList')?.addEventListener('change', event => {
+    const fila = event.target.closest('[data-inventory-usage-id]');
+    const uso = fila ? repuestosUsados.find(item => item.uid === Number(fila.dataset.inventoryUsageId)) : null;
+    if (!uso) {
+        return;
+    }
+
+    if (event.target.dataset.action === 'usage-item') {
+        const repuesto = inventarioInforme.find(item => item.id === event.target.value);
+        uso.id = repuesto?.id || '';
+        uso.codigo = repuesto?.codigo || '';
+        uso.nombre = repuesto?.nombre || '';
+        uso.unidad = repuesto?.unidad || 'unidad';
+    }
+    scheduleDraftSave();
+    renderizarUsoInventario();
+});
+
+document.getElementById('inventoryUsageList')?.addEventListener('input', event => {
+    const fila = event.target.closest('[data-inventory-usage-id]');
+    const uso = fila ? repuestosUsados.find(item => item.uid === Number(fila.dataset.inventoryUsageId)) : null;
+    if (!uso) {
+        return;
+    }
+
+    if (event.target.dataset.action === 'usage-quantity') {
+        uso.cantidad = event.target.value;
+    }
+    if (event.target.dataset.action === 'usage-note') {
+        uso.observacion = event.target.value;
+    }
+    scheduleDraftSave();
+});
+
+document.getElementById('inventoryUsageList')?.addEventListener('click', event => {
+    const boton = event.target.closest('[data-remove-usage]');
+    if (!boton) {
+        return;
+    }
+    repuestosUsados = repuestosUsados.filter(item => item.uid !== Number(boton.dataset.removeUsage));
+    renderizarUsoInventario();
+    scheduleDraftSave();
 });
 
 function initForm() {
@@ -437,6 +491,18 @@ function applyDraft(draft) {
         }))
         : [];
     nextTaskId = Math.max(0, ...tasks.map((task) => task.id || 0)) + 1;
+    repuestosUsados = Array.isArray(draft.repuestosUsados)
+        ? draft.repuestosUsados.map((uso, index) => ({
+            uid: Number(uso.uid || index + 1),
+            id: uso.id || '',
+            codigo: uso.codigo || '',
+            nombre: uso.nombre || '',
+            cantidad: uso.cantidad || '1',
+            unidad: uso.unidad || 'unidad',
+            observacion: uso.observacion || ''
+        }))
+        : [];
+    nextRepuestoUsoId = Math.max(0, ...repuestosUsados.map(uso => uso.uid || 0)) + 1;
 
     if (!tasks.length) {
         createTask();
@@ -449,6 +515,7 @@ function applyDraft(draft) {
     if (draft.signatures?.firmaSupervisor) {
         signaturePads.firmaSupervisor.load(draft.signatures.firmaSupervisor);
     }
+    renderizarUsoInventario();
 }
 
 function setDefaultTimes() {
@@ -461,15 +528,113 @@ function syncSignatureNames() {
     fields.firmaTecnicoNombre.value = fields.personal.value.trim();
 }
 
+function agregarUsoInventario(overrides = {}) {
+    repuestosUsados.push({
+        uid: nextRepuestoUsoId,
+        id: '',
+        codigo: '',
+        nombre: '',
+        cantidad: '1',
+        unidad: 'unidad',
+        observacion: '',
+        ...overrides
+    });
+    nextRepuestoUsoId += 1;
+}
+
+function obtenerRepuestosUsadosValidos() {
+    return repuestosUsados
+        .map(uso => {
+            const repuesto = inventarioInforme.find(item => item.id === uso.id);
+            const cantidad = Number(uso.cantidad);
+            return {
+                id: uso.id,
+                codigo: repuesto?.codigo || uso.codigo || '',
+                nombre: repuesto?.nombre || uso.nombre || '',
+                cantidad: Number.isFinite(cantidad) && cantidad > 0 ? cantidad : 0,
+                unidad: repuesto?.unidad || uso.unidad || 'unidad',
+                observacion: uso.observacion || ''
+            };
+        })
+        .filter(uso => uso.id && uso.cantidad > 0);
+}
+
+function renderizarUsoInventario() {
+    const lista = document.getElementById('inventoryUsageList');
+    const estado = document.getElementById('inventoryUsageStatus');
+    if (!lista) {
+        return;
+    }
+
+    lista.innerHTML = '';
+    if (estado) {
+        estado.textContent = inventarioInforme.length
+            ? `${inventarioInforme.length} repuestos disponibles para seleccionar.`
+            : 'No hay inventario cargado para esta sede o no hay conexion.';
+    }
+
+    if (!repuestosUsados.length) {
+        const vacio = document.createElement('p');
+        vacio.className = 'field-help';
+        vacio.textContent = 'No se descontaran repuestos del inventario en este informe.';
+        lista.appendChild(vacio);
+        return;
+    }
+
+    repuestosUsados.forEach((uso, indice) => {
+        const fila = document.createElement('article');
+        const selector = document.createElement('select');
+        const cantidad = document.createElement('input');
+        const nota = document.createElement('input');
+        const eliminar = document.createElement('button');
+        const repuestoSeleccionado = inventarioInforme.find(item => item.id === uso.id);
+
+        fila.className = 'inventory-usage-row';
+        fila.dataset.inventoryUsageId = String(uso.uid);
+
+        selector.dataset.action = 'usage-item';
+        selector.setAttribute('aria-label', `Repuesto usado ${indice + 1}`);
+        selector.appendChild(new Option('Selecciona repuesto', ''));
+        inventarioInforme.forEach(item => {
+            const opcion = new Option(`${item.codigo} - ${item.nombre} (${item.stock} ${item.unidad})`, item.id);
+            opcion.selected = item.id === uso.id;
+            selector.appendChild(opcion);
+        });
+
+        cantidad.type = 'number';
+        cantidad.min = '0';
+        cantidad.step = '0.01';
+        cantidad.value = uso.cantidad || '1';
+        cantidad.dataset.action = 'usage-quantity';
+        cantidad.setAttribute('aria-label', `Cantidad usada ${indice + 1}`);
+
+        nota.type = 'text';
+        nota.value = uso.observacion || '';
+        nota.placeholder = repuestoSeleccionado ? `Unidad: ${repuestoSeleccionado.unidad}` : 'Observacion opcional';
+        nota.dataset.action = 'usage-note';
+        nota.setAttribute('aria-label', `Observacion del repuesto ${indice + 1}`);
+
+        eliminar.type = 'button';
+        eliminar.className = 'btn btn-secondary btn-small';
+        eliminar.dataset.removeUsage = String(uso.uid);
+        eliminar.textContent = 'Quitar';
+        fila.append(selector, cantidad, nota, eliminar);
+        lista.appendChild(fila);
+    });
+}
+
 function resetForm() {
     form.reset();
     clearDraft();
+    repuestosUsados = [];
+    nextRepuestoUsoId = 1;
     Object.keys(groups).forEach((name) => setFieldError(name, false));
     groups.actividades.classList.remove('error');
     signaturePads.firmaTecnico.clear();
     signaturePads.firmaSupervisor.clear();
     startNewReport();
     renderTasks();
+    renderizarUsoInventario();
     updateEstadoInicialOtroVisibility();
     updateComputedFields();
     previewSection.classList.remove('active');
@@ -719,10 +884,18 @@ function getReportData() {
     const estadoInicialTexto = fields.estadoInicial.value === 'Otro'
         ? `Otro: ${fields.estadoInicialOtro.value.trim()}`
         : fields.estadoInicial.value.trim();
+    const repuestosInventario = obtenerRepuestosUsadosValidos()
+        .map(repuesto => `${repuesto.codigo || repuesto.nombre} x ${repuesto.cantidad} ${repuesto.unidad}`)
+        .join('\n');
+    const repuestosTexto = [
+        fields.repuestos.value.trim(),
+        repuestosInventario ? `Descuento de inventario:\n${repuestosInventario}` : ''
+    ].filter(Boolean).join('\n\n');
     syncSignatureNames();
 
     return {
         ...Object.fromEntries(Object.entries(fields).map(([name, field]) => [name, field.value.trim()])),
+        repuestos: repuestosTexto,
         firmaTecnicoNombre: fields.personal.value.trim(),
         estadoInicialTexto,
         fechaGuardado: lastGeneratedAt,
@@ -1175,6 +1348,7 @@ function saveDraft() {
         reportSaved,
         fields: Object.fromEntries(Object.entries(fields).map(([name, field]) => [name, field.value])),
         tasks,
+        repuestosUsados,
         signatures: {
             firmaTecnico: signaturePads.firmaTecnico.isEmpty() ? '' : signaturePads.firmaTecnico.toDataUrl(),
             firmaSupervisor: signaturePads.firmaSupervisor.isEmpty() ? '' : signaturePads.firmaSupervisor.toDataUrl()
@@ -1236,6 +1410,7 @@ function buildMaintenanceSummary(report) {
         motivo: report.incidente,
         solucion: report.solucion,
         repuestos: report.repuestos || '',
+        repuestos_usados: obtenerRepuestosUsadosValidos(),
         fecha_guardado: report.fechaGuardado?.toISOString?.() || new Date().toISOString()
     };
 }
@@ -1294,7 +1469,10 @@ async function validarAccesoInforme() {
 
     if (error || perfil?.activo === false || !['admin', 'tecnico'].includes(perfil?.rol)) {
         window.location.replace('index.html?module=mantenimiento');
+        return;
     }
+
+    await cargarInventarioInforme();
 }
 
 async function saveMaintenanceSummaryRemote(summary) {
@@ -1317,7 +1495,48 @@ async function saveMaintenanceSummaryRemote(summary) {
         return false;
     }
 
+    const repuestos = obtenerRepuestosUsadosValidos();
+    if (repuestos.length) {
+        const { error: consumoError } = await client.rpc('registrar_consumo_repuestos', {
+            numero_informe_arg: summary.numero_informe,
+            sede_arg: summary.sede,
+            repuestos_arg: repuestos
+        });
+
+        if (consumoError) {
+            console.warn('No se pudo descontar inventario:', consumoError);
+            return false;
+        }
+    }
+
     return true;
+}
+
+async function cargarInventarioInforme() {
+    const client = await getSupabaseClient();
+    const estado = document.getElementById('inventoryUsageStatus');
+    if (!client || !getActiveSiteId()) {
+        renderizarUsoInventario();
+        return;
+    }
+
+    if (estado) {
+        estado.textContent = 'Cargando inventario de la sede...';
+    }
+
+    const { data, error } = await client
+        .from('inventario_repuestos')
+        .select('id,codigo,nombre,stock,unidad,categoria')
+        .eq('sede', getActiveSiteId())
+        .order('nombre', { ascending: true });
+
+    if (error) {
+        console.warn('No se pudo cargar inventario para informe:', error);
+        inventarioInforme = [];
+    } else {
+        inventarioInforme = Array.isArray(data) ? data : [];
+    }
+    renderizarUsoInventario();
 }
 
 async function registerMaintenanceSummary(report) {

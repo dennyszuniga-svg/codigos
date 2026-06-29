@@ -477,9 +477,28 @@
                                 <span id="maintenanceSiteLabel">Inventario de la sede asignada</span>
                                 <div class="maintenance-toolbar-actions">
                                     <span class="maintenance-role-badge">Acceso por rol</span>
+                                    <button class="clear-btn" id="toggleManagementDashboard" type="button" aria-expanded="false" aria-controls="managementDashboardPanel">Dashboard</button>
+                                    <button class="clear-btn" id="exportMonthlyMaintenance" type="button">Exportar mes</button>
                                     <button class="finish-btn" id="toggleMaintenanceKpis" type="button" aria-expanded="false" aria-controls="maintenanceKpiPanel">Ver KPIs</button>
                                 </div>
                             </div>
+
+                            <section class="management-dashboard-panel" id="managementDashboardPanel" aria-labelledby="managementDashboardTitle" tabindex="-1" hidden>
+                                <div class="maintenance-kpi-heading">
+                                    <div>
+                                        <h4 id="managementDashboardTitle">Dashboard gerencial</h4>
+                                        <p>Vista mensual por sede con preventivos, correctivos, parada operativa e inventario.</p>
+                                    </div>
+                                    <div class="maintenance-kpi-heading-actions">
+                                        <label class="month-filter" for="managementMonth">Mes
+                                            <input id="managementMonth" type="month">
+                                        </label>
+                                        <button class="modal-close maintenance-kpi-close" id="closeManagementDashboard" type="button" aria-label="Cerrar dashboard" title="Cerrar dashboard">&times;</button>
+                                    </div>
+                                </div>
+                                <div id="managementDashboardGrid" class="management-dashboard-grid" aria-live="polite"></div>
+                                <div id="preventiveSchedulePanel" class="preventive-schedule-panel" aria-live="polite"></div>
+                            </section>
 
                             <section class="maintenance-kpi-panel" id="maintenanceKpiPanel" aria-labelledby="maintenanceKpiTitle" tabindex="-1" hidden>
                                 <div class="maintenance-kpi-heading">

@@ -1375,11 +1375,24 @@ body.dark-theme .maintenance-report-action p {
     background: #f8fcff;
 }
 
-.maintenance-kpi-panel[hidden] {
+.management-dashboard-panel {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 16px;
+    padding: 16px;
+    border: 1px solid #d6e3e9;
+    border-left: 5px solid var(--brand-orange);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.maintenance-kpi-panel[hidden],
+.management-dashboard-panel[hidden] {
     display: none;
 }
 
-.maintenance-kpi-panel:focus-visible {
+.maintenance-kpi-panel:focus-visible,
+.management-dashboard-panel:focus-visible {
     outline: 3px solid var(--brand-orange);
     outline-offset: 3px;
 }
@@ -1420,6 +1433,12 @@ body.dark-theme .maintenance-report-action p {
     gap: 10px;
 }
 
+.management-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
 .maintenance-kpi-card {
     display: grid;
     gap: 4px;
@@ -1457,6 +1476,69 @@ body.dark-theme .maintenance-report-action p {
 
 .maintenance-kpi-card.kpi-danger {
     border-top-color: #f04438;
+}
+
+.month-filter {
+    display: grid;
+    gap: 4px;
+    color: #344054;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.month-filter input {
+    min-height: 36px;
+    padding: 7px 9px;
+    border: 1px solid #b8cbd5;
+    border-radius: 6px;
+    font: inherit;
+}
+
+.preventive-schedule-panel {
+    display: grid;
+    gap: 10px;
+}
+
+.preventive-schedule-panel > strong {
+    color: #0f4f70;
+}
+
+.preventive-schedule-list {
+    display: grid;
+    gap: 8px;
+}
+
+.preventive-schedule-item {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid #d6e3e9;
+    border-radius: 7px;
+    background: #f8fafc;
+}
+
+.preventive-schedule-item time,
+.preventive-schedule-item span {
+    color: #1474a8;
+    font-size: 0.82rem;
+    font-weight: 900;
+}
+
+.preventive-schedule-item small {
+    display: block;
+    color: #667085;
+    font-size: 0.78rem;
+}
+
+.preventive-schedule-item.is-overdue {
+    border-color: #fecdca;
+    background: #fff5f4;
+}
+
+.preventive-schedule-item.is-overdue span {
+    color: #b42318;
 }
 
 .maintenance-kpi-categories {
@@ -1516,10 +1598,12 @@ body.dark-theme .maintenance-report-action p {
 body.dark-theme .maintenance-private-shell,
 body.dark-theme .maintenance-access-gate,
 body.dark-theme .maintenance-kpi-panel,
+body.dark-theme .management-dashboard-panel,
 body.dark-theme .maintenance-kpi-card,
 body.dark-theme .maintenance-kpi-categories,
 body.dark-theme .inventory-form,
-body.dark-theme .inventory-item {
+body.dark-theme .inventory-item,
+body.dark-theme .preventive-schedule-item {
     border-color: #395869;
     background: #15242d;
 }
@@ -1529,6 +1613,7 @@ body.dark-theme .maintenance-kpi-heading h4,
 body.dark-theme .maintenance-kpi-card strong,
 body.dark-theme .maintenance-kpi-card span,
 body.dark-theme .maintenance-kpi-categories > strong,
+body.dark-theme .preventive-schedule-panel > strong,
 body.dark-theme .inventory-heading h4,
 body.dark-theme .maintenance-access-form > label,
 body.dark-theme .inventory-search,
@@ -1544,7 +1629,8 @@ body.dark-theme .maintenance-kpi-category-list span {
 
 body.dark-theme .maintenance-password-row input,
 body.dark-theme .inventory-search input,
-body.dark-theme .inventory-form input {
+body.dark-theme .inventory-form input,
+body.dark-theme .month-filter input {
     border-color: #456575;
     background: #0f1d24;
     color: #f0f7fa;
@@ -2927,6 +3013,10 @@ body.dark-theme .modal-dialog {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .management-dashboard-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .module-grid {
         grid-template-columns: repeat(3, minmax(86px, 1fr));
     }
@@ -2956,6 +3046,11 @@ body.dark-theme .modal-dialog {
     }
 
     .maintenance-kpi-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .management-dashboard-grid,
+    .preventive-schedule-item {
         grid-template-columns: 1fr;
     }
 
