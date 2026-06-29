@@ -42,6 +42,12 @@
                     </div>
                 </div>
 
+                <details class="form-section" open>
+                    <summary>
+                        <span>Datos generales</span>
+                        <small>Sede, equipo, prioridad, tiempos y requerimiento</small>
+                    </summary>
+
                 <div class="form-grid">
                     <div class="form-group" id="numeroInformeGroup">
                         <label for="numeroInforme">N&uacute;mero de informe</label>
@@ -159,7 +165,13 @@
                     ></textarea>
                     <p class="error-message">Describa el motivo de la intervenci&oacute;n.</p>
                 </div>
+                </details>
 
+                <details class="form-section" open>
+                    <summary>
+                        <span>Actividades y fotos</span>
+                        <small>Checklist progresivo con evidencias del celular</small>
+                    </summary>
                 <div class="form-group activity-builder" id="activityTasksGroup">
                     <div class="field-header">
                         <div>
@@ -170,7 +182,13 @@
                     <div class="task-list" id="taskList"></div>
                     <p class="error-message" id="activityTasksError">Complete al menos una tarea con detalle, foto y subt&iacute;tulo.</p>
                 </div>
+                </details>
 
+                <details class="form-section">
+                    <summary>
+                        <span>Resultado y observaciones</span>
+                        <small>Solucion, repuestos, estado final y conclusiones</small>
+                    </summary>
                 <div class="form-group" id="solucionGroup">
                     <label for="solucion" class="required">Soluci&oacute;n realizada</label>
                     <textarea
@@ -227,7 +245,13 @@
                     ></textarea>
                     <p class="error-message">Ingrese las conclusiones.</p>
                 </div>
+                </details>
 
+                <details class="form-section">
+                    <summary>
+                        <span>Firmas y cierre</span>
+                        <small>Tecnico, supervisor y exportacion del informe</small>
+                    </summary>
                 <div class="signature-grid">
                     <div class="form-group signature-card" id="firmaTecnicoGroup">
                         <label class="required">Firma digital del t&eacute;cnico</label>
@@ -251,6 +275,7 @@
                         <p class="error-message">Registre la firma y el nombre del supervisor o administrador de turno.</p>
                     </div>
                 </div>
+                </details>
 
                 <div class="button-group" aria-label="Acciones del formulario">
                     <button type="button" class="btn btn-secondary" id="btnLimpiar">Limpiar</button>

@@ -792,8 +792,16 @@ function validateReport(report) {
 
     if (!isValid) {
         const firstInvalid = requiredFields.find((name) => !report[name])
-            || (needsEstadoOtro && !report.estadoInicialOtro ? 'estadoInicialOtro' : null);
-        if (firstInvalid) fields[firstInvalid].focus();
+            || (needsEstadoOtro && !report.estadoInicialOtro ? 'estadoInicialOtro' : null)
+            || (!taskValidation.isValid ? 'actividades' : null)
+            || (!hasTecnico ? 'firmaTecnico' : null)
+            || (!hasSupervisor ? 'firmaSupervisor' : null);
+        abrirSeccionFormulario(firstInvalid);
+        if (firstInvalid && fields[firstInvalid]) {
+            fields[firstInvalid].focus();
+        } else if (firstInvalid && groups[firstInvalid]) {
+            groups[firstInvalid].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
         setStatus(taskValidation.message || 'Complete todos los campos obligatorios, firmas y tiempos antes de guardar.', true);
         return false;
     }
@@ -908,6 +916,15 @@ async function downloadReport() {
     link.click();
     URL.revokeObjectURL(url);
     setStatus('Informe guardado en HTML con logo, colores, firmas y fotos comprimidas.');
+}
+
+function abrirSeccionFormulario(nombre) {
+    const referencia = fields[nombre] || groups[nombre];
+    const seccion = referencia?.closest?.('.form-section');
+
+    if (seccion) {
+        seccion.open = true;
+    }
 }
 
 async function exportPdf() {

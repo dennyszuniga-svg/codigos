@@ -24,11 +24,11 @@ const GUIDE_IMAGE_BUCKET = 'guide-images';
 const GUIDE_IMAGE_URL_TTL = 60 * 60;
 const MAINTENANCE_ACCESS_SESSION_KEY = 'urbapark-maintenance-area-unlocked';
 const SEDES_OPERACION = [
-    { id: 'puruchuco', nombre: 'Real Plaza Puruchuco' },
-    { id: 'salaverry', nombre: 'Real Plaza Salaverry' },
-    { id: 'primavera', nombre: 'Real Plaza Primavera' },
-    { id: 'civico', nombre: 'Real Plaza Civico' },
-    { id: 'gama', nombre: 'GAMA' }
+    { id: 'puruchuco', nombre: 'Real Plaza Puruchuco', corto: 'Puruchuco' },
+    { id: 'salaverry', nombre: 'Real Plaza Salaverry', corto: 'Salaverry' },
+    { id: 'primavera', nombre: 'Real Plaza Primavera', corto: 'Primavera' },
+    { id: 'civico', nombre: 'Real Plaza Civico', corto: 'Civico' },
+    { id: 'gama', nombre: 'GAMA', corto: 'GAMA' }
 ];
 const MODULOS_POR_SEDE = new Set(['mantenimiento', 'caja', 'ronda']);
 const EQUIPOS_MANTENIMIENTO = [
@@ -1137,6 +1137,19 @@ function suscribirIntervencionesMantenimiento() {
 
 function actualizarSesionUI() {
     const etiqueta = obtenerElemento('authUserLabel');
+    const rolActual = perfilActual?.rol || 'sin-rol';
+    const roles = ['admin', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion'];
+
+    document.body.classList.remove('operational-mode', 'admin-mode', 'technical-mode', ...roles.map(rol => `role-${rol}`));
+    document.body.dataset.role = rolActual;
+
+    if (rolActual === 'admin') {
+        document.body.classList.add('admin-mode', 'role-admin');
+    } else if (rolActual === 'tecnico') {
+        document.body.classList.add('technical-mode', 'role-tecnico');
+    } else if (rolActual !== 'sin-rol') {
+        document.body.classList.add('operational-mode', `role-${rolActual}`);
+    }
 
     if (!etiqueta) {
         return;
@@ -1989,7 +2002,9 @@ function renderizarNavegacionSedes() {
             boton.type = 'button';
             boton.dataset.selectSite = sede.id;
             boton.dataset.siteModule = modulo;
-            boton.textContent = sede.nombre;
+            boton.textContent = sede.corto || sede.nombre;
+            boton.setAttribute('aria-label', `Consultar ${sede.nombre}`);
+            boton.title = sede.nombre;
             boton.setAttribute('aria-pressed', activa ? 'true' : 'false');
             contenedor.appendChild(boton);
         });
