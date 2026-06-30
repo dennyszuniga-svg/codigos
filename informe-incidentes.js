@@ -169,7 +169,7 @@ initSignaturePads();
 initForm();
 validarAccesoInforme();
 
-document.getElementById('btnLimpiar').addEventListener('click', resetForm);
+document.getElementById('btnLimpiar').addEventListener('click', confirmResetForm);
 document.getElementById('btnPrevisualizar').addEventListener('click', () => {
     if (renderPreview()) {
         previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -623,6 +623,20 @@ function renderizarUsoInventario() {
     });
 }
 
+function confirmResetForm() {
+    const confirmed = window.confirm(
+        '¿Seguro que desea limpiar todo el avance?\n\nSe eliminarán las tareas, fotos, firmas y datos guardados en este borrador. Esta acción no se puede deshacer.'
+    );
+
+    if (!confirmed) {
+        setStatus('El avance se mantuvo sin cambios.');
+        return;
+    }
+
+    resetForm();
+    setStatus('El avance del informe fue eliminado.');
+}
+
 function resetForm() {
     form.reset();
     clearDraft();
@@ -638,7 +652,6 @@ function resetForm() {
     updateEstadoInicialOtroVisibility();
     updateComputedFields();
     previewSection.classList.remove('active');
-    clearStatus();
 }
 
 function createTask(overrides = {}) {
