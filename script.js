@@ -1723,8 +1723,12 @@ async function guardarSolicitudAbonado(event) {
     }
     event.currentTarget.reset();
     obtenerElemento('subscriberStart').value = new Date().toISOString().slice(0, 10);
-    actualizarEstadoAbonados('Solicitud registrada y disponible para la administradora de la sede.', 'success');
-    await enviarAlertaPushAbonado(payload.sede);
+    const entrega = await enviarAlertaPushAbonado(payload.sede);
+    if (entrega.sent > 0) {
+        actualizarEstadoAbonados(`Solicitud registrada. ${entrega.sent} alerta${entrega.sent === 1 ? '' : 's'} enviada${entrega.sent === 1 ? '' : 's'} correctamente.`, 'success');
+    } else {
+        actualizarEstadoAbonados('Solicitud registrada, pero la alerta no fue entregada. El administrador debe reactivar Alertas en su celular.', 'error');
+    }
     if (usuarioPuedeGestionarAbonados()) await cargarSolicitudesAbonados();
 }
 
@@ -2070,15 +2074,17 @@ async function enviarAlertaPushCodigo(codigo) {
 }
 
 async function enviarAlertaPushAbonado(sede) {
-    if (!supabaseClient || !sesionActual?.user || !sede) return;
+    if (!supabaseClient || !sesionActual?.user || !sede) return { sent: 0, failed: 0 };
 
     try {
-        const { error } = await supabaseClient.functions.invoke('send-code-alert', {
+        const { data, error } = await supabaseClient.functions.invoke('send-code-alert', {
             body: { evento: 'nuevo_abonado', sede }
         });
-        if (error) console.warn('No se pudo enviar la alerta del abonado:', error);
+        if (error) throw error;
+        return data || { sent: 0, failed: 0 };
     } catch (error) {
         console.warn('Funcion push no disponible:', error);
+        return { sent: 0, failed: 1, error: true };
     }
 }
 

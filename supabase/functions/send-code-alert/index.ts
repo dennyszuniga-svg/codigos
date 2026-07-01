@@ -111,6 +111,11 @@ Deno.serve(async (req) => {
       : item.sede === sedeDestino)
     .map((item) => item.id);
   if (!recipientIds.length) {
+    await supabase.from('push_delivery_logs').insert({
+      evento, sede: sedeDestino, remitente: userData.user.id,
+      destinatarios: 0, enviados: 0, fallidos: 0,
+      detalle: [{ motivo: 'No hay destinatarios activos para la sede' }],
+    });
     return new Response(JSON.stringify({ sent: 0, sede: sedeDestino }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -172,7 +177,19 @@ Deno.serve(async (req) => {
     }),
   );
 
-  return new Response(JSON.stringify({ sent: results.length, sede: sedeDestino, evento }), {
+  const deliveryDetails = results.map((result) => result.status === 'fulfilled'
+    ? result.value
+    : { ok: false, statusCode: 0, error: String(result.reason || 'Error desconocido') });
+  const sent = deliveryDetails.filter((result) => result.ok).length;
+  const failed = deliveryDetails.length - sent;
+
+  await supabase.from('push_delivery_logs').insert({
+    evento, sede: sedeDestino, remitente: userData.user.id,
+    destinatarios: recipientIds.length, enviados: sent, fallidos: failed,
+    detalle: deliveryDetails,
+  });
+
+  return new Response(JSON.stringify({ sent, failed, recipients: recipientIds.length, sede: sedeDestino, evento }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 });

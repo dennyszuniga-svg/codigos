@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codigos-urbapark-v58';
+const CACHE_NAME = 'codigos-urbapark-v59';
 const APP_SHELL = [
     './',
     './index.html',
