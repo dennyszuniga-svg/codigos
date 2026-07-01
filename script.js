@@ -1503,7 +1503,7 @@ function actualizarSesionUI() {
         ? 'Encargado de Mantenimiento y TI'
         : perfilActual?.rol;
     const rol = nombreRol ? ` - ${nombreRol}` : '';
-    const sede = obtenerSedeActual() ? ` - ${obtenerNombreSede(obtenerSedeActual())}` : '';
+    const sede = perfilActual?.sede ? ` - ${obtenerNombreSede(perfilActual.sede)}` : '';
     etiqueta.textContent = `${obtenerNombreUsuarioActivo()}${rol}${sede}`;
 }
 
@@ -2267,6 +2267,7 @@ async function cargarProgresoGuiasRemoto() {
 }
 
 function obtenerNombreSede(sede) {
+    if (sede === 'general') return 'General';
     return SEDES_OPERACION.find(item => item.id === sede)?.nombre || 'Todas las sedes';
 }
 
@@ -3543,7 +3544,10 @@ function renderizarUsuariosAdmin() {
         });
         rol.dataset.userRole = usuario.id;
 
-        SEDES_OPERACION.forEach(item => {
+        const sedesUsuario = usuario.rol === ROL_SUPERIOR || usuario.rol === 'comercial_abonados'
+            ? [{ id: 'general', nombre: 'General' }, ...SEDES_OPERACION]
+            : SEDES_OPERACION;
+        sedesUsuario.forEach(item => {
             const option = document.createElement('option');
             option.value = item.id;
             option.textContent = item.nombre;
@@ -3596,6 +3600,11 @@ async function guardarUsuarioAdmin(id) {
     const rol = document.querySelector(`[data-user-role="${id}"]`)?.value;
     const sede = document.querySelector(`[data-user-site="${id}"]`)?.value;
     const activo = document.querySelector(`[data-user-active="${id}"]`)?.value === 'true';
+
+    if (sede === 'general' && ![ROL_SUPERIOR, 'comercial_abonados'].includes(rol)) {
+        mostrarToast('La sede General solo corresponde a roles globales.');
+        return;
+    }
 
     const { error } = await supabaseClient
         .from('profiles')
@@ -3712,6 +3721,14 @@ async function crearUsuarioDesdeAdmin(event) {
     const password = obtenerElemento('newUserPassword')?.value;
     const sede = obtenerElemento('newUserSite')?.value;
     const rol = obtenerElemento('newUserRole')?.value;
+
+    if (sede === 'general' && rol !== 'comercial_abonados') {
+        if (estado) {
+            estado.textContent = 'La sede General solo puede usarse para el Comercial de abonados.';
+            estado.dataset.status = 'error';
+        }
+        return;
+    }
 
     if (!nombre || !password || !sede || !rol) {
         if (estado) {

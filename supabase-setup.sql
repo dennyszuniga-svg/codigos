@@ -10,7 +10,7 @@ create table if not exists public.profiles (
     rol text not null default 'anfitrion'
         check (rol in ('encargado_ti', 'admin', 'comercial_abonados', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion')),
     sede text not null default 'gama'
-        check (sede in ('puruchuco', 'salaverry', 'primavera', 'civico', 'gama')),
+        check (sede in ('general', 'puruchuco', 'salaverry', 'primavera', 'civico', 'gama')),
     activo boolean not null default true,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()

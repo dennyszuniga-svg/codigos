@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const rolesPermitidos = new Set(['admin', 'comercial_abonados', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion']);
-const sedesPermitidas = new Set(['puruchuco', 'salaverry', 'primavera', 'civico', 'gama']);
+const sedesPermitidas = new Set(['general', 'puruchuco', 'salaverry', 'primavera', 'civico', 'gama']);
 const dominioInterno = 'usuarios.urbapark.pe';
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
@@ -87,6 +87,10 @@ Deno.serve(async (req) => {
 
   if (!sedesPermitidas.has(sede)) {
     return jsonResponse({ error: 'Sede invalida' }, 400);
+  }
+
+  if (sede === 'general' && rol !== 'comercial_abonados') {
+    return jsonResponse({ error: 'La sede General solo corresponde a roles globales' }, 400);
   }
 
   const { data: existingProfiles, error: existingError } = await supabase
