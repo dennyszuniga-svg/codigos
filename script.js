@@ -31,6 +31,11 @@ const SEDES_OPERACION = [
     { id: 'gama', nombre: 'GAMA', corto: 'GAMA' }
 ];
 const MODULOS_POR_SEDE = new Set(['mantenimiento', 'caja', 'ronda']);
+const ROL_SUPERIOR = 'encargado_ti';
+const TIPOS_ABONO = {
+    locatario_lv: { nombre: 'Locatario auto - lunes a viernes', monto: 150 },
+    locatario_sd: { nombre: 'Locatario auto - sabado a domingo', monto: 200 }
+};
 const EQUIPOS_MANTENIMIENTO = [
     { sede: 'civico', codigo: 'ENTRADA 1', nombre: 'Carril de entrada 1', tipo: 'Carril de entrada', componentes: ['Ticketero', 'Barrera', 'LPR'], preventivoMinutos: 120 },
     { sede: 'civico', codigo: 'ENTRADA 2', nombre: 'Carril de entrada 2', tipo: 'Carril de entrada', componentes: ['Ticketero', 'Barrera', 'LPR'], preventivoMinutos: 120 },
@@ -373,6 +378,8 @@ let mantenimientoProgramado = [];
 let canalInventario = null;
 let canalIntervencionesMantenimiento = null;
 let canalMantenimientoProgramado = null;
+let solicitudesAbonados = [];
+let canalSolicitudesAbonados = null;
 let sedeActivaPorModulo = {
     mantenimiento: 'puruchuco',
     caja: 'gama',
@@ -557,7 +564,7 @@ function obtenerClaveSesionMantenimiento() {
 }
 
 function usuarioPuedeAccederMantenimiento() {
-    return perfilActual?.activo !== false && ['admin', 'tecnico'].includes(perfilActual?.rol);
+    return perfilActual?.activo !== false && [ROL_SUPERIOR, 'admin', 'tecnico'].includes(perfilActual?.rol);
 }
 
 function usuarioPuedeGestionarInventario() {
@@ -1468,12 +1475,14 @@ function suscribirMantenimientoProgramado() {
 function actualizarSesionUI() {
     const etiqueta = obtenerElemento('authUserLabel');
     const rolActual = perfilActual?.rol || 'sin-rol';
-    const roles = ['admin', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion'];
+    const roles = [ROL_SUPERIOR, 'admin', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion'];
 
     document.body.classList.remove('operational-mode', 'admin-mode', 'technical-mode', ...roles.map(rol => `role-${rol}`));
     document.body.dataset.role = rolActual;
 
-    if (rolActual === 'admin') {
+    if (rolActual === ROL_SUPERIOR) {
+        document.body.classList.add('admin-mode', `role-${ROL_SUPERIOR}`);
+    } else if (rolActual === 'admin') {
         document.body.classList.add('admin-mode', 'role-admin');
     } else if (rolActual === 'tecnico') {
         document.body.classList.add('technical-mode', 'role-tecnico');
@@ -1490,13 +1499,247 @@ function actualizarSesionUI() {
         return;
     }
 
-    const rol = perfilActual?.rol ? ` - ${perfilActual.rol}` : '';
+    const nombreRol = perfilActual?.rol === ROL_SUPERIOR
+        ? 'Encargado de Mantenimiento y TI'
+        : perfilActual?.rol;
+    const rol = nombreRol ? ` - ${nombreRol}` : '';
     const sede = obtenerSedeActual() ? ` - ${obtenerNombreSede(obtenerSedeActual())}` : '';
     etiqueta.textContent = `${obtenerNombreUsuarioActivo()}${rol}${sede}`;
 }
 
 function usuarioEsAdmin() {
-    return perfilActual?.rol === 'admin' && perfilActual?.activo !== false;
+    return [ROL_SUPERIOR, 'admin'].includes(perfilActual?.rol) && perfilActual?.activo !== false;
+}
+
+function usuarioEsSuperior() {
+    return perfilActual?.rol === ROL_SUPERIOR && perfilActual?.activo !== false;
+}
+
+function usuarioPuedeGestionarAbonados() {
+    return usuarioEsAdmin();
+}
+
+function obtenerSedeAbonadosActiva() {
+    if (!usuarioEsSuperior()) {
+        return obtenerSedeActual();
+    }
+    const sede = obtenerElemento('subscriberSite')?.value;
+    return SEDES_OPERACION.some(item => item.id === sede) ? sede : SEDES_OPERACION[0].id;
+}
+
+function actualizarAccesoAbonados() {
+    const permitido = usuarioPuedeGestionarAbonados();
+    const boton = document.querySelector('.subscribers-module-button');
+    const selector = obtenerElemento('subscriberSite');
+    const campoSede = obtenerElemento('subscriberSiteField');
+    boton.hidden = !permitido;
+
+    if (!permitido) {
+        solicitudesAbonados = [];
+        if (moduloActivo === 'abonados') {
+            seleccionarModulo(null, { desplazar: false });
+        }
+        return;
+    }
+
+    if (selector && !selector.options.length) {
+        SEDES_OPERACION.forEach(sede => selector.add(new Option(sede.nombre, sede.id)));
+    }
+
+    if (selector) {
+        selector.value = usuarioEsSuperior() ? (selector.value || SEDES_OPERACION[0].id) : obtenerSedeActual();
+        selector.disabled = !usuarioEsSuperior();
+    }
+    if (campoSede) {
+        campoSede.title = usuarioEsSuperior() ? 'Puede consultar cualquiera de las cinco sedes' : 'Sede asignada a su cuenta';
+    }
+
+    const mes = obtenerElemento('subscriberMonth');
+    if (mes && !mes.value) {
+        mes.value = new Date().toISOString().slice(0, 7);
+    }
+    const fechaInicio = obtenerElemento('subscriberStart');
+    if (fechaInicio && !fechaInicio.value) {
+        fechaInicio.value = new Date().toISOString().slice(0, 10);
+    }
+}
+
+function actualizarEstadoAbonados(mensaje = '', tipo = 'info') {
+    const estado = obtenerElemento('subscriberStatus');
+    if (estado) {
+        estado.textContent = mensaje;
+        estado.dataset.status = tipo;
+    }
+}
+
+function obtenerRangoMesAbonados() {
+    const valor = obtenerElemento('subscriberMonth')?.value || new Date().toISOString().slice(0, 7);
+    const [anio, mes] = valor.split('-').map(Number);
+    const inicio = `${valor}-01`;
+    const siguiente = new Date(Date.UTC(anio, mes, 1)).toISOString().slice(0, 10);
+    return { inicio, siguiente };
+}
+
+async function cargarSolicitudesAbonados() {
+    if (!usuarioPuedeGestionarAbonados() || !supabaseClient) {
+        return;
+    }
+
+    const lista = obtenerElemento('subscribersList');
+    if (lista) lista.textContent = 'Cargando solicitudes...';
+    const { inicio, siguiente } = obtenerRangoMesAbonados();
+    const sede = obtenerSedeAbonadosActiva();
+    let consulta = supabaseClient
+        .from('solicitudes_abonados')
+        .select('id,sede,nombres_completos,dni,tipo_abono,monto,fecha_inicio,estado,observaciones,created_at,atendido_at')
+        .eq('sede', sede)
+        .gte('fecha_inicio', inicio)
+        .lt('fecha_inicio', siguiente)
+        .order('fecha_inicio', { ascending: false });
+    const { data, error } = await consulta;
+
+    if (error) {
+        console.warn('No se pudieron cargar abonados:', error);
+        solicitudesAbonados = [];
+        renderizarSolicitudesAbonados();
+        actualizarEstadoAbonados('No se pudieron cargar los abonados.', 'error');
+        return;
+    }
+    solicitudesAbonados = data || [];
+    renderizarSolicitudesAbonados();
+}
+
+function renderizarSolicitudesAbonados() {
+    const lista = obtenerElemento('subscribersList');
+    if (!lista) return;
+    limpiarElemento(lista);
+
+    const pendientes = solicitudesAbonados.filter(item => item.estado === 'pendiente').length;
+    const generados = solicitudesAbonados.filter(item => item.estado === 'generado').length;
+    const proyectado = solicitudesAbonados
+        .filter(item => item.estado !== 'rechazado')
+        .reduce((total, item) => total + Number(item.monto || 0), 0);
+    obtenerElemento('subscriberTotal').textContent = String(solicitudesAbonados.length);
+    obtenerElemento('subscriberPending').textContent = String(pendientes);
+    obtenerElemento('subscriberGenerated').textContent = String(generados);
+    obtenerElemento('subscriberRevenue').textContent = `S/ ${proyectado.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`;
+    obtenerElemento('subscriberContext').textContent = `${obtenerNombreSede(obtenerSedeAbonadosActiva())} - ${obtenerElemento('subscriberMonth')?.value || ''}`;
+
+    if (!solicitudesAbonados.length) {
+        const vacio = document.createElement('p');
+        vacio.className = 'empty-site-guides';
+        vacio.textContent = 'No hay solicitudes para esta sede y mes.';
+        lista.appendChild(vacio);
+        return;
+    }
+
+    solicitudesAbonados.forEach(item => {
+        const tarjeta = document.createElement('article');
+        const principal = document.createElement('div');
+        const nombre = document.createElement('strong');
+        const detalle = document.createElement('div');
+        const insignia = document.createElement('span');
+        const meta = document.createElement('div');
+        const acciones = document.createElement('div');
+        const estado = document.createElement('select');
+        const guardar = document.createElement('button');
+        const tipo = TIPOS_ABONO[item.tipo_abono] || { nombre: item.tipo_abono, monto: item.monto };
+
+        tarjeta.className = 'subscriber-item';
+        principal.className = 'subscriber-item-main';
+        nombre.textContent = item.nombres_completos;
+        detalle.textContent = `${tipo.nombre} - S/ ${Number(item.monto).toFixed(2)}`;
+        insignia.className = 'subscriber-status-badge';
+        insignia.dataset.status = item.estado;
+        insignia.textContent = item.estado;
+        meta.className = 'subscriber-item-meta';
+        [`DNI ${item.dni}`, `Inicio: ${item.fecha_inicio}`, item.observaciones || 'Sin observaciones'].forEach(texto => {
+            const dato = document.createElement('span');
+            dato.textContent = texto;
+            meta.appendChild(dato);
+        });
+        principal.append(nombre, detalle, insignia, meta);
+
+        acciones.className = 'subscriber-item-actions';
+        [['pendiente', 'Pendiente'], ['generado', 'Abono generado'], ['rechazado', 'Rechazado']].forEach(([valor, texto]) => {
+            const opcion = new Option(texto, valor, false, item.estado === valor);
+            estado.add(opcion);
+        });
+        estado.dataset.subscriberStatus = item.id;
+        estado.setAttribute('aria-label', `Estado de ${item.nombres_completos}`);
+        guardar.type = 'button';
+        guardar.className = 'clear-btn';
+        guardar.dataset.updateSubscriber = item.id;
+        guardar.textContent = 'Guardar estado';
+        acciones.append(estado, guardar);
+        tarjeta.append(principal, acciones);
+        lista.appendChild(tarjeta);
+    });
+}
+
+async function guardarSolicitudAbonado(event) {
+    event.preventDefault();
+    if (!usuarioPuedeGestionarAbonados() || !supabaseClient) return;
+    const tipoId = obtenerElemento('subscriberType').value;
+    const tipo = TIPOS_ABONO[tipoId];
+    const dni = obtenerElemento('subscriberDni').value.trim();
+    if (!tipo || !/^\d{8,12}$/.test(dni)) {
+        actualizarEstadoAbonados('Revisa el tipo de abono y el numero de DNI.', 'error');
+        return;
+    }
+
+    const payload = {
+        sede: obtenerSedeAbonadosActiva(),
+        nombres_completos: obtenerElemento('subscriberName').value.trim(),
+        dni,
+        tipo_abono: tipoId,
+        monto: tipo.monto,
+        fecha_inicio: obtenerElemento('subscriberStart').value,
+        observaciones: obtenerElemento('subscriberNotes').value.trim(),
+        estado: 'pendiente',
+        creado_por: sesionActual.user.id
+    };
+    actualizarEstadoAbonados('Registrando solicitud...', 'info');
+    const { error } = await supabaseClient.from('solicitudes_abonados').insert(payload);
+    if (error) {
+        console.warn('No se pudo registrar abonado:', error);
+        actualizarEstadoAbonados(error.code === '23505' ? 'Ya existe una solicitud para ese DNI, sede y fecha.' : 'No se pudo registrar la solicitud.', 'error');
+        return;
+    }
+    event.currentTarget.reset();
+    obtenerElemento('subscriberStart').value = new Date().toISOString().slice(0, 10);
+    actualizarEstadoAbonados('Solicitud registrada y disponible para la administradora de la sede.', 'success');
+    await cargarSolicitudesAbonados();
+}
+
+async function actualizarSolicitudAbonado(id) {
+    if (!usuarioPuedeGestionarAbonados() || !id) return;
+    const estado = document.querySelector(`[data-subscriber-status="${id}"]`)?.value;
+    const cambios = {
+        estado,
+        atendido_por: estado === 'pendiente' ? null : sesionActual.user.id,
+        atendido_at: estado === 'pendiente' ? null : new Date().toISOString()
+    };
+    const { error } = await supabaseClient.from('solicitudes_abonados').update(cambios).eq('id', id);
+    if (error) {
+        mostrarToast('No se pudo actualizar la solicitud.');
+        return;
+    }
+    mostrarToast('Estado del abonado actualizado.');
+    await cargarSolicitudesAbonados();
+}
+
+function suscribirSolicitudesAbonados() {
+    if (!usuarioPuedeGestionarAbonados() || !supabaseClient) return;
+    if (canalSolicitudesAbonados) supabaseClient.removeChannel(canalSolicitudesAbonados);
+    canalSolicitudesAbonados = supabaseClient
+        .channel(`solicitudes-abonados-${sesionActual.user.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes_abonados' }, payload => {
+            if (usuarioEsSuperior() || payload.new?.sede === obtenerSedeActual() || payload.old?.sede === obtenerSedeActual()) {
+                cargarSolicitudesAbonados();
+            }
+        })
+        .subscribe();
 }
 
 function actualizarPanelAdminGuias() {
@@ -1512,6 +1755,7 @@ function actualizarPanelAdminGuias() {
 
     const admin = usuarioEsAdmin();
     acciones.hidden = !admin;
+    botonUsuarios.hidden = !usuarioEsSuperior();
 
     if (!admin) {
         panel.hidden = true;
@@ -1568,6 +1812,10 @@ function cerrarPanelesAdmin() {
 
 function alternarPanelAdmin(tipo) {
     if (!usuarioEsAdmin()) {
+        return;
+    }
+    if (tipo === 'usuarios' && !usuarioEsSuperior()) {
+        mostrarToast('Solo el Encargado de Mantenimiento y TI administra usuarios y roles.');
         return;
     }
 
@@ -1881,6 +2129,7 @@ async function cargarPerfilActual() {
 
     actualizarSesionUI();
     actualizarPanelAdminGuias();
+    actualizarAccesoAbonados();
     renderizarGuiasOperativas();
 }
 
@@ -2125,7 +2374,7 @@ function usuarioPuedeVerGuia(guia) {
         return true;
     }
 
-    return perfilActual?.rol === 'admin' || perfilActual?.rol === 'supervisor';
+    return [ROL_SUPERIOR, 'admin', 'supervisor'].includes(perfilActual?.rol);
 }
 
 function obtenerFuenteFotoGuia(foto) {
@@ -3172,7 +3421,7 @@ function actualizarProgresoCapacitacionUI() {
 }
 
 async function cargarUsuariosAdmin() {
-    if (!usuarioEsAdmin() || !supabaseClient) {
+    if (!usuarioEsSuperior() || !supabaseClient) {
         return;
     }
 
@@ -3250,11 +3499,12 @@ function renderizarUsuariosAdmin() {
             : `${acceso} - sin avance registrado`;
         datos.append(nombre, email);
 
-        ['admin', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion'].forEach(opcion => {
+        [ROL_SUPERIOR, 'admin', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion'].forEach(opcion => {
             const option = document.createElement('option');
             option.value = opcion;
-            option.textContent = opcion;
+            option.textContent = opcion === ROL_SUPERIOR ? 'Encargado de Mantenimiento y TI' : opcion;
             option.selected = usuario.rol === opcion;
+            option.disabled = opcion === ROL_SUPERIOR && usuario.rol !== ROL_SUPERIOR;
             rol.appendChild(option);
         });
         rol.dataset.userRole = usuario.id;
@@ -3290,10 +3540,12 @@ function renderizarUsuariosAdmin() {
         eliminar.type = 'button';
         eliminar.dataset.deleteUser = usuario.id;
         eliminar.textContent = esCuentaActual ? 'Tu cuenta' : 'Eliminar';
-        eliminar.disabled = esCuentaActual;
+        eliminar.disabled = esCuentaActual || usuario.rol === ROL_SUPERIOR;
         eliminar.title = esCuentaActual
             ? 'No puedes eliminar la cuenta con la que iniciaste sesion'
-            : `Eliminar definitivamente a ${usuario.nombre || usuario.email}`;
+            : usuario.rol === ROL_SUPERIOR
+                ? 'La cuenta superior esta protegida'
+                : `Eliminar definitivamente a ${usuario.nombre || usuario.email}`;
 
         acciones.className = 'user-admin-actions';
         acciones.append(guardar, eliminar);
@@ -3303,7 +3555,7 @@ function renderizarUsuariosAdmin() {
 }
 
 async function guardarUsuarioAdmin(id) {
-    if (!usuarioEsAdmin() || !supabaseClient || !id) {
+    if (!usuarioEsSuperior() || !supabaseClient || !id) {
         return;
     }
 
@@ -3349,7 +3601,7 @@ async function obtenerMensajeErrorFuncion(error, mensajePredeterminado) {
 }
 
 async function eliminarUsuarioAdmin(id) {
-    if (!usuarioEsAdmin() || !supabaseClient || !id) {
+    if (!usuarioEsSuperior() || !supabaseClient || !id) {
         return;
     }
 
@@ -3417,7 +3669,7 @@ async function eliminarUsuarioAdmin(id) {
 async function crearUsuarioDesdeAdmin(event) {
     event.preventDefault();
 
-    if (!usuarioEsAdmin() || !supabaseClient) {
+    if (!usuarioEsSuperior() || !supabaseClient) {
         return;
     }
 
@@ -3831,6 +4083,11 @@ async function aplicarSesion(session) {
             supabaseClient.removeChannel(canalMantenimientoProgramado);
             canalMantenimientoProgramado = null;
         }
+        if (canalSolicitudesAbonados && supabaseClient) {
+            supabaseClient.removeChannel(canalSolicitudesAbonados);
+            canalSolicitudesAbonados = null;
+        }
+        solicitudesAbonados = [];
         mostrarAppAutenticada(false);
         actualizarEstadoAuth('Ingresa con tu usuario asignado.', 'info');
         actualizarSesionUI();
@@ -3843,6 +4100,10 @@ async function aplicarSesion(session) {
     actualizarSesionUI();
     actualizarBotonAlertas();
     await cargarPerfilActual();
+    if (usuarioPuedeGestionarAbonados()) {
+        await cargarSolicitudesAbonados();
+        suscribirSolicitudesAbonados();
+    }
     restaurarAccesoMantenimiento();
     restaurarBorradorGuia();
     if ('Notification' in window && Notification.permission === 'granted') {
@@ -4315,6 +4576,10 @@ function renderizarCodigos() {
 
 function seleccionarModulo(modulo, opciones = {}) {
     const { desplazar = true } = opciones;
+    if (modulo === 'abonados' && !usuarioPuedeGestionarAbonados()) {
+        mostrarToast('Este modulo esta disponible solo para administradores autorizados.');
+        modulo = null;
+    }
     const moduloValido = modulo && obtenerElemento(`module-${modulo}`);
     moduloActivo = moduloValido ? modulo : null;
 
@@ -6213,6 +6478,14 @@ function configurarEventos() {
     obtenerElemento('toggleGuideAdmin')?.addEventListener('click', () => alternarPanelAdmin('guias'));
     obtenerElemento('toggleUsersAdmin')?.addEventListener('click', () => alternarPanelAdmin('usuarios'));
     obtenerElemento('createUserForm')?.addEventListener('submit', crearUsuarioDesdeAdmin);
+    obtenerElemento('subscriberForm')?.addEventListener('submit', guardarSolicitudAbonado);
+    obtenerElemento('subscriberMonth')?.addEventListener('change', cargarSolicitudesAbonados);
+    obtenerElemento('subscriberSite')?.addEventListener('change', cargarSolicitudesAbonados);
+    obtenerElemento('refreshSubscribers')?.addEventListener('click', cargarSolicitudesAbonados);
+    obtenerElemento('subscribersList')?.addEventListener('click', event => {
+        const boton = event.target.closest('button[data-update-subscriber]');
+        if (boton) actualizarSolicitudAbonado(boton.dataset.updateSubscriber);
+    });
     obtenerElemento('openMaintenanceReport')?.addEventListener('click', prepararEnlaceInformeMantenimiento);
     obtenerElemento('maintenanceAccessForm')?.addEventListener('submit', validarAccesoMantenimiento);
     obtenerElemento('lockMaintenanceArea')?.addEventListener('click', bloquearAreaMantenimiento);

@@ -43,8 +43,8 @@ Deno.serve(async (req) => {
     .eq('id', userData.user.id)
     .maybeSingle();
 
-  if (requesterError || requesterProfile?.rol !== 'admin' || requesterProfile?.activo !== true) {
-    return jsonResponse({ error: 'Solo administradores pueden eliminar usuarios' }, 403);
+  if (requesterError || requesterProfile?.rol !== 'encargado_ti' || requesterProfile?.activo !== true) {
+    return jsonResponse({ error: 'Solo el Encargado de Mantenimiento y TI puede eliminar usuarios' }, 403);
   }
 
   const body = await req.json().catch(() => ({}));
@@ -65,6 +65,10 @@ Deno.serve(async (req) => {
 
   if (targetError || !targetProfile) {
     return jsonResponse({ error: 'El usuario ya no existe' }, 404);
+  }
+
+  if (targetProfile.rol === 'encargado_ti') {
+    return jsonResponse({ error: 'La cuenta superior no puede eliminarse' }, 400);
   }
 
   if (targetProfile.rol === 'admin' && targetProfile.activo === true) {

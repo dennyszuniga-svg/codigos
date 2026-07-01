@@ -147,6 +147,15 @@
                         </span>
                         <span class="module-copy"><strong>Capacitacion</strong><small data-module-count="capacitacion">0% completado</small></span>
                     </button>
+                    <button class="module-button subscribers-module-button" type="button" data-module="abonados" hidden>
+                        <span class="module-icon module-icon-subscribers" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" focusable="false">
+                                <circle cx="24" cy="23" r="9"/>
+                                <path d="M8 50c1-10 7-15 16-15s15 5 16 15M43 18h13v25H43zM47 25h5M47 31h5M47 37h5"/>
+                            </svg>
+                        </span>
+                        <span class="module-copy"><strong>Abonados</strong><small data-module-count="abonados">Gestion mensual</small></span>
+                    </button>
                 </div>
             </section>
 
@@ -744,6 +753,74 @@
                             <h3>Guias revisadas</h3>
                             <p id="trainingProgressText">Marca guias como revisadas para llevar tu avance de capacitacion.</p>
                         </article>
+                    </div>
+                </div>
+            </section>
+
+            <section id="module-abonados" class="module-content subscribers-panel" aria-labelledby="subscribersTitle" hidden>
+                <div class="section-heading subscribers-heading">
+                    <div>
+                        <p class="eyebrow">Gestion por sede</p>
+                        <h2 id="subscribersTitle">Abonados mensuales</h2>
+                        <p>Registra solicitudes y controla su atencion en el sistema de parking.</p>
+                    </div>
+                    <div class="subscribers-filters">
+                        <label>Mes
+                            <input id="subscriberMonth" type="month">
+                        </label>
+                        <label id="subscriberSiteField">Sede
+                            <select id="subscriberSite"></select>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="subscribers-kpis" aria-label="Resumen mensual de abonados">
+                    <article><span>Solicitudes</span><strong id="subscriberTotal">0</strong></article>
+                    <article><span>Pendientes</span><strong id="subscriberPending">0</strong></article>
+                    <article><span>Abonos generados</span><strong id="subscriberGenerated">0</strong></article>
+                    <article><span>Monto proyectado</span><strong id="subscriberRevenue">S/ 0</strong></article>
+                </div>
+
+                <div class="subscribers-layout">
+                    <form id="subscriberForm" class="subscriber-form">
+                        <div class="section-heading compact-heading">
+                            <div>
+                                <h3>Nueva solicitud</h3>
+                                <p>Datos necesarios para generar el abono.</p>
+                            </div>
+                        </div>
+                        <label>Nombres y apellidos completos
+                            <input id="subscriberName" type="text" autocomplete="name" required maxlength="160">
+                        </label>
+                        <label>Numero de DNI
+                            <input id="subscriberDni" type="text" inputmode="numeric" autocomplete="off" required pattern="[0-9]{8,12}" maxlength="12" placeholder="8 digitos">
+                        </label>
+                        <label>Tipo de abono
+                            <select id="subscriberType" required>
+                                <option value="">Seleccionar</option>
+                                <option value="locatario_lv">Locatario auto - lunes a viernes (S/ 150)</option>
+                                <option value="locatario_sd">Locatario auto - sabado a domingo (S/ 200)</option>
+                            </select>
+                        </label>
+                        <label>Fecha de inicio
+                            <input id="subscriberStart" type="date" required>
+                        </label>
+                        <label class="subscriber-wide">Observaciones
+                            <textarea id="subscriberNotes" rows="3" maxlength="500" placeholder="Dato adicional para la administradora"></textarea>
+                        </label>
+                        <button class="finish-btn subscriber-wide" type="submit">Registrar solicitud</button>
+                        <p id="subscriberStatus" class="auth-status subscriber-wide" role="status" aria-live="polite"></p>
+                    </form>
+
+                    <div class="subscribers-list-panel">
+                        <div class="section-heading compact-heading">
+                            <div>
+                                <h3>Solicitudes del mes</h3>
+                                <p id="subscriberContext">Registros de la sede.</p>
+                            </div>
+                            <button class="clear-btn" id="refreshSubscribers" type="button">Actualizar</button>
+                        </div>
+                        <div id="subscribersList" class="subscribers-list" aria-live="polite"></div>
                     </div>
                 </div>
             </section>

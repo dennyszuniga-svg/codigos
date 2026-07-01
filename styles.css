@@ -553,6 +553,170 @@ body.dark-theme .theme-icon-moon {
     background: linear-gradient(135deg, #475467, #101828);
 }
 
+.module-icon-subscribers {
+    background: linear-gradient(135deg, #0e7490, #155e75);
+}
+
+.subscribers-panel {
+    display: grid;
+    gap: 16px;
+}
+
+.subscribers-panel[hidden] {
+    display: none;
+}
+
+.subscribers-heading,
+.subscribers-filters,
+.compact-heading {
+    align-items: end;
+}
+
+.subscribers-filters {
+    display: flex;
+    gap: 10px;
+}
+
+.subscribers-filters label,
+.subscriber-form label {
+    display: grid;
+    gap: 6px;
+    color: var(--text);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.subscribers-filters input,
+.subscribers-filters select,
+.subscriber-form input,
+.subscriber-form select,
+.subscriber-form textarea,
+.subscriber-item select {
+    min-width: 0;
+    padding: 10px 11px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+}
+
+.subscribers-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.subscribers-kpis article {
+    display: grid;
+    gap: 5px;
+    padding: 14px;
+    border-left: 4px solid var(--brand-blue);
+    border-radius: 6px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+}
+
+.subscribers-kpis span {
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.subscribers-kpis strong {
+    color: var(--brand-blue-dark);
+    font-size: 1.35rem;
+}
+
+.subscribers-layout {
+    display: grid;
+    grid-template-columns: minmax(280px, 0.8fr) minmax(360px, 1.2fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.subscriber-form,
+.subscribers-list-panel {
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+}
+
+.subscriber-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.subscriber-form .compact-heading,
+.subscriber-wide {
+    grid-column: 1 / -1;
+}
+
+.subscribers-list {
+    display: grid;
+    gap: 10px;
+}
+
+.subscriber-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 13px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--surface-muted);
+}
+
+.subscriber-item-main,
+.subscriber-item-meta,
+.subscriber-item-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 10px;
+    align-items: center;
+}
+
+.subscriber-item-main {
+    display: grid;
+}
+
+.subscriber-item-main strong {
+    color: var(--brand-blue-dark);
+}
+
+.subscriber-item-meta {
+    color: var(--muted);
+    font-size: 0.76rem;
+}
+
+.subscriber-item-actions {
+    justify-content: end;
+}
+
+.subscriber-status-badge {
+    width: fit-content;
+    padding: 4px 7px;
+    border-radius: 999px;
+    background: #fff3e0;
+    color: #9a3412;
+    font-size: 0.68rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.subscriber-status-badge[data-status="generado"] {
+    background: #dcfae6;
+    color: #067647;
+}
+
+.subscriber-status-badge[data-status="rechazado"] {
+    background: #fee4e2;
+    color: #b42318;
+}
+
 .module-copy {
     display: grid;
     gap: 3px;
@@ -3021,6 +3185,10 @@ body.dark-theme .modal-dialog {
         grid-template-columns: repeat(3, minmax(86px, 1fr));
     }
 
+    .subscribers-layout {
+        grid-template-columns: 1fr;
+    }
+
     .global-search-panel,
     .training-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3052,6 +3220,30 @@ body.dark-theme .modal-dialog {
     .management-dashboard-grid,
     .preventive-schedule-item {
         grid-template-columns: 1fr;
+    }
+
+    .subscribers-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .subscribers-heading,
+    .subscribers-filters {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .subscriber-form,
+    .subscriber-item {
+        grid-template-columns: 1fr;
+    }
+
+    .subscriber-item-actions {
+        justify-content: stretch;
+    }
+
+    .subscriber-item-actions select,
+    .subscriber-item-actions button {
+        width: 100%;
     }
 
     .inventory-location {

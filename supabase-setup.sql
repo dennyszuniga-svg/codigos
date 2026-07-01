@@ -8,7 +8,7 @@ create table if not exists public.profiles (
     email text not null,
     nombre text,
     rol text not null default 'anfitrion'
-        check (rol in ('admin', 'supervisor', 'eco', 'charly', 'anfitrion')),
+        check (rol in ('encargado_ti', 'admin', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion')),
     sede text not null default 'gama'
         check (sede in ('puruchuco', 'salaverry', 'primavera', 'civico', 'gama')),
     activo boolean not null default true,
@@ -150,7 +150,7 @@ as $$
         select 1
         from public.profiles
         where id = auth.uid()
-          and rol = 'admin'
+          and rol in ('encargado_ti', 'admin')
           and activo = true
     );
 $$;
@@ -181,7 +181,7 @@ as $$
         from public.profiles
         where id = auth.uid()
           and activo = true
-          and rol in ('admin', 'supervisor')
+          and rol in ('encargado_ti', 'admin', 'supervisor')
     );
 $$;
 
