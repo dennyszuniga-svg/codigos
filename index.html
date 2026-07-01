@@ -276,7 +276,7 @@
                         <input id="newUserPassword" type="password" minlength="6" placeholder="Minimo 6 caracteres" required>
                     </label>
                     <label>
-                        Sede operativa para alertas
+                        Sede base (no limita al Comercial de abonados)
                         <select id="newUserSite" required>
                             <option value="puruchuco">Real Plaza Puruchuco</option>
                             <option value="salaverry">Real Plaza Salaverry</option>
@@ -293,11 +293,12 @@
                             <option value="charly">Charly</option>
                             <option value="eco">ECO</option>
                             <option value="supervisor">Supervisor</option>
+                            <option value="comercial_abonados">Comercial de abonados</option>
                             <option value="admin">Administrador</option>
                         </select>
                     </label>
                     <button class="finish-btn" type="submit">Crear usuario</button>
-                    <p class="form-helper">Administradores y tecnicos gestionan mantenimiento en todas las sedes. La sede operativa solo define las alertas de emergencia que reciben.</p>
+                    <p class="form-helper">El Comercial de abonados trabaja con todas las sedes. Para los demas roles, la sede define sus alertas y operacion.</p>
                     <p id="createUserStatus" class="auth-status" role="status" aria-live="polite"></p>
                 </form>
                 <p id="usersAdminStatus" class="auth-status" role="status" aria-live="polite"></p>
@@ -765,16 +766,16 @@
                         <p>Registra solicitudes y controla su atencion en el sistema de parking.</p>
                     </div>
                     <div class="subscribers-filters">
-                        <label>Mes
+                        <label class="subscriber-admin-only">Mes
                             <input id="subscriberMonth" type="month">
                         </label>
-                        <label id="subscriberSiteField">Sede
+                        <label id="subscriberSiteField">Sede destino
                             <select id="subscriberSite"></select>
                         </label>
                     </div>
                 </div>
 
-                <div class="subscribers-kpis" aria-label="Resumen mensual de abonados">
+                <div class="subscribers-kpis subscriber-admin-only" aria-label="Resumen mensual de abonados">
                     <article><span>Solicitudes</span><strong id="subscriberTotal">0</strong></article>
                     <article><span>Pendientes</span><strong id="subscriberPending">0</strong></article>
                     <article><span>Abonos generados</span><strong id="subscriberGenerated">0</strong></article>
@@ -812,7 +813,7 @@
                         <p id="subscriberStatus" class="auth-status subscriber-wide" role="status" aria-live="polite"></p>
                     </form>
 
-                    <div class="subscribers-list-panel">
+                    <div class="subscribers-list-panel subscriber-admin-only">
                         <div class="section-heading compact-heading">
                             <div>
                                 <h3>Solicitudes del mes</h3>

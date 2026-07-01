@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
 
   const { data: senderProfile, error: senderProfileError } = await supabase
     .from('profiles')
-    .select('nombre,sede,activo')
+    .select('nombre,sede,rol,activo')
     .eq('id', userData.user.id)
     .maybeSingle();
 
@@ -70,22 +70,32 @@ Deno.serve(async (req) => {
   }
 
   const body = await req.json().catch(() => ({}));
+  const evento = body.evento === 'nuevo_abonado' ? 'nuevo_abonado' : 'codigo';
   const codigo = typeof body.codigo === 'string' ? body.codigo : '';
   const nombre = typeof body.nombre === 'string' ? body.nombre : nombresCodigo[codigo] || 'Codigo activado';
+  const sedeSolicitada = typeof body.sede === 'string' ? body.sede : senderProfile.sede;
+  const sedeDestino = ['encargado_ti', 'comercial_abonados'].includes(senderProfile.rol)
+    ? sedeSolicitada
+    : senderProfile.sede;
 
-  if (!codigo || !nombresCodigo[codigo]) {
+  if (evento === 'codigo' && (!codigo || !nombresCodigo[codigo])) {
     return new Response(JSON.stringify({ error: 'Codigo invalido' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
+  if (evento === 'nuevo_abonado' && !['encargado_ti', 'admin', 'comercial_abonados'].includes(senderProfile.rol)) {
+    return new Response(JSON.stringify({ error: 'Rol no autorizado para registrar abonados' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   const { data: siteUsers, error: siteUsersError } = await supabase
     .from('profiles')
-    .select('id')
-    .eq('sede', senderProfile.sede)
-    .eq('activo', true)
-    .neq('id', userData.user.id);
+    .select('id,sede,rol')
+    .eq('activo', true);
 
   if (siteUsersError) {
     return new Response(JSON.stringify({ error: siteUsersError.message }), {
@@ -94,9 +104,14 @@ Deno.serve(async (req) => {
     });
   }
 
-  const recipientIds = (siteUsers || []).map((item) => item.id);
+  const recipientIds = (siteUsers || [])
+    .filter((item) => item.id !== userData.user.id)
+    .filter((item) => evento === 'nuevo_abonado'
+      ? item.rol === 'encargado_ti' || (item.rol === 'admin' && item.sede === sedeDestino)
+      : item.sede === sedeDestino)
+    .map((item) => item.id);
   if (!recipientIds.length) {
-    return new Response(JSON.stringify({ sent: 0, sede: senderProfile.sede }), {
+    return new Response(JSON.stringify({ sent: 0, sede: sedeDestino }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
@@ -115,11 +130,16 @@ Deno.serve(async (req) => {
 
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
-  const payload = JSON.stringify({
+  const payload = JSON.stringify(evento === 'nuevo_abonado' ? {
+    title: 'Nuevo abonado registrado',
+    body: `Hay una nueva solicitud de abonado en ${sedeDestino}. Ingresa a la app para atenderla.`,
+    tag: `nuevo-abonado-${sedeDestino}`,
+    data: { tipo: 'nuevo_abonado', module: 'abonados', sede: sedeDestino },
+  } : {
     title: `${nombre} activado`,
     body: `${senderProfile.nombre || 'Un usuario'} activo ${nombre}. Revisa el checklist operativo.`,
-    tag: `codigo-activo-${senderProfile.sede}-${codigo}`,
-    data: { codigo, sede: senderProfile.sede },
+    tag: `codigo-activo-${sedeDestino}-${codigo}`,
+    data: { codigo, sede: sedeDestino },
   });
 
   const results = await Promise.allSettled(
@@ -152,7 +172,7 @@ Deno.serve(async (req) => {
     }),
   );
 
-  return new Response(JSON.stringify({ sent: results.length, sede: senderProfile.sede }), {
+  return new Response(JSON.stringify({ sent: results.length, sede: sedeDestino, evento }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 });

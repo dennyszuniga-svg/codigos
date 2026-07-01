@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codigos-urbapark-v56';
+const CACHE_NAME = 'codigos-urbapark-v57';
 const APP_SHELL = [
     './',
     './index.html',
@@ -102,16 +102,18 @@ self.addEventListener('fetch', event => {
 
 self.addEventListener('notificationclick', event => {
     event.notification.close();
+    const modulo = event.notification.data?.module;
+    const destino = modulo ? `./?module=${encodeURIComponent(modulo)}` : './';
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true })
             .then(clientList => {
                 const appClient = clientList.find(client => client.url.includes('/codigos/'));
 
                 if (appClient) {
-                    return appClient.focus();
+                    return appClient.navigate(destino).then(() => appClient.focus());
                 }
 
-                return clients.openWindow('./');
+                return clients.openWindow(destino);
             })
     );
 });

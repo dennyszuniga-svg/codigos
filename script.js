@@ -1475,7 +1475,7 @@ function suscribirMantenimientoProgramado() {
 function actualizarSesionUI() {
     const etiqueta = obtenerElemento('authUserLabel');
     const rolActual = perfilActual?.rol || 'sin-rol';
-    const roles = [ROL_SUPERIOR, 'admin', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion'];
+    const roles = [ROL_SUPERIOR, 'admin', 'comercial_abonados', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion'];
 
     document.body.classList.remove('operational-mode', 'admin-mode', 'technical-mode', ...roles.map(rol => `role-${rol}`));
     document.body.dataset.role = rolActual;
@@ -1519,8 +1519,16 @@ function usuarioPuedeGestionarAbonados() {
     return usuarioEsAdmin();
 }
 
+function usuarioEsComercialAbonados() {
+    return perfilActual?.rol === 'comercial_abonados' && perfilActual?.activo !== false;
+}
+
+function usuarioPuedeAccederAbonados() {
+    return usuarioEsAdmin() || usuarioEsComercialAbonados();
+}
+
 function obtenerSedeAbonadosActiva() {
-    if (!usuarioEsSuperior()) {
+    if (!usuarioEsSuperior() && !usuarioEsComercialAbonados()) {
         return obtenerSedeActual();
     }
     const sede = obtenerElemento('subscriberSite')?.value;
@@ -1528,11 +1536,14 @@ function obtenerSedeAbonadosActiva() {
 }
 
 function actualizarAccesoAbonados() {
-    const permitido = usuarioPuedeGestionarAbonados();
+    const permitido = usuarioPuedeAccederAbonados();
     const boton = document.querySelector('.subscribers-module-button');
     const selector = obtenerElemento('subscriberSite');
     const campoSede = obtenerElemento('subscriberSiteField');
     boton.hidden = !permitido;
+    document.querySelectorAll('.subscriber-admin-only').forEach(elemento => {
+        elemento.hidden = !usuarioPuedeGestionarAbonados();
+    });
 
     if (!permitido) {
         solicitudesAbonados = [];
@@ -1547,11 +1558,15 @@ function actualizarAccesoAbonados() {
     }
 
     if (selector) {
-        selector.value = usuarioEsSuperior() ? (selector.value || SEDES_OPERACION[0].id) : obtenerSedeActual();
-        selector.disabled = !usuarioEsSuperior();
+        selector.value = (usuarioEsSuperior() || usuarioEsComercialAbonados())
+            ? (selector.value || SEDES_OPERACION[0].id)
+            : obtenerSedeActual();
+        selector.disabled = !usuarioEsSuperior() && !usuarioEsComercialAbonados();
     }
     if (campoSede) {
-        campoSede.title = usuarioEsSuperior() ? 'Puede consultar cualquiera de las cinco sedes' : 'Sede asignada a su cuenta';
+        campoSede.title = usuarioEsSuperior() || usuarioEsComercialAbonados()
+            ? 'Puede seleccionar cualquiera de las cinco sedes'
+            : 'Sede asignada a su cuenta';
     }
 
     const mes = obtenerElemento('subscriberMonth');
@@ -1679,7 +1694,7 @@ function renderizarSolicitudesAbonados() {
 
 async function guardarSolicitudAbonado(event) {
     event.preventDefault();
-    if (!usuarioPuedeGestionarAbonados() || !supabaseClient) return;
+    if (!usuarioPuedeAccederAbonados() || !supabaseClient) return;
     const tipoId = obtenerElemento('subscriberType').value;
     const tipo = TIPOS_ABONO[tipoId];
     const dni = obtenerElemento('subscriberDni').value.trim();
@@ -1709,7 +1724,8 @@ async function guardarSolicitudAbonado(event) {
     event.currentTarget.reset();
     obtenerElemento('subscriberStart').value = new Date().toISOString().slice(0, 10);
     actualizarEstadoAbonados('Solicitud registrada y disponible para la administradora de la sede.', 'success');
-    await cargarSolicitudesAbonados();
+    await enviarAlertaPushAbonado(payload.sede);
+    if (usuarioPuedeGestionarAbonados()) await cargarSolicitudesAbonados();
 }
 
 async function actualizarSolicitudAbonado(id) {
@@ -1736,6 +1752,9 @@ function suscribirSolicitudesAbonados() {
         .channel(`solicitudes-abonados-${sesionActual.user.id}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes_abonados' }, payload => {
             if (usuarioEsSuperior() || payload.new?.sede === obtenerSedeActual() || payload.old?.sede === obtenerSedeActual()) {
+                if (payload.eventType === 'INSERT' && payload.new?.creado_por !== sesionActual?.user?.id) {
+                    mostrarToast(`Nueva solicitud de abonado en ${obtenerNombreSede(payload.new.sede)}.`);
+                }
                 cargarSolicitudesAbonados();
             }
         })
@@ -2047,6 +2066,19 @@ async function enviarAlertaPushCodigo(codigo) {
         }
     } catch (error) {
         console.warn('Funcion push no disponible aun:', error);
+    }
+}
+
+async function enviarAlertaPushAbonado(sede) {
+    if (!supabaseClient || !sesionActual?.user || !sede) return;
+
+    try {
+        const { error } = await supabaseClient.functions.invoke('send-code-alert', {
+            body: { evento: 'nuevo_abonado', sede }
+        });
+        if (error) console.warn('No se pudo enviar la alerta del abonado:', error);
+    } catch (error) {
+        console.warn('Funcion push no disponible:', error);
     }
 }
 
@@ -3499,10 +3531,12 @@ function renderizarUsuariosAdmin() {
             : `${acceso} - sin avance registrado`;
         datos.append(nombre, email);
 
-        [ROL_SUPERIOR, 'admin', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion'].forEach(opcion => {
+        [ROL_SUPERIOR, 'admin', 'comercial_abonados', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion'].forEach(opcion => {
             const option = document.createElement('option');
             option.value = opcion;
-            option.textContent = opcion === ROL_SUPERIOR ? 'Encargado de Mantenimiento y TI' : opcion;
+            option.textContent = opcion === ROL_SUPERIOR
+                ? 'Encargado de Mantenimiento y TI'
+                : opcion === 'comercial_abonados' ? 'Comercial de abonados' : opcion;
             option.selected = usuario.rol === opcion;
             option.disabled = opcion === ROL_SUPERIOR && usuario.rol !== ROL_SUPERIOR;
             rol.appendChild(option);
@@ -4576,7 +4610,7 @@ function renderizarCodigos() {
 
 function seleccionarModulo(modulo, opciones = {}) {
     const { desplazar = true } = opciones;
-    if (modulo === 'abonados' && !usuarioPuedeGestionarAbonados()) {
+    if (modulo === 'abonados' && !usuarioPuedeAccederAbonados()) {
         mostrarToast('Este modulo esta disponible solo para administradores autorizados.');
         modulo = null;
     }

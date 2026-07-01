@@ -8,7 +8,7 @@ create table if not exists public.profiles (
     email text not null,
     nombre text,
     rol text not null default 'anfitrion'
-        check (rol in ('encargado_ti', 'admin', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion')),
+        check (rol in ('encargado_ti', 'admin', 'comercial_abonados', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion')),
     sede text not null default 'gama'
         check (sede in ('puruchuco', 'salaverry', 'primavera', 'civico', 'gama')),
     activo boolean not null default true,
