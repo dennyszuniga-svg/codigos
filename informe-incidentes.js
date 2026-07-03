@@ -1668,7 +1668,7 @@ async function validarAccesoInforme() {
         .eq('id', session.user.id)
         .maybeSingle();
 
-    if (error || perfil?.activo === false || !['admin', 'tecnico'].includes(perfil?.rol)) {
+    if (error || perfil?.activo === false || !['encargado_ti', 'admin', 'tecnico'].includes(perfil?.rol)) {
         window.location.replace('index.html?module=mantenimiento');
         return;
     }
