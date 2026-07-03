@@ -302,6 +302,13 @@ Object.entries(fields).forEach(([name, field]) => {
         if (name === 'equipo' && field.value) {
             aplicarPlantillaTareas();
         }
+        if (name === 'tipoMantenimiento') {
+            if (field.value === 'Preventivo' && fields.equipo.value) {
+                aplicarPlantillaTareas();
+            } else {
+                actualizarEstadoPlantilla();
+            }
+        }
         if (name === 'equipo' || name === 'tipoMantenimiento') {
             actualizarImpactoOperativoSugerido();
         }
@@ -600,6 +607,11 @@ function hayAvanceEnTareas() {
 }
 
 function aplicarPlantillaTareas({ forzar = false } = {}) {
+    if (fields.tipoMantenimiento.value !== 'Preventivo') {
+        actualizarEstadoPlantilla();
+        setStatus('Selecciona Mantenimiento preventivo mensual para cargar la plantilla del equipo.');
+        return;
+    }
     const plantilla = obtenerTareasPlantilla();
     if (!plantilla.length) {
         actualizarEstadoPlantilla();
@@ -617,7 +629,6 @@ function aplicarPlantillaTareas({ forzar = false } = {}) {
     tasks = [];
     nextTaskId = 1;
     plantilla.forEach(description => createTask({ description }));
-    if (!fields.tipoMantenimiento.value) fields.tipoMantenimiento.value = 'Preventivo';
     if (!fields.incidente.value) {
         fields.incidente.value = `Mantenimiento preventivo programado de ${fields.equipo.value}.`;
     }
@@ -635,6 +646,7 @@ function actualizarEstadoPlantilla() {
     const equipo = getEquipmentInfo();
     if (!tipo) estado.textContent = 'Selecciona el tipo de informe.';
     else if (!equipo) estado.textContent = 'Selecciona un equipo para cargar su plantilla.';
+    else if (fields.tipoMantenimiento.value !== 'Preventivo') estado.textContent = 'Selecciona Mantenimiento preventivo mensual para cargar las tareas.';
     else estado.textContent = `${tipo === 'carril' ? 'Carril' : 'TPA'}: ${obtenerTareasPlantilla().length} tareas definidas.`;
 }
 
@@ -1031,7 +1043,7 @@ function getGeneralDetailItems(report) {
         ['Tipo de informe', report.tipoEquipoInforme === 'carril' ? 'Carril' : 'Modulo de pago (TPA)'],
         ['Equipo', report.equipo],
         ['Prioridad', report.prioridad],
-        ['Tipo de mantenimiento', report.tipoMantenimiento],
+        ['Tipo de mantenimiento', report.tipoMantenimiento === 'Preventivo' ? 'Mantenimiento preventivo mensual' : report.tipoMantenimiento],
         ['Impacto operativo', report.impactoOperativo === 'sin_parada' ? 'Sin parada operativa' : 'Con parada operativa'],
         ['Estado inicial', report.estadoInicialTexto],
         ['Hora de inicio', report.horaInicio],
