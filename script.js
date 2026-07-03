@@ -661,11 +661,15 @@ function minutosAHorasTexto(minutos) {
     return resto ? `${horas} h ${resto} min` : `${horas} h`;
 }
 
+function esTipoPreventivo(tipo) {
+    return ['Preventivo', 'PreventivoMensual'].includes(tipo);
+}
+
 function calcularKpisIntervenciones() {
     const registros = intervencionesMantenimiento.filter(item => Number(item.duracion_minutos || 0) >= 0);
     const registrosConParada = registros.filter(item => item.genera_parada !== false);
     const trabajosSinParada = registros.filter(item => item.genera_parada === false);
-    const preventivos = registros.filter(item => item.tipo_mantenimiento === 'Preventivo');
+    const preventivos = registros.filter(item => esTipoPreventivo(item.tipo_mantenimiento));
     const correctivos = registros.filter(item => item.tipo_mantenimiento === 'Correctivo');
     const totalMinutos = registrosConParada.reduce((sum, item) => sum + Number(item.duracion_minutos || 0), 0);
     const correctivoMinutos = correctivos
@@ -721,7 +725,7 @@ function obtenerIntervencionesMes(mesYYYYMM = obtenerMesGerencialActual()) {
 function calcularDashboardGerencial() {
     const registros = obtenerIntervencionesMes();
     const conParada = registros.filter(item => item.genera_parada !== false);
-    const preventivos = registros.filter(item => item.tipo_mantenimiento === 'Preventivo');
+    const preventivos = registros.filter(item => esTipoPreventivo(item.tipo_mantenimiento));
     const correctivos = registros.filter(item => item.tipo_mantenimiento === 'Correctivo');
     const totalParada = conParada.reduce((sum, item) => sum + Number(item.duracion_minutos || 0), 0);
     const equiposCorrectivos = correctivos.reduce((mapa, item) => {
@@ -1228,7 +1232,7 @@ function calcularProgramacionPreventivaBase() {
     const hoy = new Date();
     const equipos = obtenerEquiposMantenimientoSede();
     const preventivos = intervencionesMantenimiento
-        .filter(item => item.tipo_mantenimiento === 'Preventivo')
+        .filter(item => esTipoPreventivo(item.tipo_mantenimiento))
         .slice()
         .sort((a, b) => new Date(b.fecha_guardado) - new Date(a.fecha_guardado));
 

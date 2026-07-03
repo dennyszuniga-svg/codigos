@@ -114,7 +114,8 @@
                         <label for="tipoMantenimiento" class="required">Tipo de mantenimiento</label>
                         <select id="tipoMantenimiento" name="tipoMantenimiento" required>
                             <option value="">Seleccione una opci&oacute;n</option>
-                            <option value="Preventivo">Mantenimiento preventivo mensual</option>
+                            <option value="PreventivoMensual">Mantenimiento preventivo mensual</option>
+                            <option value="Preventivo">Preventivo</option>
                             <option value="Correctivo">Correctivo</option>
                             <option value="Verificaci&oacute;n">Verificaci&oacute;n</option>
                             <option value="Mejora / Instalacion">Mejora / instalaci&oacute;n</option>
@@ -147,6 +148,13 @@
                         <label for="estadoInicialOtro">Detalle del estado inicial</label>
                         <input type="text" id="estadoInicialOtro" name="estadoInicialOtro" placeholder="Describa el estado inicial">
                         <p class="error-message">Detalle el estado inicial del equipo.</p>
+                    </div>
+
+                    <div class="form-group" id="fechaMantenimientoGroup">
+                        <label for="fechaMantenimiento" class="required">Fecha del mantenimiento</label>
+                        <input type="date" id="fechaMantenimiento" name="fechaMantenimiento" readonly required>
+                        <p class="field-help" id="fechaMantenimientoHelp">Se registra automaticamente con la fecha actual.</p>
+                        <p class="error-message">Ingrese la fecha del mantenimiento.</p>
                     </div>
 
                     <div class="form-group" id="horaInicioGroup">

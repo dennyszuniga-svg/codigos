@@ -179,6 +179,7 @@ const fields = {
     impactoOperativo: document.getElementById('impactoOperativo'),
     estadoInicial: document.getElementById('estadoInicial'),
     estadoInicialOtro: document.getElementById('estadoInicialOtro'),
+    fechaMantenimiento: document.getElementById('fechaMantenimiento'),
     horaInicio: document.getElementById('horaInicio'),
     horaFinal: document.getElementById('horaFinal'),
     duracion: document.getElementById('duracion'),
@@ -201,6 +202,7 @@ const groups = {
     impactoOperativo: document.getElementById('impactoOperativoGroup'),
     estadoInicial: document.getElementById('estadoInicialGroup'),
     estadoInicialOtro: document.getElementById('estadoInicialOtroGroup'),
+    fechaMantenimiento: document.getElementById('fechaMantenimientoGroup'),
     horaInicio: document.getElementById('horaInicioGroup'),
     horaFinal: document.getElementById('horaFinalGroup'),
     incidente: document.getElementById('incidenteGroup'),
@@ -235,6 +237,7 @@ let supabaseClient = null;
 let inventarioInforme = [];
 let repuestosUsados = [];
 let nextRepuestoUsoId = 1;
+let perfilInformeActual = null;
 
 initSignaturePads();
 initForm();
@@ -303,9 +306,10 @@ Object.entries(fields).forEach(([name, field]) => {
             aplicarPlantillaTareas();
         }
         if (name === 'tipoMantenimiento') {
-            if (field.value === 'Preventivo' && fields.equipo.value) {
+            if (field.value === 'PreventivoMensual' && fields.equipo.value) {
                 aplicarPlantillaTareas();
             } else {
+                retirarPlantillaAutomatica();
                 actualizarEstadoPlantilla();
             }
         }
@@ -323,7 +327,7 @@ document.querySelectorAll('[data-clear-signature]').forEach((button) => {
         const id = button.dataset.clearSignature;
         signaturePads[id].clear();
         if (id === 'firmaSupervisor') {
-            fields.horaFinal.value = '';
+            if (perfilInformeActual?.rol !== 'encargado_ti') fields.horaFinal.value = '';
             updateDuration();
         }
         setFieldError(id, false);
@@ -606,8 +610,25 @@ function hayAvanceEnTareas() {
     return tasks.some(task => task.done || task.description.trim() || task.photos.length);
 }
 
+function retirarPlantillaAutomatica() {
+    const plantilla = obtenerTareasPlantilla();
+    const coincide = plantilla.length === tasks.length
+        && tasks.every((task, index) => task.description === plantilla[index]);
+    if (!coincide) return;
+    const tieneEvidencia = tasks.some(task => task.done || task.photos.length);
+    if (tieneEvidencia && !window.confirm('Cambiar el tipo de mantenimiento retirara la plantilla y sus evidencias. Desea continuar?')) {
+        fields.tipoMantenimiento.value = 'PreventivoMensual';
+        return;
+    }
+    tasks = [];
+    nextTaskId = 1;
+    createTask();
+    renderTasks();
+    updateProgress();
+}
+
 function aplicarPlantillaTareas({ forzar = false } = {}) {
-    if (fields.tipoMantenimiento.value !== 'Preventivo') {
+    if (fields.tipoMantenimiento.value !== 'PreventivoMensual') {
         actualizarEstadoPlantilla();
         setStatus('Selecciona Mantenimiento preventivo mensual para cargar la plantilla del equipo.');
         return;
@@ -646,7 +667,7 @@ function actualizarEstadoPlantilla() {
     const equipo = getEquipmentInfo();
     if (!tipo) estado.textContent = 'Selecciona el tipo de informe.';
     else if (!equipo) estado.textContent = 'Selecciona un equipo para cargar su plantilla.';
-    else if (fields.tipoMantenimiento.value !== 'Preventivo') estado.textContent = 'Selecciona Mantenimiento preventivo mensual para cargar las tareas.';
+    else if (fields.tipoMantenimiento.value !== 'PreventivoMensual') estado.textContent = 'Selecciona Mantenimiento preventivo mensual para cargar las tareas.';
     else estado.textContent = `${tipo === 'carril' ? 'Carril' : 'TPA'}: ${obtenerTareasPlantilla().length} tareas definidas.`;
 }
 
@@ -716,6 +737,9 @@ function applyDraft(draft) {
 }
 
 function setDefaultTimes() {
+    if (!fields.fechaMantenimiento.value) {
+        fields.fechaMantenimiento.value = new Date().toISOString().slice(0, 10);
+    }
     if (!fields.horaInicio.value) {
         fields.horaInicio.value = new Date().toTimeString().slice(0, 5);
     }
@@ -1043,9 +1067,10 @@ function getGeneralDetailItems(report) {
         ['Tipo de informe', report.tipoEquipoInforme === 'carril' ? 'Carril' : 'Modulo de pago (TPA)'],
         ['Equipo', report.equipo],
         ['Prioridad', report.prioridad],
-        ['Tipo de mantenimiento', report.tipoMantenimiento === 'Preventivo' ? 'Mantenimiento preventivo mensual' : report.tipoMantenimiento],
+        ['Tipo de mantenimiento', report.tipoMantenimiento === 'PreventivoMensual' ? 'Mantenimiento preventivo mensual' : report.tipoMantenimiento],
         ['Impacto operativo', report.impactoOperativo === 'sin_parada' ? 'Sin parada operativa' : 'Con parada operativa'],
         ['Estado inicial', report.estadoInicialTexto],
+        ['Fecha del mantenimiento', report.fechaMantenimiento],
         ['Hora de inicio', report.horaInicio],
         ['Hora final', report.horaFinal],
         ['Duracion', report.duracion],
@@ -1143,6 +1168,7 @@ function validateReport(report) {
         'tipoMantenimiento',
         'impactoOperativo',
         'estadoInicial',
+        'fechaMantenimiento',
         'horaInicio',
         'horaFinal',
         'incidente',
@@ -1436,6 +1462,7 @@ function updateProgress() {
         fields.tipoMantenimiento.value,
         fields.impactoOperativo.value,
         fields.estadoInicial.value && (fields.estadoInicial.value !== 'Otro' || fields.estadoInicialOtro.value.trim()),
+        fields.fechaMantenimiento.value,
         fields.horaInicio.value,
         fields.horaFinal.value && calculateDuration(fields.horaInicio.value, fields.horaFinal.value).minutes >= 0,
         fields.incidente.value.trim(),
@@ -1544,6 +1571,7 @@ function createSignaturePad(canvas) {
 }
 
 function setFinalTimeFromSignature() {
+    if (perfilInformeActual?.rol === 'encargado_ti' && fields.horaFinal.value) return;
     fields.horaFinal.value = formatTimeInput(new Date());
     setFieldError('horaFinal', false);
     updateDuration();
@@ -1617,15 +1645,25 @@ function buildMaintenanceSummary(report) {
         hora_inicio: report.horaInicio,
         hora_final: report.horaFinal,
         duracion_minutos: typeof duracionMinutos === 'number' ? duracionMinutos : null,
-        preventivo_estimado_minutos: report.tipoMantenimiento === 'Preventivo'
+        preventivo_estimado_minutos: ['Preventivo', 'PreventivoMensual'].includes(report.tipoMantenimiento)
             ? equipo?.preventivoMinutos || 120
             : null,
         motivo: report.incidente,
         solucion: report.solucion,
         repuestos: report.repuestos || '',
         repuestos_usados: obtenerRepuestosUsadosValidos(),
-        fecha_guardado: report.fechaGuardado?.toISOString?.() || new Date().toISOString()
+        fecha_guardado: obtenerFechaIntervencionISO(report)
     };
+}
+
+function obtenerFechaIntervencionISO(report) {
+    const fecha = report.fechaMantenimiento;
+    const hora = report.horaFinal || report.horaInicio || '00:00';
+    if (fecha) {
+        const valor = new Date(`${fecha}T${hora}:00`);
+        if (!Number.isNaN(valor.getTime())) return valor.toISOString();
+    }
+    return report.fechaGuardado?.toISOString?.() || new Date().toISOString();
 }
 
 function saveMaintenanceSummaryLocal(summary) {
@@ -1685,7 +1723,21 @@ async function validarAccesoInforme() {
         return;
     }
 
+    perfilInformeActual = perfil;
+    configurarFechaYHorasPorRol();
     await cargarInventarioInforme();
+}
+
+function configurarFechaYHorasPorRol() {
+    const esDennys = perfilInformeActual?.rol === 'encargado_ti';
+    fields.fechaMantenimiento.readOnly = !esDennys;
+    fields.horaFinal.readOnly = !esDennys;
+    const ayuda = document.getElementById('fechaMantenimientoHelp');
+    if (ayuda) {
+        ayuda.textContent = esDennys
+            ? 'Como Encargado de Mantenimiento y TI puedes registrar otra fecha y ajustar las horas.'
+            : 'Se registra automaticamente con la fecha actual.';
+    }
 }
 
 async function saveMaintenanceSummaryRemote(summary) {
