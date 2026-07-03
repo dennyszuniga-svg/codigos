@@ -88,6 +88,75 @@ Object.keys(SEDES).forEach(sede => {
     );
 });
 
+const TAREAS_CARRIL = [
+    'Apagado seguro del equipo',
+    'Inspeccion inicial del equipo',
+    'Sopleteo e inspeccion interna del equipo (ticketero)',
+    'Inspeccion y limpieza de placa CPU PRO',
+    'Ajuste de conexiones y borneras de placa CPU PRO',
+    'Retiro de impresora e inspeccion inicial',
+    'Limpieza de impresora termica',
+    'Lubricacion de impresora termica',
+    'Instalacion y visto bueno de la impresora',
+    'Inspeccion del sistema de interfono',
+    'Limpieza del sistema de interfono',
+    'Ajuste del sistema de interfono',
+    'Ajuste e inspeccion del anclaje del equipo',
+    'Limpieza de fuentes de voltaje, loop y borneras',
+    'Inspeccion y ajuste de fuentes de voltaje',
+    'Inspeccion y ajuste de borneras, loop y llave termica',
+    'Sopleteo interno del sistema mecanico',
+    'Sopleteo interno del tablero electrico de barrera',
+    'Limpieza del sistema mecanico',
+    'Ajuste del sistema mecanico',
+    'Inspeccion del sistema mecanico: chumaceras, bielas, pernos y reductor',
+    'Lubricacion de chumaceras, rodamientos y puntos de friccion',
+    'Limpieza del tablero electrico de barrera',
+    'Inspeccion inicial del tablero: cableado y ajuste de componentes en su riel',
+    'Ajuste de borneras de la placa gestora de barrera',
+    'Ajuste de borneras, loop, llave termica, botonera de mando y rele',
+    'Ajuste de borneras del variador',
+    'Ajuste e inspeccion del anclaje del equipo',
+    'Limpieza de LPR',
+    'Inspeccion y ajuste del cableado de LPR',
+    'Ajuste e inspeccion del anclaje de LPR',
+    'Limpieza de la estructura de los equipos',
+    'Inspeccion de la estructura del equipo',
+    'Puesta a prueba del carril y validacion de funcionamiento',
+    'Identificacion de oportunidades de mejora del carril'
+];
+const TAREAS_IMPRESORA_CARRIL = new Set([5, 6, 7, 8]);
+
+const TAREAS_TPA = [
+    'Apagado seguro del equipo',
+    'Inspeccion inicial del equipo',
+    'Sopleteo e inspeccion interna del equipo',
+    'Sopleteo y limpieza interna del billetero',
+    'Limpieza de ruedas jaladoras y cabezal del billetero',
+    'Inspeccion del cableado de back panel (control)',
+    'Inspeccion del cableado del circuito de alimentacion',
+    'Ajuste e inspeccion de borneras de back panel',
+    'Ajuste de llave termica y borneras de alimentacion',
+    'Medicion del voltaje de entrada del equipo',
+    'Retiro de impresora e inspeccion inicial',
+    'Limpieza de impresora termica',
+    'Lubricacion de impresora termica',
+    'Instalacion y visto bueno de la impresora',
+    'Inspeccion del sistema de interfonia',
+    'Limpieza del sistema de interfonia',
+    'Ajuste del sistema de interfonia',
+    'Inspeccion y limpieza de monedero',
+    'Inspeccion y ajuste de fuentes de voltaje',
+    'Medicion de fuentes de voltaje',
+    'Ajuste de conectores USB, red y perifericos del PC',
+    'Limpieza inferior del equipo',
+    'Limpieza externa del equipo',
+    'Encendido y puesta a prueba del equipo',
+    'Revision de la estructura del equipo',
+    'Identificacion de oportunidades de mejora del equipo'
+];
+const TAREAS_EFECTIVO_TPA = new Set([3, 4, 17]);
+
 const form = document.getElementById('incidentForm');
 const previewSection = document.getElementById('previewSection');
 const statusMessage = document.getElementById('statusMessage');
@@ -103,6 +172,7 @@ const fields = {
     firmaTecnicoNombre: document.getElementById('firmaTecnicoNombre'),
     firmaSupervisorNombre: document.getElementById('firmaSupervisorNombre'),
     sede: document.getElementById('sede'),
+    tipoEquipoInforme: document.getElementById('tipoEquipoInforme'),
     equipo: document.getElementById('equipo'),
     prioridad: document.getElementById('prioridad'),
     tipoMantenimiento: document.getElementById('tipoMantenimiento'),
@@ -124,7 +194,8 @@ const groups = {
     clienteArea: document.getElementById('clienteAreaGroup'),
     personal: document.getElementById('personalGroup'),
     sede: document.getElementById('sedeGroup'),
-    equipo: document.getElementById('equipoGroup'),
+    tipoEquipoInforme: document.getElementById('equipoGroup'),
+    equipo: document.getElementById('equipoGroupDetalle'),
     prioridad: document.getElementById('prioridadGroup'),
     tipoMantenimiento: document.getElementById('tipoMantenimientoGroup'),
     impactoOperativo: document.getElementById('impactoOperativoGroup'),
@@ -182,6 +253,15 @@ document.getElementById('addInventoryUsage')?.addEventListener('click', () => {
     renderizarUsoInventario();
     scheduleDraftSave();
 });
+document.getElementById('addAdditionalTask')?.addEventListener('click', () => {
+    createTask();
+    renderTasks();
+    scheduleDraftSave();
+    setStatus('Tarea adicional agregada al final del informe.');
+});
+document.getElementById('reloadTaskTemplate')?.addEventListener('click', () => {
+    aplicarPlantillaTareas({ forzar: true });
+});
 
 form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -210,8 +290,17 @@ Object.entries(fields).forEach(([name, field]) => {
     field.addEventListener('change', () => {
         updateEstadoInicialOtroVisibility();
         if (name === 'sede') {
+            fields.equipo.value = '';
             renderEquipmentCatalog();
             cargarInventarioInforme();
+        }
+        if (name === 'tipoEquipoInforme') {
+            fields.equipo.value = '';
+            renderEquipmentCatalog();
+            actualizarEstadoPlantilla();
+        }
+        if (name === 'equipo' && field.value) {
+            aplicarPlantillaTareas();
         }
         if (name === 'equipo' || name === 'tipoMantenimiento') {
             actualizarImpactoOperativoSugerido();
@@ -381,6 +470,7 @@ function initForm() {
 
     applyAppContext();
     renderTasks();
+    actualizarEstadoPlantilla();
     updateEstadoInicialOtroVisibility();
     syncSignatureNames();
     updateComputedFields();
@@ -447,21 +537,105 @@ function getEquipmentInfo(code = fields.equipo.value) {
 }
 
 function renderEquipmentCatalog() {
-    const datalist = document.getElementById('equipmentCatalog');
-    if (!datalist) {
+    const selector = fields.equipo;
+    if (!selector) {
         return;
     }
 
-    datalist.innerHTML = '';
+    const valorActual = selector.value;
+    selector.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = fields.tipoEquipoInforme.value
+        ? 'Selecciona el equipo cargado para la sede'
+        : 'Primero selecciona sede y tipo de informe';
+    selector.appendChild(placeholder);
     const sede = getActiveSiteId();
+    const tipoInforme = fields.tipoEquipoInforme.value;
     EQUIPOS_MANTENIMIENTO
-        .filter(item => item.sede === sede)
+        .filter(item => item.sede === sede && obtenerTipoInformeEquipo(item) === tipoInforme)
         .forEach(item => {
             const option = document.createElement('option');
             option.value = item.codigo;
-            option.label = `${item.nombre} - ${item.tipo}`;
-            datalist.appendChild(option);
+            option.textContent = `${item.codigo} - ${item.nombre}`;
+            selector.appendChild(option);
         });
+    if ([...selector.options].some(option => option.value === valorActual)) {
+        selector.value = valorActual;
+    }
+    selector.disabled = !sede || !tipoInforme;
+}
+
+function obtenerTipoInformeEquipo(equipo) {
+    const texto = `${equipo?.codigo || ''} ${equipo?.tipo || ''}`.toUpperCase();
+    if (texto.includes('CARRIL') || texto.startsWith('ENTRADA') || texto.startsWith('SALIDA') || texto.startsWith('PUMA')) {
+        return 'carril';
+    }
+    if (texto.includes('TPA') || texto.includes('CAJERO') || texto.includes('PAGO AUTOMATICO')) {
+        return 'tpa';
+    }
+    return '';
+}
+
+function obtenerTareasPlantilla() {
+    const equipo = getEquipmentInfo();
+    if (!equipo) return [];
+    if (fields.tipoEquipoInforme.value === 'carril') {
+        const esSalida = /SALIDA/i.test(`${equipo.codigo} ${equipo.tipo}`);
+        return TAREAS_CARRIL
+            .filter((_tarea, index) => !esSalida || !TAREAS_IMPRESORA_CARRIL.has(index))
+            .map((tarea, index) => esSalida && index === 2
+                ? 'Sopleteo e inspeccion interna del equipo (lector de tickets)'
+                : tarea);
+    }
+    if (fields.tipoEquipoInforme.value === 'tpa') {
+        const esLite = /LITE|TARJETA/i.test(`${equipo.codigo} ${equipo.tipo} ${equipo.nombre}`);
+        return TAREAS_TPA.filter((_tarea, index) => !esLite || !TAREAS_EFECTIVO_TPA.has(index));
+    }
+    return [];
+}
+
+function hayAvanceEnTareas() {
+    return tasks.some(task => task.done || task.description.trim() || task.photos.length);
+}
+
+function aplicarPlantillaTareas({ forzar = false } = {}) {
+    const plantilla = obtenerTareasPlantilla();
+    if (!plantilla.length) {
+        actualizarEstadoPlantilla();
+        return;
+    }
+    if (hayAvanceEnTareas() && !forzar) {
+        const coincide = tasks.length === plantilla.length
+            && tasks.every((task, index) => task.description === plantilla[index]);
+        if (coincide) return;
+        if (!window.confirm('Cambiar el equipo reemplazara las tareas y fotos actuales. Desea cargar la nueva plantilla?')) return;
+    }
+    if (forzar && hayAvanceEnTareas()
+        && !window.confirm('Recargar la plantilla eliminara el avance, las fotos y las tareas adicionales. Desea continuar?')) return;
+
+    tasks = [];
+    nextTaskId = 1;
+    plantilla.forEach(description => createTask({ description }));
+    if (!fields.tipoMantenimiento.value) fields.tipoMantenimiento.value = 'Preventivo';
+    if (!fields.incidente.value) {
+        fields.incidente.value = `Mantenimiento preventivo programado de ${fields.equipo.value}.`;
+    }
+    renderTasks();
+    actualizarEstadoPlantilla();
+    updateProgress();
+    scheduleDraftSave();
+    setStatus(`Plantilla cargada con ${plantilla.length} tareas. Puede agregar tareas adicionales al final.`);
+}
+
+function actualizarEstadoPlantilla() {
+    const estado = document.getElementById('taskTemplateStatus');
+    if (!estado) return;
+    const tipo = fields.tipoEquipoInforme.value;
+    const equipo = getEquipmentInfo();
+    if (!tipo) estado.textContent = 'Selecciona el tipo de informe.';
+    else if (!equipo) estado.textContent = 'Selecciona un equipo para cargar su plantilla.';
+    else estado.textContent = `${tipo === 'carril' ? 'Carril' : 'TPA'}: ${obtenerTareasPlantilla().length} tareas definidas.`;
 }
 
 function actualizarImpactoOperativoSugerido() {
@@ -472,11 +646,22 @@ function actualizarImpactoOperativoSugerido() {
 }
 
 function applyDraft(draft) {
+    const equipoGuardado = draft.fields?.equipo || '';
     Object.entries(draft.fields || {}).forEach(([name, value]) => {
-        if (fields[name]) {
+        if (fields[name] && name !== 'equipo') {
             fields[name].value = value;
         }
     });
+    if (!fields.tipoEquipoInforme.value && equipoGuardado) {
+        const sedeBorrador = Object.entries(SEDES)
+            .find(([, nombre]) => nombre === fields.sede.value)?.[0];
+        const equipoBorrador = EQUIPOS_MANTENIMIENTO.find(item =>
+            item.sede === sedeBorrador && item.codigo.toUpperCase() === equipoGuardado.toUpperCase()
+        );
+        fields.tipoEquipoInforme.value = obtenerTipoInformeEquipo(equipoBorrador);
+    }
+    renderEquipmentCatalog();
+    fields.equipo.value = equipoGuardado;
     reportSequence = draft.reportSequence || getStoredCounter() + 1;
     reportSaved = Boolean(draft.reportSaved);
     fields.numeroInforme.value = draft.reportNumber || formatReportNumber(reportSequence);
@@ -671,7 +856,7 @@ function renderTasks() {
             <div class="task-summary">
                 <label class="task-check" for="taskDone${task.id}">
                     <input type="checkbox" id="taskDone${task.id}" data-action="toggle-task" ${task.done ? 'checked' : ''}>
-                    <span>Tarea ${index + 1} realizada</span>
+                    <span>Tarea ${index + 1}: ${escapeHtml(task.description || 'Tarea adicional')}</span>
                 </label>
                 <span class="task-count">${task.photos.length} foto${task.photos.length === 1 ? '' : 's'}</span>
                 ${tasks.length > 1 ? `<button type="button" class="btn btn-secondary task-remove" data-action="remove-task">Quitar</button>` : ''}
@@ -843,6 +1028,7 @@ function getGeneralDetailItems(report) {
         ['Nombre firma tecnico', report.firmaTecnicoNombre],
         ['Supervisor / administrador', report.firmaSupervisorNombre],
         ['Sede', report.sede],
+        ['Tipo de informe', report.tipoEquipoInforme === 'carril' ? 'Carril' : 'Modulo de pago (TPA)'],
         ['Equipo', report.equipo],
         ['Prioridad', report.prioridad],
         ['Tipo de mantenimiento', report.tipoMantenimiento],
@@ -939,6 +1125,7 @@ function validateReport(report) {
         'personal',
         'firmaSupervisorNombre',
         'sede',
+        'tipoEquipoInforme',
         'equipo',
         'prioridad',
         'tipoMantenimiento',
@@ -1231,6 +1418,7 @@ function updateProgress() {
         fields.personal.value.trim(),
         fields.firmaSupervisorNombre.value.trim(),
         fields.sede.value.trim(),
+        fields.tipoEquipoInforme.value,
         fields.equipo.value.trim(),
         fields.prioridad.value,
         fields.tipoMantenimiento.value,

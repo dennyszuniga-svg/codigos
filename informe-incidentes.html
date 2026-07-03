@@ -80,10 +80,22 @@
                     </div>
 
                     <div class="form-group" id="equipoGroup">
+                        <label for="tipoEquipoInforme" class="required">Tipo de informe</label>
+                        <select id="tipoEquipoInforme" name="tipoEquipoInforme" required>
+                            <option value="">Selecciona carril o modulo de pago</option>
+                            <option value="carril">Carril de entrada o salida</option>
+                            <option value="tpa">Modulo de pago (TPA)</option>
+                        </select>
+                        <p class="field-help">La seleccion filtra los equipos cargados para la sede.</p>
+                        <p class="error-message">Seleccione el tipo de informe.</p>
+                    </div>
+
+                    <div class="form-group" id="equipoGroupDetalle">
                         <label for="equipo" class="required">Equipo a intervenir</label>
-                        <input type="text" id="equipo" name="equipo" list="equipmentCatalog" placeholder="Nombre o c&oacute;digo del equipo" required>
-                        <datalist id="equipmentCatalog"></datalist>
-                        <p class="error-message">Ingrese el equipo a intervenir.</p>
+                        <select id="equipo" name="equipo" required>
+                            <option value="">Primero selecciona sede y tipo de informe</option>
+                        </select>
+                        <p class="error-message">Seleccione el equipo a intervenir.</p>
                     </div>
 
                     <div class="form-group" id="prioridadGroup">
@@ -178,8 +190,13 @@
                             <label class="required">Actividades realizadas</label>
                             <p>Marque cada tarea, describa lo realizado y tome fotos con subt&iacute;tulo. Para preventivos extensos puede agregar muchas evidencias antes de generar el informe.</p>
                         </div>
+                        <div class="template-actions">
+                            <span id="taskTemplateStatus" class="template-status">Selecciona el tipo de informe.</span>
+                            <button type="button" class="btn btn-secondary btn-small" id="reloadTaskTemplate">Recargar plantilla</button>
+                        </div>
                     </div>
                     <div class="task-list" id="taskList"></div>
+                    <button type="button" class="btn btn-secondary" id="addAdditionalTask">Agregar tarea adicional</button>
                     <p class="error-message" id="activityTasksError">Complete al menos una tarea con detalle, foto y subt&iacute;tulo.</p>
                 </div>
                 </details>

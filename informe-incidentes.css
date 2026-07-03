@@ -308,6 +308,25 @@ body {
     line-height: 1.45;
 }
 
+.template-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.template-status {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+#addAdditionalTask {
+    width: 100%;
+    margin-top: 10px;
+}
+
 .task-list {
     display: grid;
     gap: 12px;
@@ -344,6 +363,7 @@ body {
     gap: 10px;
     color: var(--text);
     font-weight: 800;
+    line-height: 1.35;
 }
 
 .task-check input {
