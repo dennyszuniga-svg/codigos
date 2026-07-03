@@ -1695,11 +1695,15 @@ function renderizarSolicitudesAbonados() {
 async function guardarSolicitudAbonado(event) {
     event.preventDefault();
     if (!usuarioPuedeAccederAbonados() || !supabaseClient) return;
+    const botonEnviar = event.currentTarget.querySelector('button[type="submit"]');
+    if (botonEnviar?.disabled) return;
+    if (botonEnviar) botonEnviar.disabled = true;
     const tipoId = obtenerElemento('subscriberType').value;
     const tipo = TIPOS_ABONO[tipoId];
     const dni = obtenerElemento('subscriberDni').value.trim();
     if (!tipo || !/^\d{8,12}$/.test(dni)) {
         actualizarEstadoAbonados('Revisa el tipo de abono y el numero de DNI.', 'error');
+        if (botonEnviar) botonEnviar.disabled = false;
         return;
     }
 
@@ -1719,10 +1723,12 @@ async function guardarSolicitudAbonado(event) {
     if (error) {
         console.warn('No se pudo registrar abonado:', error);
         actualizarEstadoAbonados(error.code === '23505' ? 'Ya existe una solicitud para ese DNI, sede y fecha.' : 'No se pudo registrar la solicitud.', 'error');
+        if (botonEnviar) botonEnviar.disabled = false;
         return;
     }
     event.currentTarget.reset();
     obtenerElemento('subscriberStart').value = new Date().toISOString().slice(0, 10);
+    actualizarEstadoAbonados('Solicitud registrada. Enviando alerta a la administracion...', 'success');
     const entrega = await enviarAlertaPushAbonado(payload.sede);
     if (entrega.sent > 0) {
         actualizarEstadoAbonados(`Solicitud registrada. ${entrega.sent} alerta${entrega.sent === 1 ? '' : 's'} enviada${entrega.sent === 1 ? '' : 's'} correctamente.`, 'success');
@@ -1730,6 +1736,7 @@ async function guardarSolicitudAbonado(event) {
         actualizarEstadoAbonados('Solicitud registrada, pero la alerta no fue entregada. El administrador debe reactivar Alertas en su celular.', 'error');
     }
     if (usuarioPuedeGestionarAbonados()) await cargarSolicitudesAbonados();
+    if (botonEnviar) botonEnviar.disabled = false;
 }
 
 async function actualizarSolicitudAbonado(id) {
@@ -2077,9 +2084,14 @@ async function enviarAlertaPushAbonado(sede) {
     if (!supabaseClient || !sesionActual?.user || !sede) return { sent: 0, failed: 0 };
 
     try {
-        const { data, error } = await supabaseClient.functions.invoke('send-code-alert', {
+        const invocacion = supabaseClient.functions.invoke('send-code-alert', {
             body: { evento: 'nuevo_abonado', sede }
         });
+        const limite = new Promise(resolve => window.setTimeout(
+            () => resolve({ data: null, error: new Error('Tiempo de espera agotado') }),
+            12_000
+        ));
+        const { data, error } = await Promise.race([invocacion, limite]);
         if (error) throw error;
         return data || { sent: 0, failed: 0 };
     } catch (error) {

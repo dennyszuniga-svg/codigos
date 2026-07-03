@@ -158,7 +158,10 @@ Deno.serve(async (req) => {
       };
 
       try {
-        await webpush.sendNotification(pushSubscription, payload);
+        await Promise.race([
+          webpush.sendNotification(pushSubscription, payload),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Push timeout')), 8_000)),
+        ]);
         return { id: subscription.id, ok: true };
       } catch (error) {
         const statusCode = typeof error === 'object' && error && 'statusCode' in error
