@@ -79,7 +79,8 @@
                 <label>Stock inicial por almacén<input id="inventoryStock" type="number" min="0" step="0.01" required></label>
                 <label>Stock mínimo<input id="inventoryMinimum" type="number" min="0" step="0.01" value="0" required></label>
                 <label>Unidad<input id="inventoryUnit" type="text" maxlength="30" value="unidad" required></label>
-                <label>Costo unitario sin IGV (S/)<input id="inventoryUnitCost" type="number" min="0" step="0.01" value="0" required></label>
+                <label>Moneda<select id="inventoryCurrency" required><option value="PEN">Soles (S/)</option><option value="USD">Dólares (US$)</option></select></label>
+                <label>Costo unitario sin IGV<input id="inventoryUnitCost" type="number" min="0" step="0.01" value="0" required></label>
                 <label>Compatibilidad<select id="inventoryCompatibility" required><option value="universal">Universal</option><option value="actual">Equipos actuales (Primavera)</option><option value="antiguo">Equipos antiguos</option></select></label>
                 <fieldset class="inventory-warehouses">
                     <legend>Almacenes / sedes</legend>

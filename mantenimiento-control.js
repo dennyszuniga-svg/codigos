@@ -24,7 +24,7 @@ const siteName = id => id === 'general' ? 'Almacén general' : SEDES.find(item =
 const isSuperior = () => profile?.rol === 'encargado_ti';
 const monthValue = () => byId('controlMonth').value || new Date().toISOString().slice(0, 7);
 const selectedSite = () => byId('controlSite').value;
-const formatMoney = value => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(Number(value || 0));
+const formatMoney = (value, currency = 'PEN') => new Intl.NumberFormat('es-PE', { style: 'currency', currency }).format(Number(value || 0));
 
 function setStatus(message, state = '') {
     const status = byId('controlStatus');
@@ -160,7 +160,7 @@ async function loadData() {
             ? client.rpc('listar_inventario_consolidado')
             : Promise.resolve({ data: [], error: null }),
         isSuperior()
-            ? client.from('movimientos_stock_repuestos').select('id,tipo,cantidad,ubicacion_origen,ubicacion_destino,sede_consumo,equipo_detalle,observacion,numero_informe,costo_unitario_sin_igv,costo_total_sin_igv,costo_total_con_igv,created_at,catalogo_repuestos(codigo,nombre,unidad)').gte('created_at', `${start}T00:00:00`).lt('created_at', `${end}T00:00:00`).order('created_at', { ascending: false }).limit(2000)
+            ? client.from('movimientos_stock_repuestos').select('id,tipo,cantidad,ubicacion_origen,ubicacion_destino,sede_consumo,equipo_detalle,observacion,numero_informe,moneda,costo_unitario_sin_igv,costo_total_sin_igv,costo_total_con_igv,created_at,catalogo_repuestos(codigo,nombre,unidad)').gte('created_at', `${start}T00:00:00`).lt('created_at', `${end}T00:00:00`).order('created_at', { ascending: false }).limit(2000)
             : Promise.resolve({ data: [], error: null }),
         isSuperior()
             ? client.rpc('listar_pyg_inventario_mes', { mes_arg: month })
@@ -318,13 +318,15 @@ function renderInventory() {
     const totalUnits = inventory.reduce((sum, item) => sum + Number(item.stock || 0), 0);
     const low = inventory.filter(item => Number(item.stock) <= Number(item.stock_minimo)).length;
     const unavailable = inventory.filter(item => Number(item.stock) === 0).length;
-    const inventoryValue = inventory.reduce((sum, item) => sum + Number(item.stock || 0) * Number(item.costo_unitario_sin_igv || 0), 0);
+    const inventoryValuePen = inventory.filter(item => item.moneda === 'PEN').reduce((sum, item) => sum + Number(item.stock || 0) * Number(item.costo_unitario_sin_igv || 0), 0);
+    const inventoryValueUsd = inventory.filter(item => item.moneda === 'USD').reduce((sum, item) => sum + Number(item.stock || 0) * Number(item.costo_unitario_sin_igv || 0), 0);
     summary.append(
         metric('Repuestos', String(uniqueParts), 'Códigos del catálogo general'),
         metric('Stock total', String(totalUnits), 'Todas las ubicaciones'),
         metric('Stock bajo', String(low), 'En mínimo o por debajo', low ? 'warning' : 'good'),
         metric('No disponibles', String(unavailable), 'Stock igual a cero', unavailable ? 'danger' : 'good'),
-        metric('Valor del inventario', formatMoney(inventoryValue), 'Stock actual sin IGV')
+        metric('Inventario en soles', formatMoney(inventoryValuePen, 'PEN'), 'Stock actual sin IGV'),
+        metric('Inventario en dólares', formatMoney(inventoryValueUsd, 'USD'), 'Stock actual sin IGV')
     );
     const query = byId('inventoryFilter').value.trim().toLowerCase();
     const rows = inventory.filter(item => `${item.codigo} ${item.nombre} ${item.categoria} ${item.compatibilidad} ${item.ubicacion_sede}`.toLowerCase().includes(query));
@@ -332,19 +334,24 @@ function renderInventory() {
     rows.forEach(item => {
         const row = record(
             `${item.codigo} - ${item.nombre} - ${siteName(item.ubicacion_sede)}`,
-            `${item.stock} ${item.unidad} en esta ubicación - Total general ${item.stock_total} - Costo sin IGV ${formatMoney(item.costo_unitario_sin_igv)} c/u - Valorizado sin IGV ${formatMoney(Number(item.stock) * Number(item.costo_unitario_sin_igv))} - ${item.compatibilidad} - ${item.ubicacion_detalle || 'Sin detalle'}${item.proveedor ? ` - Proveedor: ${item.proveedor}` : ''}`,
+            `${item.stock} ${item.unidad} en esta ubicación - Total general ${item.stock_total} - Costo sin IGV ${formatMoney(item.costo_unitario_sin_igv, item.moneda)} c/u - Valorizado sin IGV ${formatMoney(Number(item.stock) * Number(item.costo_unitario_sin_igv), item.moneda)} - ${item.compatibilidad} - ${item.ubicacion_detalle || 'Sin detalle'}${item.proveedor ? ` - Proveedor: ${item.proveedor}` : ''}`,
             Number(item.stock) <= Number(item.stock_minimo) ? 'failure' : ''
         );
         const editor = document.createElement('div');
         const label = document.createElement('label');
         const input = document.createElement('input');
+        const currencyLabel = document.createElement('label');
+        const currency = document.createElement('select');
         const button = document.createElement('button');
         editor.className = 'inventory-cost-editor';
-        label.textContent = 'Costo unitario sin IGV (S/)';
+        label.textContent = 'Costo unitario sin IGV';
         input.type = 'number'; input.min = '0'; input.step = '0.01'; input.value = String(item.costo_unitario_sin_igv || 0);
         input.dataset.costInput = item.repuesto_id;
+        currencyLabel.textContent = 'Moneda';
+        currency.append(new Option('Soles (S/)', 'PEN'), new Option('Dólares (US$)', 'USD'));
+        currency.value = item.moneda || 'PEN'; currency.dataset.costCurrency = item.repuesto_id;
         button.type = 'button'; button.textContent = 'Actualizar costo'; button.dataset.updateCost = item.repuesto_id;
-        label.appendChild(input); editor.append(label, button); row.appendChild(editor); list.appendChild(row);
+        label.appendChild(input); currencyLabel.appendChild(currency); editor.append(label, currencyLabel, button); row.appendChild(editor); list.appendChild(row);
     });
     renderInventoryMovements();
     renderInventoryPyg();
@@ -356,20 +363,25 @@ function renderInventoryPyg() {
     if (!summary || !list) return;
     clear(summary); clear(list);
     const expenses = inventoryPygRows;
-    const totalWithoutTax = expenses.reduce((sum, item) => sum + Number(item.costo_total_sin_igv || 0), 0);
-    const tax = expenses.reduce((sum, item) => sum + Number(item.igv || 0), 0);
-    const totalWithTax = expenses.reduce((sum, item) => sum + Number(item.costo_total_con_igv || 0), 0);
     const units = expenses.reduce((sum, item) => sum + Number(item.cantidad || 0), 0);
-    summary.append(
-        metric('Gasto sin IGV', formatMoney(totalWithoutTax), monthValue(), totalWithoutTax ? 'warning' : 'good'),
-        metric('IGV 18%', formatMoney(tax), 'Impuesto calculado'),
-        metric('Gasto con IGV', formatMoney(totalWithTax), 'Total mensual', totalWithTax ? 'warning' : 'good'),
-        metric('Unidades consumidas', String(units), `${expenses.length} movimientos`)
-    );
+    ['PEN', 'USD'].forEach(currency => {
+        const rows = expenses.filter(item => item.moneda === currency);
+        if (!rows.length) return;
+        const totalWithoutTax = rows.reduce((sum, item) => sum + Number(item.costo_total_sin_igv || 0), 0);
+        const tax = rows.reduce((sum, item) => sum + Number(item.igv || 0), 0);
+        const totalWithTax = rows.reduce((sum, item) => sum + Number(item.costo_total_con_igv || 0), 0);
+        const label = currency === 'PEN' ? 'Soles' : 'Dólares';
+        summary.append(
+            metric(`Sin IGV - ${label}`, formatMoney(totalWithoutTax, currency), monthValue(), totalWithoutTax ? 'warning' : 'good'),
+            metric(`IGV 18% - ${label}`, formatMoney(tax, currency), 'Impuesto calculado'),
+            metric(`Con IGV - ${label}`, formatMoney(totalWithTax, currency), 'Total mensual', totalWithTax ? 'warning' : 'good')
+        );
+    });
+    summary.append(metric('Unidades consumidas', String(units), `${expenses.length} movimientos`));
     if (!expenses.length) { list.appendChild(empty('No hay consumos valorizados en el mes seleccionado.')); return; }
     expenses.forEach(item => list.appendChild(record(
         `${new Date(item.fecha).toLocaleDateString('es-PE')} - ${item.codigo} - ${item.repuesto}`,
-        `${siteName(item.sede_consumo)} - ${item.equipo_codigo || 'Trabajo general'}${item.equipo_nombre ? ` / ${item.equipo_nombre}` : ''} - ${item.cantidad} ${item.unidad} - Sin IGV ${formatMoney(item.costo_total_sin_igv)} - IGV ${formatMoney(item.igv)} - Con IGV ${formatMoney(item.costo_total_con_igv)}${item.numero_informe ? ` - Informe ${item.numero_informe}` : ''}`
+        `${siteName(item.sede_consumo)} - ${item.equipo_codigo || 'Trabajo general'}${item.equipo_nombre ? ` / ${item.equipo_nombre}` : ''} - ${item.cantidad} ${item.unidad} - Sin IGV ${formatMoney(item.costo_total_sin_igv, item.moneda)} - IGV ${formatMoney(item.igv, item.moneda)} - Con IGV ${formatMoney(item.costo_total_con_igv, item.moneda)}${item.numero_informe ? ` - Informe ${item.numero_informe}` : ''}`
     )));
 }
 
@@ -393,7 +405,7 @@ function renderInventoryMovements() {
     if (!inventoryMovements.length) { list.appendChild(empty('Todavía no hay movimientos registrados.')); return; }
     inventoryMovements.slice(0, 20).forEach(item => list.appendChild(record(
         `${item.tipo.toUpperCase()} - ${item.catalogo_repuestos?.codigo || ''} - ${item.catalogo_repuestos?.nombre || ''}`,
-        `${item.cantidad} ${item.catalogo_repuestos?.unidad || 'unidad'} - ${siteName(item.ubicacion_origen)}${item.ubicacion_destino ? ` → ${siteName(item.ubicacion_destino)}` : ''} - Sin IGV ${formatMoney(item.costo_total_sin_igv)} - Con IGV ${formatMoney(item.costo_total_con_igv)} - ${new Date(item.created_at).toLocaleString('es-PE')} - ${item.observacion || 'Sin observación'}`
+        `${item.cantidad} ${item.catalogo_repuestos?.unidad || 'unidad'} - ${siteName(item.ubicacion_origen)}${item.ubicacion_destino ? ` → ${siteName(item.ubicacion_destino)}` : ''} - Sin IGV ${formatMoney(item.costo_total_sin_igv, item.moneda)} - Con IGV ${formatMoney(item.costo_total_con_igv, item.moneda)} - ${new Date(item.created_at).toLocaleString('es-PE')} - ${item.observacion || 'Sin observación'}`
     )));
 }
 
@@ -412,6 +424,7 @@ function resetInventoryForm() {
     byId('inventoryMinimum').value = '0';
     byId('inventoryUnit').value = 'unidad';
     byId('inventoryUnitCost').value = '0';
+    byId('inventoryCurrency').value = 'PEN';
     byId('inventoryFormStatus').textContent = '';
 }
 
@@ -429,6 +442,7 @@ async function saveInventoryItem(event) {
         stock_minimo_arg: Number(byId('inventoryMinimum').value),
         unidad_arg: byId('inventoryUnit').value.trim() || 'unidad',
         costo_unitario_arg: Number(byId('inventoryUnitCost').value),
+        moneda_arg: byId('inventoryCurrency').value,
         compatibilidad_arg: byId('inventoryCompatibility').value,
         ubicaciones_arg: warehouses,
         ubicacion_detalle_arg: byId('inventoryLocation').value.trim(),
@@ -495,10 +509,11 @@ function updateMovementFields(type) {
 
 async function updateInventoryCost(button) {
     const input = button.closest('.inventory-cost-editor')?.querySelector('input[data-cost-input]');
+    const currency = button.closest('.inventory-cost-editor')?.querySelector('select[data-cost-currency]')?.value || 'PEN';
     const cost = Number(input?.value);
     if (!Number.isFinite(cost) || cost < 0) { setStatus('Ingresa un costo sin IGV válido.', 'error'); return; }
     button.disabled = true;
-    const { error } = await client.rpc('actualizar_costo_repuesto', { repuesto_id_arg: button.dataset.updateCost, costo_arg: cost });
+    const { error } = await client.rpc('actualizar_costo_repuesto', { repuesto_id_arg: button.dataset.updateCost, costo_arg: cost, moneda_arg: currency });
     button.disabled = false;
     if (error) { setStatus('No se pudo actualizar el costo del repuesto.', 'error'); return; }
     setStatus('Costo sin IGV actualizado. Se aplicará a los próximos consumos.', 'success');
@@ -532,10 +547,10 @@ function exportInventoryPygCsv() {
     const rows = inventoryPygRows;
     if (!rows.length) { setStatus('No hay consumos de inventario para exportar en el mes seleccionado.', 'warning'); return; }
     const table = [[
-        'Mes', 'Fecha', 'Sede de consumo', 'Equipo codigo', 'Equipo', 'Tipo', 'Informe', 'Codigo', 'Repuesto', 'Cantidad', 'Unidad', 'Costo unitario sin IGV S/', 'Subtotal sin IGV S/', 'IGV 18% S/', 'Total con IGV S/', 'Observacion'
+        'Mes', 'Fecha', 'Sede de consumo', 'Equipo codigo', 'Equipo', 'Tipo', 'Informe', 'Codigo', 'Repuesto', 'Cantidad', 'Unidad', 'Moneda', 'Costo unitario sin IGV', 'Subtotal sin IGV', 'IGV 18%', 'Total con IGV', 'Observacion'
     ], ...rows.map(item => [
         monthValue(), new Date(item.fecha).toLocaleString('es-PE'), siteName(item.sede_consumo), item.equipo_codigo || '', item.equipo_nombre || '', item.tipo,
-        item.numero_informe || '', item.codigo, item.repuesto, item.cantidad, item.unidad, item.costo_unitario_sin_igv,
+        item.numero_informe || '', item.codigo, item.repuesto, item.cantidad, item.unidad, item.moneda, item.costo_unitario_sin_igv,
         item.costo_total_sin_igv, item.igv, item.costo_total_con_igv, item.observacion || ''
     ])];
     const blob = new Blob([`\ufeff${table.map(row => row.map(csvCell).join(',')).join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
