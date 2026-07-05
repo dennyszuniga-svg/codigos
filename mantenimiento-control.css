@@ -43,6 +43,9 @@ button { padding: 8px 14px; border: 0; border-radius: 5px; background: #1596ce; 
 .record.corrective, .record.failure { border-left-color: #d92d20; }
 .record strong, .record small { display: block; }
 .record small { margin-top: 4px; color: #607184; line-height: 1.4; }
+.inventory-cost-editor { display: flex; align-items: end; gap: 8px; margin-top: 9px; padding-top: 9px; border-top: 1px solid #e1e7ec; }
+.inventory-cost-editor label { max-width: 190px; }
+.inventory-cost-editor input { width: 100%; }
 .section-row { justify-content: space-between; margin-bottom: 12px; }
 .section-row h2 { margin: 0; }
 .inventory-heading-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -57,6 +60,11 @@ button { padding: 8px 14px; border: 0; border-radius: 5px; background: #1596ce; 
 .inventory-location { grid-column: span 2; }
 .inventory-form-actions { display: flex; align-items: end; gap: 8px; }
 .inventory-movement-panel { margin-top: 14px; }
+.inventory-pyg-panel { margin: 14px 0; border-left: 4px solid #168453; }
+.inventory-pyg-panel .section-row { align-items: center; }
+.inventory-pyg-panel h3 { margin: 0; }
+.inventory-pyg-panel .section-help { margin: 4px 0 0; }
+.inventory-pyg-panel .record-list { margin-top: 12px; }
 .inventory-movement-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-content: start; align-items: end; gap: 9px; }
 .inventory-movement-form [hidden] { display: none !important; }
 .secondary-button { background: #dce6ee; color: #263b50; }
@@ -64,6 +72,6 @@ button { padding: 8px 14px; border: 0; border-radius: 5px; background: #1596ce; 
 .access-message { width: min(540px, calc(100% - 28px)); margin: 80px auto; padding: 24px; text-align: center; background: #fff; border: 1px solid #d5dee7; border-radius: 8px; }
 .empty { padding: 18px; color: #607184; text-align: center; border: 1px dashed #aebdca; border-radius: 6px; }
 @media (max-width: 850px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split-grid { grid-template-columns: 1fr; } .inventory-movement-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .control-header { grid-template-columns: auto 1fr; } .control-header img { width: 110px; } .control-header div { grid-column: 1 / -1; } .control-shell { width: min(100% - 16px, 1280px); margin-top: 8px; } .control-tabs { display: grid; grid-template-columns: repeat(2, 1fr); } .control-tabs button { padding: 7px; } .control-view { padding: 12px; } .metric-grid { grid-template-columns: repeat(2, 1fr); } .inventory-form, .inventory-movement-form { grid-template-columns: minmax(0, 1fr); } .inventory-location, .inventory-warehouses { grid-column: auto; } .inventory-warehouse-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } .inventory-movement-panel { padding: 12px; } .inventory-movement-form > button { width: min(100%, 280px); justify-self: center; } }
+@media (max-width: 560px) { .control-header { grid-template-columns: auto 1fr; } .control-header img { width: 110px; } .control-header div { grid-column: 1 / -1; } .control-shell { width: min(100% - 16px, 1280px); margin-top: 8px; } .control-tabs { display: grid; grid-template-columns: repeat(2, 1fr); } .control-tabs button { padding: 7px; } .control-view { padding: 12px; } .metric-grid { grid-template-columns: repeat(2, 1fr); } .inventory-form, .inventory-movement-form { grid-template-columns: minmax(0, 1fr); } .inventory-location, .inventory-warehouses { grid-column: auto; } .inventory-warehouse-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } .inventory-movement-panel { padding: 12px; } .inventory-movement-form > button { width: min(100%, 280px); justify-self: center; } .inventory-cost-editor { align-items: stretch; flex-direction: column; } .inventory-cost-editor label { max-width: none; } }
 
 @media print { .control-header .back-link, .control-tabs, .control-filters, button, form { display: none !important; } .control-shell { width: 100%; margin: 0; } .control-view[hidden] { display: block !important; margin-bottom: 14px; } .control-view { break-inside: avoid; } }

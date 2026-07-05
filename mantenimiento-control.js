@@ -16,6 +16,7 @@ let profile = null;
 let interventions = [];
 let inventory = [];
 let inventoryMovements = [];
+let inventoryPygRows = [];
 
 const byId = id => document.getElementById(id);
 const clear = element => { while (element?.firstChild) element.firstChild.remove(); };
@@ -23,6 +24,7 @@ const siteName = id => id === 'general' ? 'Almacén general' : SEDES.find(item =
 const isSuperior = () => profile?.rol === 'encargado_ti';
 const monthValue = () => byId('controlMonth').value || new Date().toISOString().slice(0, 7);
 const selectedSite = () => byId('controlSite').value;
+const formatMoney = value => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(Number(value || 0));
 
 function setStatus(message, state = '') {
     const status = byId('controlStatus');
@@ -152,17 +154,20 @@ async function loadData() {
         .eq('sede', site).order('fecha_guardado', { ascending: false }).limit(500);
     if (!isSuperior()) reportsQuery = reportsQuery.eq('creado_por', session.user.id);
 
-    const [reportsResult, inventoryResult, movementsResult] = await Promise.all([
+    const [reportsResult, inventoryResult, movementsResult, pygResult] = await Promise.all([
         reportsQuery,
         isSuperior()
             ? client.rpc('listar_inventario_consolidado')
             : Promise.resolve({ data: [], error: null }),
         isSuperior()
-            ? client.from('movimientos_stock_repuestos').select('id,tipo,cantidad,ubicacion_origen,ubicacion_destino,observacion,created_at,catalogo_repuestos(codigo,nombre,unidad)').order('created_at', { ascending: false }).limit(100)
+            ? client.from('movimientos_stock_repuestos').select('id,tipo,cantidad,ubicacion_origen,ubicacion_destino,sede_consumo,equipo_detalle,observacion,numero_informe,costo_unitario_sin_igv,costo_total_sin_igv,costo_total_con_igv,created_at,catalogo_repuestos(codigo,nombre,unidad)').gte('created_at', `${start}T00:00:00`).lt('created_at', `${end}T00:00:00`).order('created_at', { ascending: false }).limit(2000)
+            : Promise.resolve({ data: [], error: null }),
+        isSuperior()
+            ? client.rpc('listar_pyg_inventario_mes', { mes_arg: month })
             : Promise.resolve({ data: [], error: null })
     ]);
 
-    const error = reportsResult.error || inventoryResult.error || movementsResult.error;
+    const error = reportsResult.error || inventoryResult.error || movementsResult.error || pygResult.error;
     if (error) {
         setStatus('No se pudo cargar toda la información. Actualiza e inténtalo nuevamente.', 'error');
         console.warn('Centro de control:', error);
@@ -171,6 +176,7 @@ async function loadData() {
     interventions = reportsResult.data || [];
     inventory = inventoryResult.data || [];
     inventoryMovements = movementsResult.data || [];
+    inventoryPygRows = pygResult.data || [];
     configureTechnicianFilter();
     renderAll();
     setStatus(`Actualizado: ${siteName(site)} - ${month}`, 'success');
@@ -312,21 +318,59 @@ function renderInventory() {
     const totalUnits = inventory.reduce((sum, item) => sum + Number(item.stock || 0), 0);
     const low = inventory.filter(item => Number(item.stock) <= Number(item.stock_minimo)).length;
     const unavailable = inventory.filter(item => Number(item.stock) === 0).length;
+    const inventoryValue = inventory.reduce((sum, item) => sum + Number(item.stock || 0) * Number(item.costo_unitario_sin_igv || 0), 0);
     summary.append(
         metric('Repuestos', String(uniqueParts), 'Códigos del catálogo general'),
         metric('Stock total', String(totalUnits), 'Todas las ubicaciones'),
         metric('Stock bajo', String(low), 'En mínimo o por debajo', low ? 'warning' : 'good'),
-        metric('No disponibles', String(unavailable), 'Stock igual a cero', unavailable ? 'danger' : 'good')
+        metric('No disponibles', String(unavailable), 'Stock igual a cero', unavailable ? 'danger' : 'good'),
+        metric('Valor del inventario', formatMoney(inventoryValue), 'Stock actual sin IGV')
     );
     const query = byId('inventoryFilter').value.trim().toLowerCase();
     const rows = inventory.filter(item => `${item.codigo} ${item.nombre} ${item.categoria} ${item.compatibilidad} ${item.ubicacion_sede}`.toLowerCase().includes(query));
     if (!rows.length) { list.appendChild(empty('No hay repuestos que coincidan con la búsqueda.')); return; }
-    rows.forEach(item => list.appendChild(record(
-        `${item.codigo} - ${item.nombre} - ${siteName(item.ubicacion_sede)}`,
-        `${item.stock} ${item.unidad} en esta ubicación - Total general ${item.stock_total} - ${item.compatibilidad} - ${item.ubicacion_detalle || 'Sin detalle'}${item.proveedor ? ` - Proveedor: ${item.proveedor}` : ''}`,
-        Number(item.stock) <= Number(item.stock_minimo) ? 'failure' : ''
-    )));
+    rows.forEach(item => {
+        const row = record(
+            `${item.codigo} - ${item.nombre} - ${siteName(item.ubicacion_sede)}`,
+            `${item.stock} ${item.unidad} en esta ubicación - Total general ${item.stock_total} - Costo sin IGV ${formatMoney(item.costo_unitario_sin_igv)} c/u - Valorizado sin IGV ${formatMoney(Number(item.stock) * Number(item.costo_unitario_sin_igv))} - ${item.compatibilidad} - ${item.ubicacion_detalle || 'Sin detalle'}${item.proveedor ? ` - Proveedor: ${item.proveedor}` : ''}`,
+            Number(item.stock) <= Number(item.stock_minimo) ? 'failure' : ''
+        );
+        const editor = document.createElement('div');
+        const label = document.createElement('label');
+        const input = document.createElement('input');
+        const button = document.createElement('button');
+        editor.className = 'inventory-cost-editor';
+        label.textContent = 'Costo unitario sin IGV (S/)';
+        input.type = 'number'; input.min = '0'; input.step = '0.01'; input.value = String(item.costo_unitario_sin_igv || 0);
+        input.dataset.costInput = item.repuesto_id;
+        button.type = 'button'; button.textContent = 'Actualizar costo'; button.dataset.updateCost = item.repuesto_id;
+        label.appendChild(input); editor.append(label, button); row.appendChild(editor); list.appendChild(row);
+    });
     renderInventoryMovements();
+    renderInventoryPyg();
+}
+
+function renderInventoryPyg() {
+    const summary = byId('inventoryPygSummary');
+    const list = byId('inventoryPygBySite');
+    if (!summary || !list) return;
+    clear(summary); clear(list);
+    const expenses = inventoryPygRows;
+    const totalWithoutTax = expenses.reduce((sum, item) => sum + Number(item.costo_total_sin_igv || 0), 0);
+    const tax = expenses.reduce((sum, item) => sum + Number(item.igv || 0), 0);
+    const totalWithTax = expenses.reduce((sum, item) => sum + Number(item.costo_total_con_igv || 0), 0);
+    const units = expenses.reduce((sum, item) => sum + Number(item.cantidad || 0), 0);
+    summary.append(
+        metric('Gasto sin IGV', formatMoney(totalWithoutTax), monthValue(), totalWithoutTax ? 'warning' : 'good'),
+        metric('IGV 18%', formatMoney(tax), 'Impuesto calculado'),
+        metric('Gasto con IGV', formatMoney(totalWithTax), 'Total mensual', totalWithTax ? 'warning' : 'good'),
+        metric('Unidades consumidas', String(units), `${expenses.length} movimientos`)
+    );
+    if (!expenses.length) { list.appendChild(empty('No hay consumos valorizados en el mes seleccionado.')); return; }
+    expenses.forEach(item => list.appendChild(record(
+        `${new Date(item.fecha).toLocaleDateString('es-PE')} - ${item.codigo} - ${item.repuesto}`,
+        `${siteName(item.sede_consumo)} - ${item.equipo_codigo || 'Trabajo general'}${item.equipo_nombre ? ` / ${item.equipo_nombre}` : ''} - ${item.cantidad} ${item.unidad} - Sin IGV ${formatMoney(item.costo_total_sin_igv)} - IGV ${formatMoney(item.igv)} - Con IGV ${formatMoney(item.costo_total_con_igv)}${item.numero_informe ? ` - Informe ${item.numero_informe}` : ''}`
+    )));
 }
 
 function renderInventoryMovements() {
@@ -349,7 +393,7 @@ function renderInventoryMovements() {
     if (!inventoryMovements.length) { list.appendChild(empty('Todavía no hay movimientos registrados.')); return; }
     inventoryMovements.slice(0, 20).forEach(item => list.appendChild(record(
         `${item.tipo.toUpperCase()} - ${item.catalogo_repuestos?.codigo || ''} - ${item.catalogo_repuestos?.nombre || ''}`,
-        `${item.cantidad} ${item.catalogo_repuestos?.unidad || 'unidad'} - ${siteName(item.ubicacion_origen)}${item.ubicacion_destino ? ` → ${siteName(item.ubicacion_destino)}` : ''} - ${new Date(item.created_at).toLocaleString('es-PE')} - ${item.observacion || 'Sin observación'}`
+        `${item.cantidad} ${item.catalogo_repuestos?.unidad || 'unidad'} - ${siteName(item.ubicacion_origen)}${item.ubicacion_destino ? ` → ${siteName(item.ubicacion_destino)}` : ''} - Sin IGV ${formatMoney(item.costo_total_sin_igv)} - Con IGV ${formatMoney(item.costo_total_con_igv)} - ${new Date(item.created_at).toLocaleString('es-PE')} - ${item.observacion || 'Sin observación'}`
     )));
 }
 
@@ -367,6 +411,7 @@ function resetInventoryForm() {
     byId('inventoryForm').reset();
     byId('inventoryMinimum').value = '0';
     byId('inventoryUnit').value = 'unidad';
+    byId('inventoryUnitCost').value = '0';
     byId('inventoryFormStatus').textContent = '';
 }
 
@@ -383,13 +428,14 @@ async function saveInventoryItem(event) {
         stock_arg: Number(byId('inventoryStock').value),
         stock_minimo_arg: Number(byId('inventoryMinimum').value),
         unidad_arg: byId('inventoryUnit').value.trim() || 'unidad',
+        costo_unitario_arg: Number(byId('inventoryUnitCost').value),
         compatibilidad_arg: byId('inventoryCompatibility').value,
         ubicaciones_arg: warehouses,
         ubicacion_detalle_arg: byId('inventoryLocation').value.trim(),
         proveedor_arg: byId('inventorySupplier').value.trim(),
         contacto_arg: byId('inventorySupplierContact').value.trim()
     };
-    if (!payload.codigo_arg || !payload.nombre_arg || !warehouses.length || !Number.isFinite(payload.stock_arg) || payload.stock_arg < 0 || !Number.isFinite(payload.stock_minimo_arg) || payload.stock_minimo_arg < 0) {
+    if (!payload.codigo_arg || !payload.nombre_arg || !warehouses.length || !Number.isFinite(payload.stock_arg) || payload.stock_arg < 0 || !Number.isFinite(payload.stock_minimo_arg) || payload.stock_minimo_arg < 0 || !Number.isFinite(payload.costo_unitario_arg) || payload.costo_unitario_arg < 0) {
         status.textContent = 'Completa el código, las cantidades y selecciona al menos un almacén.';
         return;
     }
@@ -417,10 +463,16 @@ async function saveInventoryMovement(event) {
         tipo_arg: byId('movementType').value,
         cantidad_arg: Number(byId('movementQuantity').value),
         destino_arg: byId('movementType').value === 'transferencia' ? byId('movementDestination').value : null,
+        sede_consumo_arg: byId('movementType').value === 'salida' ? byId('movementUseSite').value : null,
+        equipo_arg: byId('movementType').value === 'salida' ? byId('movementEquipment').value.trim() : null,
         observacion_arg: byId('movementNote').value.trim()
     };
     if (!payload.stock_id_arg || !Number.isFinite(payload.cantidad_arg) || payload.cantidad_arg <= 0) {
         status.textContent = 'Selecciona un repuesto e ingresa una cantidad válida.';
+        return;
+    }
+    if (payload.tipo_arg === 'salida' && (!payload.sede_consumo_arg || !payload.equipo_arg)) {
+        status.textContent = 'Para una salida indica la sede de uso y el equipo o trabajo realizado.';
         return;
     }
     status.textContent = 'Registrando movimiento...';
@@ -430,7 +482,26 @@ async function saveInventoryMovement(event) {
         return;
     }
     event.currentTarget.reset();
+    updateMovementFields('ingreso');
     status.textContent = 'Movimiento registrado correctamente.';
+    await loadData();
+}
+
+function updateMovementFields(type) {
+    byId('movementDestinationGroup').hidden = type !== 'transferencia';
+    byId('movementUseSiteGroup').hidden = type !== 'salida';
+    byId('movementEquipmentGroup').hidden = type !== 'salida';
+}
+
+async function updateInventoryCost(button) {
+    const input = button.closest('.inventory-cost-editor')?.querySelector('input[data-cost-input]');
+    const cost = Number(input?.value);
+    if (!Number.isFinite(cost) || cost < 0) { setStatus('Ingresa un costo sin IGV válido.', 'error'); return; }
+    button.disabled = true;
+    const { error } = await client.rpc('actualizar_costo_repuesto', { repuesto_id_arg: button.dataset.updateCost, costo_arg: cost });
+    button.disabled = false;
+    if (error) { setStatus('No se pudo actualizar el costo del repuesto.', 'error'); return; }
+    setStatus('Costo sin IGV actualizado. Se aplicará a los próximos consumos.', 'success');
     await loadData();
 }
 
@@ -457,6 +528,23 @@ function exportGeneralCsv() {
     document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(link.href);
 }
 
+function exportInventoryPygCsv() {
+    const rows = inventoryPygRows;
+    if (!rows.length) { setStatus('No hay consumos de inventario para exportar en el mes seleccionado.', 'warning'); return; }
+    const table = [[
+        'Mes', 'Fecha', 'Sede de consumo', 'Equipo codigo', 'Equipo', 'Tipo', 'Informe', 'Codigo', 'Repuesto', 'Cantidad', 'Unidad', 'Costo unitario sin IGV S/', 'Subtotal sin IGV S/', 'IGV 18% S/', 'Total con IGV S/', 'Observacion'
+    ], ...rows.map(item => [
+        monthValue(), new Date(item.fecha).toLocaleString('es-PE'), siteName(item.sede_consumo), item.equipo_codigo || '', item.equipo_nombre || '', item.tipo,
+        item.numero_informe || '', item.codigo, item.repuesto, item.cantidad, item.unidad, item.costo_unitario_sin_igv,
+        item.costo_total_sin_igv, item.igv, item.costo_total_con_igv, item.observacion || ''
+    ])];
+    const blob = new Blob([`\ufeff${table.map(row => row.map(csvCell).join(',')).join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `URBAPARK-PyG-repuestos-${monthValue()}.csv`;
+    document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(link.href);
+}
+
 function renderAll() {
     renderDashboard();
     renderKpis();
@@ -477,14 +565,17 @@ function configureEvents() {
     byId('controlTechnician').addEventListener('change', renderAll);
     byId('historyEquipment').addEventListener('change', renderHistory);
     byId('inventoryFilter').addEventListener('input', renderInventory);
+    byId('inventoryList').addEventListener('click', event => {
+        const button = event.target.closest('button[data-update-cost]');
+        if (button) updateInventoryCost(button);
+    });
     byId('toggleInventoryForm').addEventListener('click', event => showInventoryForm(event.currentTarget.getAttribute('aria-expanded') !== 'true'));
     byId('cancelInventoryForm').addEventListener('click', () => { resetInventoryForm(); showInventoryForm(false); });
     byId('inventoryForm').addEventListener('submit', saveInventoryItem);
     byId('inventoryMovementForm').addEventListener('submit', saveInventoryMovement);
-    byId('movementType').addEventListener('change', event => {
-        byId('movementDestinationGroup').hidden = event.target.value !== 'transferencia';
-    });
+    byId('movementType').addEventListener('change', event => updateMovementFields(event.target.value));
     byId('exportGeneralCsv').addEventListener('click', exportGeneralCsv);
+    byId('exportInventoryPyg').addEventListener('click', exportInventoryPygCsv);
     byId('exportGeneralPdf').addEventListener('click', () => window.print());
     document.querySelector('.control-tabs').addEventListener('click', event => {
         const button = event.target.closest('button[data-control-tab]');
