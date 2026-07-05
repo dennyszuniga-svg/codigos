@@ -1002,7 +1002,7 @@ function aplicarModuloSolicitadoDesdeURL() {
         return;
     }
     seleccionarModulo(modulo, { desplazar: false });
-    window.history.replaceState(null, '', window.location.pathname);
+    window.history.replaceState(window.history.state, '', window.location.pathname);
 }
 
 function obtenerClaveSesionMantenimiento() {
@@ -5166,7 +5166,7 @@ function asegurarControlesVentanaModulo(seccion) {
 }
 
 function seleccionarModulo(modulo, opciones = {}) {
-    const { desplazar = true } = opciones;
+    const { desplazar = true, registrarHistorial = true } = opciones;
     if (modulo === 'abonados' && !usuarioPuedeAccederAbonados()) {
         mostrarToast('Este modulo esta disponible solo para administradores autorizados.');
         modulo = null;
@@ -5199,6 +5199,14 @@ function seleccionarModulo(modulo, opciones = {}) {
 
     document.body.classList.toggle('module-window-open', Boolean(moduloActivo));
 
+    if (registrarHistorial && window.history.state?.urbaparkModule !== moduloActivo) {
+        window.history.pushState({
+            ...(window.history.state || {}),
+            urbaparkApp: true,
+            urbaparkModule: moduloActivo
+        }, '', window.location.href);
+    }
+
     document.querySelectorAll('.module-button').forEach(boton => {
         const activo = boton.dataset.module === moduloActivo;
         boton.setAttribute('aria-pressed', activo ? 'true' : 'false');
@@ -5216,6 +5224,17 @@ function seleccionarModulo(modulo, opciones = {}) {
         elementoRetornoModulo.focus({ preventScroll: true });
         elementoRetornoModulo = null;
     }
+}
+
+function cerrarModuloConNavegacion() {
+    const estado = window.history.state;
+
+    if (moduloActivo && estado?.urbaparkApp && estado.urbaparkModule === moduloActivo) {
+        window.history.back();
+        return;
+    }
+
+    seleccionarModulo(null, { desplazar: false, registrarHistorial: false });
 }
 
 function actualizarBottomNav(modulo) {
@@ -5252,7 +5271,7 @@ function manejarNavegacionInferior(event) {
     }
 
     if (boton.dataset.navAction === 'home') {
-        seleccionarModulo(null, { desplazar: false });
+        cerrarModuloConNavegacion();
         obtenerElemento('modulePanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         return;
     }
@@ -7181,7 +7200,7 @@ function configurarEventos() {
 
     document.querySelector('main').addEventListener('click', event => {
         if (event.target.closest('[data-close-module-window]')) {
-            seleccionarModulo(null, { desplazar: false });
+            cerrarModuloConNavegacion();
             return;
         }
 
@@ -7474,7 +7493,7 @@ function configurarEventos() {
         }
 
         if (event.key === 'Escape' && document.body.classList.contains('module-window-open')) {
-            seleccionarModulo(null, { desplazar: false });
+            cerrarModuloConNavegacion();
             return;
         }
 
@@ -7498,6 +7517,11 @@ function configurarEventos() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    window.history.replaceState({
+        ...(window.history.state || {}),
+        urbaparkApp: true,
+        urbaparkModule: null
+    }, '', window.location.href);
     aplicarTemaGuardado();
     prepararVoces();
     if (window.speechSynthesis) {
@@ -7514,11 +7538,17 @@ document.addEventListener('DOMContentLoaded', () => {
     actualizarCampoSedeGuia();
     configurarEventos();
     desactivarTodos();
-    seleccionarModulo(null, { desplazar: false });
+    seleccionarModulo(null, { desplazar: false, registrarHistorial: false });
     actualizarHistorialUI();
     actualizarResumenUI();
     actualizarProgresoCapacitacionUI();
     inicializarAutenticacion();
+});
+
+window.addEventListener('popstate', event => {
+    const modulo = event.state?.urbaparkModule;
+    const moduloValido = modulo && obtenerElemento(`module-${modulo}`) ? modulo : null;
+    seleccionarModulo(moduloValido, { desplazar: false, registrarHistorial: false });
 });
 
 if ('serviceWorker' in navigator) {
