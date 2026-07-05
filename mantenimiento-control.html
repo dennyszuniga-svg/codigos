@@ -62,7 +62,27 @@
         </section>
 
         <section class="control-view" data-control-view="inventory" hidden>
-            <div class="section-row"><h2>Inventario de repuestos</h2><input id="inventoryFilter" type="search" placeholder="Buscar código o repuesto"></div>
+            <div class="section-row">
+                <h2>Inventario de repuestos</h2>
+                <div class="inventory-heading-actions">
+                    <input id="inventoryFilter" type="search" placeholder="Buscar código o repuesto">
+                    <button id="toggleInventoryForm" type="button" aria-expanded="false" aria-controls="inventoryForm">Añadir repuesto</button>
+                </div>
+            </div>
+            <form id="inventoryForm" class="inventory-form" hidden>
+                <label>Código<input id="inventoryCode" type="text" maxlength="50" required></label>
+                <label>Repuesto<input id="inventoryName" type="text" maxlength="160" required></label>
+                <label>Categoría<input id="inventoryCategory" type="text" maxlength="80" placeholder="General"></label>
+                <label>Stock<input id="inventoryStock" type="number" min="0" step="0.01" required></label>
+                <label>Stock mínimo<input id="inventoryMinimum" type="number" min="0" step="0.01" value="0" required></label>
+                <label>Unidad<input id="inventoryUnit" type="text" maxlength="30" value="unidad" required></label>
+                <label class="inventory-location">Ubicación<input id="inventoryLocation" type="text" maxlength="160" placeholder="Almacén, estante o módulo"></label>
+                <div class="inventory-form-actions">
+                    <button type="submit">Guardar repuesto</button>
+                    <button class="secondary-button" id="cancelInventoryForm" type="button">Cancelar</button>
+                </div>
+            </form>
+            <p id="inventoryFormStatus" class="status" role="status" aria-live="polite"></p>
             <div id="inventorySummary" class="metric-grid"></div>
             <div id="inventoryList" class="record-list"></div>
         </section>

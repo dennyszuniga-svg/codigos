@@ -275,6 +275,58 @@ function renderInventory() {
     )));
 }
 
+function showInventoryForm(show) {
+    const form = byId('inventoryForm');
+    const button = byId('toggleInventoryForm');
+    if (!isSuperior() || !form || !button) return;
+    form.hidden = !show;
+    button.setAttribute('aria-expanded', String(show));
+    button.textContent = show ? 'Ocultar formulario' : 'Añadir repuesto';
+    if (show) byId('inventoryCode').focus();
+}
+
+function resetInventoryForm() {
+    byId('inventoryForm').reset();
+    byId('inventoryMinimum').value = '0';
+    byId('inventoryUnit').value = 'unidad';
+    byId('inventoryFormStatus').textContent = '';
+}
+
+async function saveInventoryItem(event) {
+    event.preventDefault();
+    if (!isSuperior()) return;
+    const status = byId('inventoryFormStatus');
+    const submit = event.currentTarget.querySelector('button[type="submit"]');
+    const payload = {
+        sede: selectedSite(),
+        codigo: byId('inventoryCode').value.trim().toUpperCase(),
+        nombre: byId('inventoryName').value.trim(),
+        categoria: byId('inventoryCategory').value.trim() || 'General',
+        stock: Number(byId('inventoryStock').value),
+        stock_minimo: Number(byId('inventoryMinimum').value),
+        unidad: byId('inventoryUnit').value.trim() || 'unidad',
+        ubicacion: byId('inventoryLocation').value.trim(),
+        actualizado_por: session.user.id
+    };
+    if (!payload.codigo || !payload.nombre || !Number.isFinite(payload.stock) || payload.stock < 0 || !Number.isFinite(payload.stock_minimo) || payload.stock_minimo < 0) {
+        status.textContent = 'Completa el código, nombre y cantidades válidas.';
+        return;
+    }
+    submit.disabled = true;
+    status.textContent = 'Guardando repuesto...';
+    const { error } = await client.from('inventario_repuestos').upsert(payload, { onConflict: 'sede,codigo' });
+    submit.disabled = false;
+    if (error) {
+        console.warn('No se pudo guardar el repuesto:', error);
+        status.textContent = 'No se pudo guardar el repuesto.';
+        return;
+    }
+    resetInventoryForm();
+    showInventoryForm(false);
+    await loadData();
+    byId('inventoryFormStatus').textContent = 'Repuesto guardado correctamente.';
+}
+
 function renderAll() {
     renderDashboard();
     renderKpis();
@@ -294,6 +346,9 @@ function configureEvents() {
     byId('controlMonth').addEventListener('change', loadData);
     byId('historyEquipment').addEventListener('change', renderHistory);
     byId('inventoryFilter').addEventListener('input', renderInventory);
+    byId('toggleInventoryForm').addEventListener('click', event => showInventoryForm(event.currentTarget.getAttribute('aria-expanded') !== 'true'));
+    byId('cancelInventoryForm').addEventListener('click', () => { resetInventoryForm(); showInventoryForm(false); });
+    byId('inventoryForm').addEventListener('submit', saveInventoryItem);
     document.querySelector('.control-tabs').addEventListener('click', event => {
         const button = event.target.closest('button[data-control-tab]');
         if (button) selectTab(button.dataset.controlTab);
