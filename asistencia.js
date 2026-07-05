@@ -21,7 +21,7 @@ async function init(){
  const [siteResult,shiftResult]=await Promise.all([client.from('asistencia_sedes').select('*').eq('activa',true).order('nombre'),client.from('asistencia_turnos').select('*').eq('activo',true).order('hora_inicio')]);
  if(siteResult.error||shiftResult.error){status('No se pudo cargar la configuracion de asistencia.',true);return}
  sites=siteResult.data||[];shifts=shiftResult.data||[];$('attendanceUser').textContent=`${profile.nombre} - ${profile.rol}`;$('attendanceApp').hidden=false;
- if(['anfitrion','tecnico'].includes(profile.rol)){$('workerPanel').hidden=false;await loadWorker()}
+ if(['anfitrion','tecnico','supervisor'].includes(profile.rol)){$('workerPanel').hidden=false;await loadWorker()}
  if(isManager()){$('adminPanel').hidden=false;['qrSite','scheduleSite','summarySite'].forEach(id=>fillSiteSelect($(id),profile.rol==='encargado_ti'?'puruchuco':profile.sede));$('scheduleWeek').value=dateIso(mondayOf());$('summaryMonth').value=dateIso(new Date()).slice(0,7);await loadSchedule()}
  status('Asistencia lista.');
 }

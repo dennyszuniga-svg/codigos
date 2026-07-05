@@ -86,7 +86,7 @@ Deno.serve(async req => {
     }
 
     if (body.action !== 'mark') return json({ error: 'Accion no valida.' }, 400);
-    if (!['anfitrion', 'tecnico'].includes(profile.rol)) return json({ error: 'Tu rol no registra asistencia.' }, 403);
+    if (!['anfitrion', 'tecnico', 'supervisor'].includes(profile.rol)) return json({ error: 'Tu rol no registra asistencia.' }, 403);
     const qr = await verifyQrToken(String(body.token || ''), qrSecret);
     const lat = Number(body.latitude);
     const lon = Number(body.longitude);
