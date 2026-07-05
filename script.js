@@ -360,6 +360,7 @@ let aplicandoEstadoRemoto = false;
 let temporizadorSincronizacion = null;
 let ultimoCodigoRemotoAlertado = null;
 let moduloActivo = null;
+let elementoRetornoModulo = null;
 let guiasOperativas = [];
 let guiasRemotasActivas = false;
 let guiaTareasBorrador = [];
@@ -5149,6 +5150,21 @@ function renderizarCodigos() {
     });
 }
 
+function asegurarControlesVentanaModulo(seccion) {
+    if (seccion.querySelector('.module-window-close')) {
+        return;
+    }
+
+    const botonCerrar = document.createElement('button');
+    botonCerrar.type = 'button';
+    botonCerrar.className = 'module-window-close';
+    botonCerrar.dataset.closeModuleWindow = '';
+    botonCerrar.setAttribute('aria-label', 'Cerrar modulo y volver al inicio');
+    botonCerrar.title = 'Cerrar modulo';
+    botonCerrar.textContent = '×';
+    seccion.prepend(botonCerrar);
+}
+
 function seleccionarModulo(modulo, opciones = {}) {
     const { desplazar = true } = opciones;
     if (modulo === 'abonados' && !usuarioPuedeAccederAbonados()) {
@@ -5156,11 +5172,32 @@ function seleccionarModulo(modulo, opciones = {}) {
         modulo = null;
     }
     const moduloValido = modulo && obtenerElemento(`module-${modulo}`);
+    const moduloAnterior = moduloActivo;
+
+    if (moduloValido && document.activeElement?.closest?.('button[data-module]')) {
+        elementoRetornoModulo = document.activeElement;
+    }
+
     moduloActivo = moduloValido ? modulo : null;
 
     document.querySelectorAll('.module-content').forEach(seccion => {
-        seccion.hidden = seccion.id !== `module-${moduloActivo}`;
+        const activa = seccion.id === `module-${moduloActivo}`;
+        seccion.hidden = !activa;
+        seccion.classList.toggle('module-window-active', activa);
+
+        if (activa) {
+            asegurarControlesVentanaModulo(seccion);
+            seccion.setAttribute('role', 'dialog');
+            seccion.setAttribute('aria-modal', 'true');
+            seccion.setAttribute('tabindex', '-1');
+        } else {
+            seccion.removeAttribute('role');
+            seccion.removeAttribute('aria-modal');
+            seccion.removeAttribute('tabindex');
+        }
     });
+
+    document.body.classList.toggle('module-window-open', Boolean(moduloActivo));
 
     document.querySelectorAll('.module-button').forEach(boton => {
         const activo = boton.dataset.module === moduloActivo;
@@ -5169,10 +5206,15 @@ function seleccionarModulo(modulo, opciones = {}) {
 
     actualizarBottomNav(moduloActivo);
 
-    if (desplazar && moduloActivo) {
+    if (moduloActivo) {
         const destino = obtenerElemento(`module-${moduloActivo}`);
-        const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        destino.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+        destino.scrollTop = 0;
+        if (desplazar) {
+            destino.focus({ preventScroll: true });
+        }
+    } else if (moduloAnterior && elementoRetornoModulo?.isConnected) {
+        elementoRetornoModulo.focus({ preventScroll: true });
+        elementoRetornoModulo = null;
     }
 }
 
@@ -7138,6 +7180,11 @@ function configurarEventos() {
     });
 
     document.querySelector('main').addEventListener('click', event => {
+        if (event.target.closest('[data-close-module-window]')) {
+            seleccionarModulo(null, { desplazar: false });
+            return;
+        }
+
         const botonSede = event.target.closest('button[data-select-site][data-site-module]');
         if (botonSede) {
             seleccionarSedeModulo(botonSede.dataset.siteModule, botonSede.dataset.selectSite);
@@ -7423,6 +7470,11 @@ function configurarEventos() {
 
         if (event.key === 'Escape' && document.body.classList.contains('admin-panel-open')) {
             cerrarPanelesAdmin();
+            return;
+        }
+
+        if (event.key === 'Escape' && document.body.classList.contains('module-window-open')) {
+            seleccionarModulo(null, { desplazar: false });
             return;
         }
 
