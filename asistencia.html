@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#1474a8">
+  <title>URBAPARK - Registro</title>
+  <link rel="stylesheet" href="asistencia.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script src="asistencia.js" defer></script>
+</head>
+<body>
+  <header class="attendance-header">
+    <a href="index.html">&#8592; Volver</a><img src="assets/urbapark-logo.png" alt="UrbaPark">
+    <div><p>CONTROL DE ASISTENCIA</p><h1>Registro presencial</h1></div>
+  </header>
+  <main id="attendanceApp" class="attendance-shell" hidden>
+    <section class="session-strip"><strong id="attendanceUser">Usuario</strong><span id="attendanceStatus" role="status" aria-live="polite">Cargando...</span></section>
+
+    <section id="workerPanel" class="attendance-panel" hidden>
+      <div class="section-heading"><div><p class="eyebrow">MI TURNO</p><h2>Marcación de hoy</h2></div><button id="refreshWorker" type="button" class="secondary">Actualizar</button></div>
+      <div id="todayShift" class="shift-card"></div>
+      <div class="mark-actions">
+        <button id="markEntry" type="button">Marcar entrada</button>
+        <button id="markExit" type="button" class="exit">Marcar salida</button>
+      </div>
+      <h3>Programación semanal</h3><div id="workerWeek" class="week-list"></div>
+    </section>
+
+    <section id="adminPanel" class="attendance-panel" hidden>
+      <div class="admin-tabs" role="tablist">
+        <button type="button" data-attendance-tab="qr" aria-selected="true">Mostrar QR</button>
+        <button type="button" data-attendance-tab="schedule">Programar semana</button>
+        <button type="button" data-attendance-tab="summary">Resumen mensual</button>
+      </div>
+      <div data-attendance-view="qr">
+        <div class="section-heading"><div><p class="eyebrow">QR PRESENCIAL</p><h2>Marcador de sede</h2></div><label>Sede<select id="qrSite"></select></label></div>
+        <div class="qr-stage"><div id="qrCode"></div><strong id="qrSiteName">Selecciona una sede</strong><span id="qrCountdown">QR detenido</span></div>
+        <div class="mark-actions"><button id="startQr" type="button">Iniciar QR</button><button id="stopQr" type="button" class="secondary">Detener</button></div>
+      </div>
+      <div data-attendance-view="schedule" hidden>
+        <div class="section-heading"><div><p class="eyebrow">TURNOS</p><h2>Programación semanal</h2></div><div class="inline-fields"><label>Sede<select id="scheduleSite"></select></label><label>Semana<input id="scheduleWeek" type="date"></label><button id="loadSchedule" type="button">Cargar</button></div></div>
+        <p class="helper">Asigna un turno, descanso o libre para cada día. Los turnos nocturnos quedan identificados.</p>
+        <div id="scheduleGrid" class="schedule-grid"></div><button id="saveSchedule" type="button">Guardar programación</button>
+      </div>
+      <div data-attendance-view="summary" hidden>
+        <div class="section-heading"><div><p class="eyebrow">CONTROL MENSUAL</p><h2>Horas trabajadas</h2></div><div class="inline-fields"><label>Sede<select id="summarySite"></select></label><label>Mes<input id="summaryMonth" type="month"></label><button id="loadSummary" type="button">Consultar</button></div></div>
+        <div id="monthlySummary" class="summary-list"></div><h3>Horas extra pendientes</h3><div id="pendingExtras" class="summary-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <section id="scannerModal" class="scanner-modal" hidden aria-modal="true" role="dialog" aria-labelledby="scannerTitle">
+    <div class="scanner-card"><button id="closeScanner" class="close" type="button" aria-label="Cerrar">&times;</button><h2 id="scannerTitle">Escanea el QR de la sede</h2><video id="scannerVideo" playsinline muted></video><canvas id="scannerCanvas" hidden></canvas><p id="scannerStatus">Activa la cámara y apunta al QR.</p></div>
+  </section>
+</body>
+</html>

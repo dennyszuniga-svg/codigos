@@ -507,6 +507,8 @@ body.dark-theme .theme-icon-moon {
 .module-button-primary {
     background: rgba(240, 75, 26, 0.06);
 }
+.module-icon.module-icon-attendance { background: #e7f5ee; color: #147a4f; }
+.attendance-open-link { display: inline-flex; align-items: center; justify-content: center; margin-top: 12px; text-decoration: none; }
 
 .module-icon {
     display: grid;
