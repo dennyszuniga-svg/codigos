@@ -3605,6 +3605,8 @@ body.dark-theme .modal-dialog {
     grid-column: 1 / -1;
 }
 
+.maintenance-control-link { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+
 .maintenance-recurring-option {
     display: flex !important;
     grid-column: 1 / -1;

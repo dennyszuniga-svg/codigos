@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#1596ce">
+    <title>Centro de control de mantenimiento | UrbaPark</title>
+    <link rel="stylesheet" href="mantenimiento-control.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script src="mantenimiento-control.js" defer></script>
+</head>
+<body>
+    <header class="control-header">
+        <a class="back-link" href="index.html?module=mantenimiento" aria-label="Volver a mantenimiento">&#8592; Volver</a>
+        <img src="assets/urbapark-logo.png" alt="UrbaPark">
+        <div>
+            <p>AREA DE MANTENIMIENTO</p>
+            <h1>Centro de control</h1>
+        </div>
+    </header>
+
+    <main class="control-shell" id="controlShell" hidden>
+        <section class="control-filters" aria-label="Filtros del centro de control">
+            <label>Sede<select id="controlSite"></select></label>
+            <label>Mes<input id="controlMonth" type="month"></label>
+            <button id="refreshControl" type="button">Actualizar</button>
+        </section>
+
+        <nav class="control-tabs" aria-label="Vistas de mantenimiento">
+            <button type="button" data-control-tab="dashboard" aria-selected="true">Dashboard</button>
+            <button type="button" data-control-tab="kpis" aria-selected="false">KPIs</button>
+            <button type="button" data-control-tab="history" aria-selected="false">Historial</button>
+            <button type="button" data-control-tab="failures" aria-selected="false">Fallas repetitivas</button>
+            <button type="button" data-control-tab="inventory" aria-selected="false" id="inventoryTab">Inventario</button>
+        </nav>
+
+        <p id="controlStatus" class="status" role="status" aria-live="polite"></p>
+
+        <section class="control-view" data-control-view="dashboard">
+            <h2>Dashboard técnico</h2>
+            <div id="dashboardCards" class="metric-grid"></div>
+            <div class="split-grid">
+                <article class="data-panel"><h3>Avance de tareas</h3><div id="taskProgress"></div></article>
+                <article class="data-panel"><h3>Próximos trabajos</h3><div id="upcomingTasks" class="record-list"></div></article>
+            </div>
+        </section>
+
+        <section class="control-view" data-control-view="kpis" hidden>
+            <h2>Indicadores del mes</h2>
+            <div id="kpiCards" class="metric-grid"></div>
+        </section>
+
+        <section class="control-view" data-control-view="history" hidden>
+            <div class="section-row"><h2>Historial por equipo</h2><label>Equipo<select id="historyEquipment"><option value="">Selecciona un equipo</option></select></label></div>
+            <div id="historyList" class="record-list"></div>
+        </section>
+
+        <section class="control-view" data-control-view="failures" hidden>
+            <h2>Fallas repetitivas</h2>
+            <p class="section-help">Equipos con dos o más mantenimientos correctivos registrados.</p>
+            <div id="failureList" class="record-list"></div>
+        </section>
+
+        <section class="control-view" data-control-view="inventory" hidden>
+            <div class="section-row"><h2>Inventario de repuestos</h2><input id="inventoryFilter" type="search" placeholder="Buscar código o repuesto"></div>
+            <div id="inventorySummary" class="metric-grid"></div>
+            <div id="inventoryList" class="record-list"></div>
+        </section>
+    </main>
+
+    <section class="access-message" id="accessMessage">
+        <h1>Verificando acceso</h1>
+        <p>Conectando con el área de mantenimiento...</p>
+    </section>
+</body>
+</html>

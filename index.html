@@ -488,9 +488,10 @@
                                 <span id="maintenanceSiteLabel">Inventario de la sede asignada</span>
                                 <div class="maintenance-toolbar-actions">
                                     <span class="maintenance-role-badge">Acceso por rol</span>
-                                    <button class="clear-btn" id="toggleManagementDashboard" type="button" aria-expanded="false" aria-controls="managementDashboardPanel">Dashboard</button>
-                                    <button class="clear-btn" id="exportMonthlyMaintenance" type="button">Exportar mes</button>
-                                    <button class="finish-btn" id="toggleMaintenanceKpis" type="button" aria-expanded="false" aria-controls="maintenanceKpiPanel">Ver KPIs</button>
+                                    <a class="finish-btn maintenance-control-link" id="maintenanceControlCenter" href="mantenimiento-control.html">Centro de control</a>
+                                    <button class="clear-btn" id="toggleManagementDashboard" type="button" aria-expanded="false" aria-controls="managementDashboardPanel" hidden>Dashboard</button>
+                                    <button class="clear-btn" id="exportMonthlyMaintenance" type="button" hidden>Exportar mes</button>
+                                    <button class="finish-btn" id="toggleMaintenanceKpis" type="button" aria-expanded="false" aria-controls="maintenanceKpiPanel" hidden>Ver KPIs</button>
                                 </div>
                             </div>
 
@@ -549,11 +550,11 @@
                                     <button class="finish-btn" type="submit">Asignar y notificar</button>
                                 </form>
                                 <p id="maintenanceTasksStatus" class="auth-status" role="status" aria-live="polite"></p>
-                                <div id="technicalDashboard" class="technical-dashboard" aria-live="polite"></div>
+                                <div id="technicalDashboard" class="technical-dashboard" aria-live="polite" hidden></div>
                                 <div id="maintenanceTasksList" class="maintenance-tasks-list" aria-live="polite"></div>
                             </section>
 
-                            <section class="equipment-history-panel" aria-labelledby="equipmentHistoryTitle">
+                            <section class="equipment-history-panel" aria-labelledby="equipmentHistoryTitle" hidden>
                                 <div class="inventory-heading">
                                     <div>
                                         <h4 id="equipmentHistoryTitle">Historial y fallas por equipo</h4>
@@ -581,7 +582,7 @@
                                 <a class="maintenance-report-link" id="openMaintenanceReport" href="informe-incidentes.html">Nuevo informe</a>
                             </div>
 
-                            <section class="inventory-panel" id="inventoryPanel" aria-labelledby="inventoryTitle">
+                            <section class="inventory-panel" id="inventoryPanel" aria-labelledby="inventoryTitle" hidden>
                                 <div class="inventory-heading">
                                     <div>
                                         <h4 id="inventoryTitle">Inventario de repuestos disponibles</h4>

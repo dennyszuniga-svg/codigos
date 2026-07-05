@@ -1,0 +1,46 @@
+:root { color-scheme: light; font-family: Inter, system-ui, sans-serif; color: #142236; background: #eef3f7; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; }
+button, input, select { font: inherit; }
+button, .back-link { min-height: 42px; }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 3px solid #ef4b23; outline-offset: 2px; }
+.control-header { display: grid; grid-template-columns: auto 150px 1fr; align-items: center; gap: 18px; padding: 16px clamp(16px, 4vw, 48px); background: #fff; border-bottom: 4px solid #ef4b23; }
+.control-header img { width: 145px; height: auto; }
+.control-header p { margin: 0; color: #ef4b23; font-size: .76rem; font-weight: 800; }
+.control-header h1 { margin: 2px 0 0; color: #167da9; font-size: clamp(1.35rem, 3vw, 2rem); }
+.back-link { display: inline-flex; align-items: center; color: #167da9; font-weight: 800; text-decoration: none; }
+.control-shell { width: min(1280px, calc(100% - 28px)); margin: 18px auto 48px; }
+.control-filters, .control-tabs, .section-row { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
+.control-filters { padding: 12px; background: #fff; border: 1px solid #d5dee7; border-radius: 8px; }
+label { display: grid; gap: 5px; font-size: .82rem; font-weight: 800; }
+input, select { min-height: 42px; padding: 8px 10px; border: 1px solid #aebdca; border-radius: 5px; background: #fff; color: #142236; }
+button { padding: 8px 14px; border: 0; border-radius: 5px; background: #1596ce; color: #fff; font-weight: 800; cursor: pointer; }
+.control-tabs { margin: 14px 0; padding-bottom: 8px; border-bottom: 1px solid #cbd6df; }
+.control-tabs button { background: #dce6ee; color: #263b50; }
+.control-tabs button[aria-selected="true"] { background: #142236; color: #fff; }
+.control-view { padding: 18px; background: #fff; border: 1px solid #d5dee7; border-radius: 8px; }
+.control-view h2 { margin: 0 0 14px; }
+.metric-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.metric-card { padding: 14px; border: 1px solid #d5dee7; border-top: 4px solid #1596ce; border-radius: 6px; }
+.metric-card strong { display: block; font-size: 1.65rem; }
+.metric-card span { display: block; margin-top: 4px; color: #607184; font-size: .82rem; }
+.metric-card.warning { border-top-color: #e49b16; }
+.metric-card.danger { border-top-color: #d92d20; }
+.metric-card.good { border-top-color: #168453; }
+.split-grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 14px; margin-top: 14px; }
+.data-panel { padding: 14px; border: 1px solid #d5dee7; border-radius: 6px; }
+.data-panel h3 { margin-top: 0; }
+.progress-track { height: 18px; overflow: hidden; border-radius: 4px; background: #dfe7ed; }
+.progress-track span { display: block; height: 100%; background: #168453; }
+.record-list { display: grid; gap: 8px; }
+.record { padding: 11px 12px; border: 1px solid #d5dee7; border-left: 4px solid #1596ce; border-radius: 5px; }
+.record.corrective, .record.failure { border-left-color: #d92d20; }
+.record strong, .record small { display: block; }
+.record small { margin-top: 4px; color: #607184; line-height: 1.4; }
+.section-row { justify-content: space-between; margin-bottom: 12px; }
+.section-row h2 { margin: 0; }
+.section-help, .status { color: #607184; }
+.access-message { width: min(540px, calc(100% - 28px)); margin: 80px auto; padding: 24px; text-align: center; background: #fff; border: 1px solid #d5dee7; border-radius: 8px; }
+.empty { padding: 18px; color: #607184; text-align: center; border: 1px dashed #aebdca; border-radius: 6px; }
+@media (max-width: 850px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split-grid { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .control-header { grid-template-columns: auto 1fr; } .control-header img { width: 110px; } .control-header div { grid-column: 1 / -1; } .control-shell { width: min(100% - 16px, 1280px); margin-top: 8px; } .control-tabs { display: grid; grid-template-columns: repeat(2, 1fr); } .control-tabs button { padding: 7px; } .control-view { padding: 12px; } .metric-grid { grid-template-columns: repeat(2, 1fr); } }

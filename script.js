@@ -1461,6 +1461,7 @@ function actualizarAreaMantenimientoUI() {
         obtenerElemento('exportMonthlyMaintenance'),
         obtenerElemento('toggleMaintenanceKpis')
     ];
+    const centroControl = obtenerElemento('maintenanceControlCenter');
 
     const autorizado = usuarioPuedeAccederMantenimiento();
     accesoMantenimientoActivo = autorizado;
@@ -1478,11 +1479,14 @@ function actualizarAreaMantenimientoUI() {
         formularioInventario.hidden = !usuarioPuedeGestionarInventario();
     }
     if (panelInventario) {
-        panelInventario.hidden = !usuarioPuedeGestionarInventario();
+        panelInventario.hidden = true;
     }
     controlesGerenciales.forEach(control => {
-        if (control) control.hidden = !usuarioEsSuperior();
+        if (control) control.hidden = true;
     });
+    if (centroControl) {
+        centroControl.href = `mantenimiento-control.html?sede=${encodeURIComponent(obtenerSedeMantenimientoActiva())}`;
+    }
     if (sede) {
         sede.textContent = `Area de mantenimiento: ${obtenerNombreSede(obtenerSedeMantenimientoActiva())}`;
     }
