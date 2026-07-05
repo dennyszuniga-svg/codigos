@@ -1,0 +1,19 @@
+.mark-actions button:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+  filter: grayscale(.7);
+}
+
+.mark-help {
+  margin: 0 0 14px;
+  padding: 9px 10px;
+  border-radius: 5px;
+  background: #f3f6f8;
+  color: #526273;
+  font-size: .86rem;
+}
+
+.mark-help.warning {
+  background: #fff4e5;
+  color: #8a4b08;
+}

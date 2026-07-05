@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#1474a8">
   <title>URBAPARK - Registro</title>
   <link rel="stylesheet" href="asistencia.css">
+  <link rel="stylesheet" href="asistencia-status.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
@@ -26,6 +27,7 @@
         <button id="markEntry" type="button">Marcar entrada</button>
         <button id="markExit" type="button" class="exit">Marcar salida</button>
       </div>
+      <p id="markHelp" class="mark-help" role="status"></p>
       <h3>Programación semanal</h3><div id="workerWeek" class="week-list"></div>
     </section>
 

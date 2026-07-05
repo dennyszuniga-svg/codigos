@@ -36,7 +36,12 @@ async function loadWorker(){
  for(let i=0;i<7;i++){const date=dateIso(addDays(start,i)),item=map.get(date),record=recordMap.get(date);const card=document.createElement('article');card.className='week-item';const title=document.createElement('strong');const detail=document.createElement('span');title.textContent=formatDate(date);detail.textContent=item?.estado==='programado'?`${item.asistencia_turnos?.nombre||'Turno'} - ${siteName(item.sede)}${record?` | Entrada ${formatDateTime(record.entrada_at)} | Salida ${formatDateTime(record.salida_at)}`:''}`:item?item.estado:'Sin programacion';card.append(title,detail);week.appendChild(card)}
  const todaySchedule=map.get(today);const todayRecord=recordMap.get(today)||(records||[]).find(item=>!item.salida_at);const box=$('todayShift');clear(box);const strong=document.createElement('strong'),text=document.createElement('span');
  strong.textContent=todaySchedule?.estado==='programado'?(todaySchedule.asistencia_turnos?.nombre||'Turno programado'):'Sin turno programado hoy';text.textContent=todaySchedule?.estado==='programado'?`${siteName(todaySchedule.sede)} | Refrigerio ${todaySchedule.asistencia_turnos?.refrigerio_minutos||0} min${todaySchedule.asistencia_turnos?.es_nocturno?' | Turno nocturno':''}`:'Solicita al administrador que programe tu semana.';box.append(strong,text);
- $('markEntry').disabled=!todaySchedule||todaySchedule.estado!=='programado'||Boolean(todayRecord?.entrada_at);$('markExit').disabled=!todayRecord?.entrada_at||Boolean(todayRecord?.salida_at);
+ const canEnter=Boolean(todaySchedule&&todaySchedule.estado==='programado'&&!todayRecord?.entrada_at);const canExit=Boolean(todayRecord?.entrada_at&&!todayRecord?.salida_at);$('markEntry').disabled=!canEnter;$('markExit').disabled=!canExit;
+ const help=$('markHelp');help.className='mark-help';
+ if(!todaySchedule||todaySchedule.estado!=='programado'){help.textContent='Marcacion bloqueada: el administrador debe asignarte un turno para hoy.';help.classList.add('warning')}
+ else if(canEnter)help.textContent='Turno programado. Pulsa Marcar entrada para abrir la camara y escanear el QR.';
+ else if(canExit)help.textContent='Entrada registrada. Pulsa Marcar salida al terminar tu jornada.';
+ else help.textContent='La entrada y salida de este turno ya fueron registradas.';
 }
 
 function switchTab(name){document.querySelectorAll('[data-attendance-tab]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.attendanceTab===name)));document.querySelectorAll('[data-attendance-view]').forEach(view=>view.hidden=view.dataset.attendanceView!==name)}

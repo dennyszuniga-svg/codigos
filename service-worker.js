@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codigos-urbapark-v79';
+const CACHE_NAME = 'codigos-urbapark-v80';
 const APP_SHELL = [
     './',
     './index.html',
@@ -12,6 +12,7 @@ const APP_SHELL = [
     './mantenimiento-control.js',
     './asistencia.html',
     './asistencia.css',
+    './asistencia-status.css',
     './asistencia.js',
     './manifest.webmanifest',
     './assets/urbapark-logo.png',
