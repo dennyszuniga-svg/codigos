@@ -1002,7 +1002,7 @@ function aplicarModuloSolicitadoDesdeURL() {
         return;
     }
     seleccionarModulo(modulo, { desplazar: false });
-    window.history.replaceState(window.history.state, '', window.location.pathname);
+    window.history.replaceState(window.history.state, '', obtenerRutaNavegacionModulo(modulo));
 }
 
 function obtenerClaveSesionMantenimiento() {
@@ -5165,6 +5165,32 @@ function asegurarControlesVentanaModulo(seccion) {
     seccion.prepend(botonCerrar);
 }
 
+function obtenerRutaNavegacionModulo(modulo) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('module');
+    url.hash = modulo ? `modulo-${encodeURIComponent(modulo)}` : 'inicio';
+    return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function obtenerModuloDesdeRuta(estado) {
+    if (estado?.urbaparkModule && obtenerElemento(`module-${estado.urbaparkModule}`)) {
+        return estado.urbaparkModule;
+    }
+
+    const coincidencia = window.location.hash.match(/^#modulo-(.+)$/);
+    if (!coincidencia) {
+        return null;
+    }
+
+    try {
+        const modulo = decodeURIComponent(coincidencia[1]);
+        return obtenerElemento(`module-${modulo}`) ? modulo : null;
+    } catch (error) {
+        console.warn('No se pudo interpretar la ruta del modulo.', error);
+        return null;
+    }
+}
+
 function seleccionarModulo(modulo, opciones = {}) {
     const { desplazar = true, registrarHistorial = true } = opciones;
     if (modulo === 'abonados' && !usuarioPuedeAccederAbonados()) {
@@ -5204,7 +5230,7 @@ function seleccionarModulo(modulo, opciones = {}) {
             ...(window.history.state || {}),
             urbaparkApp: true,
             urbaparkModule: moduloActivo
-        }, '', window.location.href);
+        }, '', obtenerRutaNavegacionModulo(moduloActivo));
     }
 
     document.querySelectorAll('.module-button').forEach(boton => {
@@ -7517,11 +7543,13 @@ function configurarEventos() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    const urlInicial = new URL(window.location.href);
+    urlInicial.hash = 'inicio';
     window.history.replaceState({
         ...(window.history.state || {}),
         urbaparkApp: true,
         urbaparkModule: null
-    }, '', window.location.href);
+    }, '', `${urlInicial.pathname}${urlInicial.search}${urlInicial.hash}`);
     aplicarTemaGuardado();
     prepararVoces();
     if (window.speechSynthesis) {
@@ -7546,9 +7574,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 window.addEventListener('popstate', event => {
-    const modulo = event.state?.urbaparkModule;
-    const moduloValido = modulo && obtenerElemento(`module-${modulo}`) ? modulo : null;
-    seleccionarModulo(moduloValido, { desplazar: false, registrarHistorial: false });
+    seleccionarModulo(obtenerModuloDesdeRuta(event.state), {
+        desplazar: false,
+        registrarHistorial: false
+    });
 });
 
 if ('serviceWorker' in navigator) {
