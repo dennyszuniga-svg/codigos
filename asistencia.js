@@ -65,6 +65,61 @@ async function saveSchedule(){const site=$('scheduleSite').value;const items=[..
 
 async function loadSummary(){const site=$('summarySite').value,month=$('summaryMonth').value;if(!site||!month)return;const start=`${month}-01`,endDate=new Date(`${start}T12:00:00`);endDate.setMonth(endDate.getMonth()+1);const end=dateIso(endDate);
  const [{data:summary,error},{data:pending,error:pendingError},{data:staff}]=await Promise.all([client.rpc('resumen_asistencia_mes',{sede_arg:site,mes_arg:month}),client.from('asistencia_registros').select('*').eq('sede',site).gte('fecha_laboral',start).lt('fecha_laboral',end).eq('estado_extra','pendiente').order('fecha_laboral'),client.rpc('listar_personal_asistencia',{sede_arg:site})]);if(error||pendingError){status('No se pudo cargar el resumen mensual.',true);return}const names=new Map((staff||[]).map(item=>[item.id,item.nombre]));const list=$('monthlySummary');clear(list);(summary||[]).forEach(item=>{const card=document.createElement('article');card.className='summary-item';card.innerHTML=`<strong>${escapeHtml(item.nombre)} - ${escapeHtml(item.rol)}</strong><span>${item.horas_trabajadas} h | ${item.dias_trabajados} dias | Tardanza ${item.minutos_tardanza} min | Nocturnas ${item.horas_nocturnas} h | Extra 25%: ${item.horas_extra_25} h | Extra 35%: ${item.horas_extra_35} h</span>`;list.appendChild(card)});const extras=$('pendingExtras');clear(extras);if(!(pending||[]).length){extras.appendChild(emptyCard('No hay horas extra pendientes.'))}else (pending||[]).forEach(item=>extras.appendChild(extraCard(item,names.get(item.user_id)||'Usuario')));status('Resumen actualizado.')}
+function horasDesdeMinutos(minutos){return Number(((Number(minutos)||0)/60).toFixed(2))}
+function textoFechaHoraExcel(valor){return valor?new Date(valor).toLocaleString('es-PE',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}):''}
+function ajustarHojaExcel(hoja,anchos){hoja['!cols']=anchos.map(wch=>({wch}));if(hoja['!ref'])hoja['!autofilter']={ref:hoja['!ref']}}
+
+async function exportarResumenAsistenciaExcel(){
+ const site=$('summarySite').value,month=$('summaryMonth').value;
+ if(!site||!month){status('Selecciona la sede y el mes.',true);return}
+ if(!window.XLSX){status('No se pudo cargar el generador de Excel. Revisa la conexion.',true);return}
+ status('Generando Excel mensual...');
+ const start=`${month}-01`,endDate=new Date(`${start}T12:00:00`);endDate.setMonth(endDate.getMonth()+1);const end=dateIso(endDate);
+ const [{data:summary,error:summaryError},{data:records,error:recordsError},{data:staff,error:staffError}]=await Promise.all([
+  client.rpc('resumen_asistencia_mes',{sede_arg:site,mes_arg:month}),
+  client.from('asistencia_registros').select('*,asistencia_programacion(fecha,estado,asistencia_turnos(nombre,hora_inicio,hora_fin,refrigerio_minutos,es_nocturno))').eq('sede',site).gte('fecha_laboral',start).lt('fecha_laboral',end).order('fecha_laboral').order('entrada_at'),
+  client.rpc('listar_personal_asistencia',{sede_arg:site})
+ ]);
+ if(summaryError||recordsError||staffError){status('No se pudieron obtener todos los datos para el Excel.',true);return}
+ const personal=new Map((staff||[]).map(item=>[item.id,item]));
+ const extrasNocturnas=new Map();
+ (records||[]).forEach(item=>{
+  const turno=item.asistencia_programacion?.asistencia_turnos;
+  if(!turno?.es_nocturno)return;
+  const actual=extrasNocturnas.get(item.user_id)||{total:0,extra25:0,extra35:0};
+  actual.total+=Number(item.horas_extra_aprobadas)||0;
+  actual.extra25+=Number(item.horas_extra_25)||0;
+  actual.extra35+=Number(item.horas_extra_35)||0;
+  extrasNocturnas.set(item.user_id,actual);
+ });
+ const resumenFilas=(summary||[]).map(item=>{const nocturnas=extrasNocturnas.get(item.user_id)||{};return{
+  'Personal':item.nombre,'Rol':item.rol,'Sede':siteName(site),'Mes':month,'Dias trabajados':Number(item.dias_trabajados)||0,
+  'Horas trabajadas':Number(item.horas_trabajadas)||0,'Horas nocturnas':Number(item.horas_nocturnas)||0,
+  'Horas extra 25%':Number(item.horas_extra_25)||0,'Horas extra 35%':Number(item.horas_extra_35)||0,
+  'Extras nocturnas':nocturnas.total||0,'Extras nocturnas 25%':nocturnas.extra25||0,'Extras nocturnas 35%':nocturnas.extra35||0,
+  'Tardanza (min)':Number(item.minutos_tardanza)||0,'Extras pendientes':Number(item.extras_pendientes)||0
+ }});
+ const detalleFilas=(records||[]).map(item=>{const persona=personal.get(item.user_id)||{},turno=item.asistencia_programacion?.asistencia_turnos||{},esNocturno=Boolean(turno.es_nocturno);return{
+  'Fecha':item.fecha_laboral,'Personal':persona.nombre||'Usuario','Rol':persona.rol||'','Sede':siteName(item.sede),'Turno':turno.nombre||'',
+  'Tipo de turno':esNocturno?'Nocturno':'Diurno','Entrada programada':turno.hora_inicio||'','Salida programada':turno.hora_fin||'',
+  'Ingreso real':textoFechaHoraExcel(item.entrada_at),'Salida real':textoFechaHoraExcel(item.salida_at),'Horas trabajadas':horasDesdeMinutos(item.minutos_trabajados),
+  'Tardanza (min)':Number(item.minutos_tardanza)||0,'Extra solicitada':Number(item.horas_extra_solicitadas)||0,'Extra aprobada':Number(item.horas_extra_aprobadas)||0,
+  'Extra 25%':Number(item.horas_extra_25)||0,'Extra 35%':Number(item.horas_extra_35)||0,'Extra nocturna':esNocturno?(Number(item.horas_extra_aprobadas)||0):0,
+  'Estado extra':item.estado_extra||'','Distancia ingreso (m)':Number(item.distancia_entrada_m)||0,'Distancia salida (m)':Number(item.distancia_salida_m)||0,
+  'Observacion':item.observacion_aprobacion||''
+ }});
+ if(!resumenFilas.length&&!detalleFilas.length){status('No hay registros para exportar en el mes seleccionado.',true);return}
+ const libro=XLSX.utils.book_new(),hojaResumen=XLSX.utils.json_to_sheet(resumenFilas),hojaDetalle=XLSX.utils.json_to_sheet(detalleFilas);
+ ajustarHojaExcel(hojaResumen,[28,16,28,12,16,18,18,18,18,18,22,22,17,18]);
+ ajustarHojaExcel(hojaDetalle,[12,28,16,28,24,16,20,20,22,22,18,17,18,18,14,14,18,16,20,20,34]);
+ XLSX.utils.book_append_sheet(libro,hojaResumen,'Resumen mensual');
+ XLSX.utils.book_append_sheet(libro,hojaDetalle,'Detalle diario');
+ libro.Props={Title:`Asistencia ${siteName(site)} ${month}`,Subject:'Control mensual de asistencia',Author:'URBAPARK',Company:'URBAPARK'};
+ const nombreSede=siteName(site).replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'');
+ XLSX.writeFile(libro,`Asistencia-${nombreSede}-${month}.xlsx`,{compression:true});
+ status('Excel mensual generado.');
+}
+
 function emptyCard(text){const card=document.createElement('article');card.className='summary-item';card.textContent=text;return card}
 function extraCard(item,name){const card=document.createElement('article');card.className='summary-item pending';const title=document.createElement('strong'),detail=document.createElement('span'),actions=document.createElement('div'),input=document.createElement('input'),approve=document.createElement('button'),reject=document.createElement('button');title.textContent=`${name} - ${item.fecha_laboral}`;detail.textContent=`Solicita ${item.horas_extra_solicitadas} hora(s) completa(s). Salida: ${formatDateTime(item.salida_at)}`;actions.className='extra-actions';input.type='number';input.min='0';input.max=String(item.horas_extra_solicitadas);input.value=String(item.horas_extra_solicitadas);approve.textContent='Aprobar';approve.dataset.approveExtra=item.id;reject.textContent='Rechazar';reject.className='secondary';reject.dataset.rejectExtra=item.id;actions.append(input,approve,reject);card.append(title,detail,actions);return card}
 async function approveExtra(button,hours){const {error}=await client.rpc('aprobar_horas_extra_asistencia',{registro_arg:button.dataset.approveExtra||button.dataset.rejectExtra,horas_arg:hours,observacion_arg:hours?'Aprobado desde control mensual':'Rechazado desde control mensual'});if(error){status(error.message,true);return}await loadSummary()}
@@ -78,6 +133,6 @@ function escapeHtml(value){return String(value??'').replaceAll('&','&amp;').repl
 
 document.querySelector('.admin-tabs')?.addEventListener('click',event=>{const button=event.target.closest('[data-attendance-tab]');if(button)switchTab(button.dataset.attendanceTab)});
 $('refreshWorker')?.addEventListener('click',loadWorker);$('markEntry')?.addEventListener('click',()=>openScanner('entrada'));$('markExit')?.addEventListener('click',()=>openScanner('salida'));$('closeScanner')?.addEventListener('click',closeScanner);
-$('startQr')?.addEventListener('click',startQr);$('stopQr')?.addEventListener('click',stopQr);$('qrSite')?.addEventListener('change',()=>{if(qrTimer)generateQr()});$('loadSchedule')?.addEventListener('click',loadSchedule);$('saveSchedule')?.addEventListener('click',saveSchedule);$('loadSummary')?.addEventListener('click',loadSummary);
+$('startQr')?.addEventListener('click',startQr);$('stopQr')?.addEventListener('click',stopQr);$('qrSite')?.addEventListener('change',()=>{if(qrTimer)generateQr()});$('loadSchedule')?.addEventListener('click',loadSchedule);$('saveSchedule')?.addEventListener('click',saveSchedule);$('loadSummary')?.addEventListener('click',loadSummary);$('exportSummaryExcel')?.addEventListener('click',exportarResumenAsistenciaExcel);
 $('pendingExtras')?.addEventListener('click',event=>{const approve=event.target.closest('[data-approve-extra]'),reject=event.target.closest('[data-reject-extra]');if(approve){const value=Number(approve.closest('.extra-actions').querySelector('input').value);approveExtra(approve,value)}else if(reject)approveExtra(reject,0)});
 window.addEventListener('pagehide',()=>{stopQr();closeScanner()});init();
