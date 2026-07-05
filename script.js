@@ -970,6 +970,17 @@ async function actualizarEstadoTareaMantenimiento(id, estado) {
         mostrarToast('No se pudo actualizar la tarea.');
         return;
     }
+    if (estado === 'completada') {
+        const tarea = tareasMantenimiento.find(item => item.id === id);
+        supabaseClient.functions.invoke('send-code-alert', {
+            body: {
+                evento: 'tarea_completada',
+                tareaId: id,
+                titulo: tarea?.titulo || 'Tarea de mantenimiento',
+                sede: tarea?.sede || obtenerSedeMantenimientoActiva()
+            }
+        }).catch(errorPush => console.warn('No se pudo notificar la tarea completada:', errorPush));
+    }
     mostrarToast(estado === 'completada' ? 'Tarea completada.' : 'Tarea iniciada.');
     await cargarTareasMantenimiento();
 }

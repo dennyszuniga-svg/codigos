@@ -74,6 +74,8 @@ Deno.serve(async (req) => {
     ? 'nuevo_abonado'
     : body.evento === 'tarea_mantenimiento'
       ? 'tarea_mantenimiento'
+      : body.evento === 'tarea_completada'
+        ? 'tarea_completada'
       : 'codigo';
   const codigo = typeof body.codigo === 'string' ? body.codigo : '';
   const nombre = typeof body.nombre === 'string' ? body.nombre : nombresCodigo[codigo] || 'Codigo activado';
@@ -121,6 +123,15 @@ Deno.serve(async (req) => {
       });
     }
   }
+  if (evento === 'tarea_completada') {
+    const { data: tarea } = await supabase
+      .from('tareas_mantenimiento')
+      .select('id,asignado_a,estado')
+      .eq('id', tareaId).eq('asignado_a', userData.user.id).eq('estado', 'completada').maybeSingle();
+    if (!tarea) return new Response(JSON.stringify({ error: 'Tarea completada no valida' }), {
+      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 
   const { data: siteUsers, error: siteUsersError } = await supabase
     .from('profiles')
@@ -140,6 +151,8 @@ Deno.serve(async (req) => {
       ? item.rol === 'encargado_ti' || (item.rol === 'admin' && item.sede === sedeDestino)
       : evento === 'tarea_mantenimiento'
         ? item.id === asignadoA && item.rol === 'tecnico'
+        : evento === 'tarea_completada'
+          ? item.rol === 'encargado_ti'
         : item.sede === sedeDestino)
     .map((item) => item.id);
   if (!recipientIds.length) {
@@ -177,6 +190,11 @@ Deno.serve(async (req) => {
     body: `${tituloTarea}. Fecha limite: ${fechaLimite || 'por confirmar'}.`,
     tag: `tarea-mantenimiento-${tareaId || asignadoA}`,
     data: { tipo: 'tarea_mantenimiento', module: 'mantenimiento', tareaId, sede: sedeDestino },
+  } : evento === 'tarea_completada' ? {
+    title: 'Tarea de mantenimiento completada',
+    body: `${senderProfile.nombre || 'Un tecnico'} completo ${tituloTarea}.`,
+    tag: `tarea-completada-${tareaId}`,
+    data: { tipo: 'tarea_completada', module: 'mantenimiento', tareaId, sede: sedeDestino },
   } : {
     title: `${nombre} activado`,
     body: `${senderProfile.nombre || 'Un usuario'} activo ${nombre}. Revisa el checklist operativo.`,

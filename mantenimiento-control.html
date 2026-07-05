@@ -25,6 +25,8 @@
             <label>Mes<input id="controlMonth" type="month"></label>
             <label id="technicianFilterGroup">Técnico<select id="controlTechnician"><option value="">Todos los técnicos</option></select></label>
             <button id="refreshControl" type="button">Actualizar</button>
+            <button id="exportGeneralCsv" type="button">Exportar CSV</button>
+            <button id="exportGeneralPdf" type="button">Generar PDF</button>
         </section>
 
         <nav class="control-tabs" aria-label="Vistas de mantenimiento">
@@ -78,6 +80,8 @@
                 <label>Stock mínimo<input id="inventoryMinimum" type="number" min="0" step="0.01" value="0" required></label>
                 <label>Unidad<input id="inventoryUnit" type="text" maxlength="30" value="unidad" required></label>
                 <label class="inventory-location">Ubicación<input id="inventoryLocation" type="text" maxlength="160" placeholder="Almacén, estante o módulo"></label>
+                <label>Proveedor<input id="inventorySupplier" type="text" maxlength="160"></label>
+                <label>Contacto proveedor<input id="inventorySupplierContact" type="text" maxlength="160"></label>
                 <div class="inventory-form-actions">
                     <button type="submit">Guardar repuesto</button>
                     <button class="secondary-button" id="cancelInventoryForm" type="button">Cancelar</button>
@@ -86,6 +90,19 @@
             <p id="inventoryFormStatus" class="status" role="status" aria-live="polite"></p>
             <div id="inventorySummary" class="metric-grid"></div>
             <div id="inventoryList" class="record-list"></div>
+            <article class="data-panel inventory-movement-panel">
+                <h3>Registrar movimiento</h3>
+                <form id="inventoryMovementForm" class="inventory-movement-form">
+                    <label>Repuesto<select id="movementItem" required><option value="">Selecciona un repuesto</option></select></label>
+                    <label>Movimiento<select id="movementType" required><option value="ingreso">Ingreso</option><option value="salida">Salida</option><option value="ajuste">Ajuste de stock</option></select></label>
+                    <label>Cantidad<input id="movementQuantity" type="number" min="0" step="0.01" required></label>
+                    <label>Observación<input id="movementNote" type="text" maxlength="500"></label>
+                    <button type="submit">Registrar movimiento</button>
+                </form>
+                <p id="movementStatus" class="status" role="status" aria-live="polite"></p>
+                <h3>Últimos movimientos</h3>
+                <div id="movementList" class="record-list"></div>
+            </article>
         </section>
     </main>
 

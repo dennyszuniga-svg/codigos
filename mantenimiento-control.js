@@ -15,6 +15,7 @@ let session = null;
 let profile = null;
 let interventions = [];
 let inventory = [];
+let inventoryMovements = [];
 
 const byId = id => document.getElementById(id);
 const clear = element => { while (element?.firstChild) element.firstChild.remove(); };
@@ -151,14 +152,17 @@ async function loadData() {
         .eq('sede', site).order('fecha_guardado', { ascending: false }).limit(500);
     if (!isSuperior()) reportsQuery = reportsQuery.eq('creado_por', session.user.id);
 
-    const [reportsResult, inventoryResult] = await Promise.all([
+    const [reportsResult, inventoryResult, movementsResult] = await Promise.all([
         reportsQuery,
         isSuperior()
-            ? client.from('inventario_repuestos').select('id,codigo,nombre,categoria,stock,stock_minimo,unidad,ubicacion,updated_at').eq('sede', site).order('nombre')
+            ? client.from('inventario_repuestos').select('id,codigo,nombre,categoria,stock,stock_minimo,unidad,ubicacion,proveedor,contacto_proveedor,updated_at').eq('sede', site).order('nombre')
+            : Promise.resolve({ data: [], error: null }),
+        isSuperior()
+            ? client.from('inventario_movimientos').select('id,repuesto_codigo,repuesto_nombre,tipo,cantidad,unidad,observacion,created_at').eq('sede', site).order('created_at', { ascending: false }).limit(100)
             : Promise.resolve({ data: [], error: null })
     ]);
 
-    const error = reportsResult.error || inventoryResult.error;
+    const error = reportsResult.error || inventoryResult.error || movementsResult.error;
     if (error) {
         setStatus('No se pudo cargar toda la información. Actualiza e inténtalo nuevamente.', 'error');
         console.warn('Centro de control:', error);
@@ -166,6 +170,7 @@ async function loadData() {
     }
     interventions = reportsResult.data || [];
     inventory = inventoryResult.data || [];
+    inventoryMovements = movementsResult.data || [];
     configureTechnicianFilter();
     renderAll();
     setStatus(`Actualizado: ${siteName(site)} - ${month}`, 'success');
@@ -315,8 +320,33 @@ function renderInventory() {
     if (!rows.length) { list.appendChild(empty('No hay repuestos que coincidan con la búsqueda.')); return; }
     rows.forEach(item => list.appendChild(record(
         `${item.codigo} - ${item.nombre}`,
-        `${item.stock} ${item.unidad} - Mínimo ${item.stock_minimo} - ${item.ubicacion || 'Sin ubicación'}`,
+        `${item.stock} ${item.unidad} - Mínimo ${item.stock_minimo} - ${item.ubicacion || 'Sin ubicación'}${item.proveedor ? ` - Proveedor: ${item.proveedor}` : ''}`,
         Number(item.stock) <= Number(item.stock_minimo) ? 'failure' : ''
+    )));
+    renderInventoryMovements();
+}
+
+function renderInventoryMovements() {
+    const selector = byId('movementItem');
+    const list = byId('movementList');
+    if (!selector || !list || !isSuperior()) return;
+    const previous = selector.value;
+    clear(selector); clear(list);
+    const initial = document.createElement('option');
+    initial.value = '';
+    initial.textContent = 'Selecciona un repuesto';
+    selector.appendChild(initial);
+    inventory.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.id;
+        option.textContent = `${item.codigo} - ${item.nombre} (${item.stock} ${item.unidad})`;
+        selector.appendChild(option);
+    });
+    if ([...selector.options].some(option => option.value === previous)) selector.value = previous;
+    if (!inventoryMovements.length) { list.appendChild(empty('Todavía no hay movimientos registrados.')); return; }
+    inventoryMovements.slice(0, 20).forEach(item => list.appendChild(record(
+        `${item.tipo.toUpperCase()} - ${item.repuesto_codigo} - ${item.repuesto_nombre}`,
+        `${item.cantidad} ${item.unidad} - ${new Date(item.created_at).toLocaleString('es-PE')} - ${item.observacion || 'Sin observación'}`
     )));
 }
 
@@ -351,6 +381,8 @@ async function saveInventoryItem(event) {
         stock_minimo: Number(byId('inventoryMinimum').value),
         unidad: byId('inventoryUnit').value.trim() || 'unidad',
         ubicacion: byId('inventoryLocation').value.trim(),
+        proveedor: byId('inventorySupplier').value.trim(),
+        contacto_proveedor: byId('inventorySupplierContact').value.trim(),
         actualizado_por: session.user.id
     };
     if (!payload.codigo || !payload.nombre || !Number.isFinite(payload.stock) || payload.stock < 0 || !Number.isFinite(payload.stock_minimo) || payload.stock_minimo < 0) {
@@ -370,6 +402,54 @@ async function saveInventoryItem(event) {
     showInventoryForm(false);
     await loadData();
     byId('inventoryFormStatus').textContent = 'Repuesto guardado correctamente.';
+}
+
+async function saveInventoryMovement(event) {
+    event.preventDefault();
+    if (!isSuperior()) return;
+    const status = byId('movementStatus');
+    const payload = {
+        repuesto_id_arg: byId('movementItem').value,
+        tipo_arg: byId('movementType').value,
+        cantidad_arg: Number(byId('movementQuantity').value),
+        observacion_arg: byId('movementNote').value.trim()
+    };
+    if (!payload.repuesto_id_arg || !Number.isFinite(payload.cantidad_arg) || payload.cantidad_arg < 0) {
+        status.textContent = 'Selecciona un repuesto e ingresa una cantidad válida.';
+        return;
+    }
+    status.textContent = 'Registrando movimiento...';
+    const { error } = await client.rpc('registrar_movimiento_inventario', payload);
+    if (error) {
+        status.textContent = error.message?.includes('Stock insuficiente') ? 'No existe stock suficiente para esa salida.' : 'No se pudo registrar el movimiento.';
+        return;
+    }
+    event.currentTarget.reset();
+    status.textContent = 'Movimiento registrado correctamente.';
+    await loadData();
+}
+
+function csvCell(value) {
+    return `"${String(value ?? '').replace(/"/g, '""')}"`;
+}
+
+function exportGeneralCsv() {
+    const rows = visibleInterventions().filter(item => inSelectedMonth(item.fecha_guardado));
+    if (!rows.length) { setStatus('No hay intervenciones para exportar en el filtro actual.', 'warning'); return; }
+    const table = [[
+        'Sede', 'Mes', 'Técnico', 'Informe', 'Equipo', 'Tipo', 'Prioridad', 'Duración minutos',
+        'Generó parada', 'Motivo', 'Solución', 'Resultado'
+    ], ...rows.map(item => [
+        siteName(item.sede), monthValue(), item.tecnico, item.numero_informe,
+        `${item.equipo_codigo || ''} ${item.equipo_nombre || ''}`.trim(), item.tipo_mantenimiento,
+        item.prioridad, item.duracion_minutos, item.genera_parada === false ? 'No' : 'Sí',
+        item.motivo, item.solucion, item.resultado_final
+    ])];
+    const blob = new Blob([`\ufeff${table.map(row => row.map(csvCell).join(',')).join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `URBAPARK-mantenimiento-${selectedSite()}-${monthValue()}.csv`;
+    document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(link.href);
 }
 
 function renderAll() {
@@ -395,6 +475,9 @@ function configureEvents() {
     byId('toggleInventoryForm').addEventListener('click', event => showInventoryForm(event.currentTarget.getAttribute('aria-expanded') !== 'true'));
     byId('cancelInventoryForm').addEventListener('click', () => { resetInventoryForm(); showInventoryForm(false); });
     byId('inventoryForm').addEventListener('submit', saveInventoryItem);
+    byId('inventoryMovementForm').addEventListener('submit', saveInventoryMovement);
+    byId('exportGeneralCsv').addEventListener('click', exportGeneralCsv);
+    byId('exportGeneralPdf').addEventListener('click', () => window.print());
     document.querySelector('.control-tabs').addEventListener('click', event => {
         const button = event.target.closest('button[data-control-tab]');
         if (button) selectTab(button.dataset.controlTab);

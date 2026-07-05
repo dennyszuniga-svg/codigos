@@ -50,9 +50,13 @@ button { padding: 8px 14px; border: 0; border-radius: 5px; background: #1596ce; 
 .inventory-form[hidden] { display: none; }
 .inventory-location { grid-column: span 2; }
 .inventory-form-actions { display: flex; align-items: end; gap: 8px; }
+.inventory-movement-panel { margin-top: 14px; }
+.inventory-movement-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items: end; gap: 9px; }
 .secondary-button { background: #dce6ee; color: #263b50; }
 .section-help, .status { color: #607184; }
 .access-message { width: min(540px, calc(100% - 28px)); margin: 80px auto; padding: 24px; text-align: center; background: #fff; border: 1px solid #d5dee7; border-radius: 8px; }
 .empty { padding: 18px; color: #607184; text-align: center; border: 1px dashed #aebdca; border-radius: 6px; }
-@media (max-width: 850px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split-grid { grid-template-columns: 1fr; } }
-@media (max-width: 560px) { .control-header { grid-template-columns: auto 1fr; } .control-header img { width: 110px; } .control-header div { grid-column: 1 / -1; } .control-shell { width: min(100% - 16px, 1280px); margin-top: 8px; } .control-tabs { display: grid; grid-template-columns: repeat(2, 1fr); } .control-tabs button { padding: 7px; } .control-view { padding: 12px; } .metric-grid { grid-template-columns: repeat(2, 1fr); } .inventory-form { grid-template-columns: 1fr; } .inventory-location { grid-column: auto; } }
+@media (max-width: 850px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split-grid { grid-template-columns: 1fr; } .inventory-movement-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .control-header { grid-template-columns: auto 1fr; } .control-header img { width: 110px; } .control-header div { grid-column: 1 / -1; } .control-shell { width: min(100% - 16px, 1280px); margin-top: 8px; } .control-tabs { display: grid; grid-template-columns: repeat(2, 1fr); } .control-tabs button { padding: 7px; } .control-view { padding: 12px; } .metric-grid { grid-template-columns: repeat(2, 1fr); } .inventory-form, .inventory-movement-form { grid-template-columns: 1fr; } .inventory-location { grid-column: auto; } }
+
+@media print { .control-header .back-link, .control-tabs, .control-filters, button, form { display: none !important; } .control-shell { width: 100%; margin: 0; } .control-view[hidden] { display: block !important; margin-bottom: 14px; } .control-view { break-inside: avoid; } }
