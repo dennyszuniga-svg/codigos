@@ -375,6 +375,7 @@ async function saveInventoryItem(event) {
     if (!isSuperior()) return;
     const status = byId('inventoryFormStatus');
     const submit = event.currentTarget.querySelector('button[type="submit"]');
+    const warehouses = [...event.currentTarget.querySelectorAll('input[name="inventoryWarehouses"]:checked')].map(input => input.value);
     const payload = {
         codigo_arg: byId('inventoryCode').value.trim().toUpperCase(),
         nombre_arg: byId('inventoryName').value.trim(),
@@ -383,18 +384,18 @@ async function saveInventoryItem(event) {
         stock_minimo_arg: Number(byId('inventoryMinimum').value),
         unidad_arg: byId('inventoryUnit').value.trim() || 'unidad',
         compatibilidad_arg: byId('inventoryCompatibility').value,
-        ubicacion_sede_arg: byId('inventoryWarehouse').value,
+        ubicaciones_arg: warehouses,
         ubicacion_detalle_arg: byId('inventoryLocation').value.trim(),
         proveedor_arg: byId('inventorySupplier').value.trim(),
         contacto_arg: byId('inventorySupplierContact').value.trim()
     };
-    if (!payload.codigo_arg || !payload.nombre_arg || !Number.isFinite(payload.stock_arg) || payload.stock_arg < 0 || !Number.isFinite(payload.stock_minimo_arg) || payload.stock_minimo_arg < 0) {
-        status.textContent = 'Completa el código, nombre y cantidades válidas.';
+    if (!payload.codigo_arg || !payload.nombre_arg || !warehouses.length || !Number.isFinite(payload.stock_arg) || payload.stock_arg < 0 || !Number.isFinite(payload.stock_minimo_arg) || payload.stock_minimo_arg < 0) {
+        status.textContent = 'Completa el código, las cantidades y selecciona al menos un almacén.';
         return;
     }
     submit.disabled = true;
     status.textContent = 'Guardando repuesto...';
-    const { error } = await client.rpc('guardar_stock_repuesto', payload);
+    const { error } = await client.rpc('guardar_stock_repuesto_multiples', payload);
     submit.disabled = false;
     if (error) {
         console.warn('No se pudo guardar el repuesto:', error);
