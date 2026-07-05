@@ -544,11 +544,27 @@
                                     <label>Equipo<select id="maintenanceTaskEquipment"><option value="">Trabajo general / sin equipo</option></select></label>
                                     <label>Prioridad<select id="maintenanceTaskPriority" required><option value="baja">Baja</option><option value="media" selected>Media</option><option value="alta">Alta</option><option value="critica">Critica</option></select></label>
                                     <label>Fecha limite<input id="maintenanceTaskDueDate" type="date" required></label>
+                                    <label class="maintenance-recurring-option"><input id="maintenanceTaskRecurring" type="checkbox"> Repetir automaticamente cada mes</label>
                                     <label class="maintenance-task-description">Indicaciones<textarea id="maintenanceTaskDescription" rows="3" maxlength="1000" placeholder="Detalle del trabajo que debe realizarse"></textarea></label>
                                     <button class="finish-btn" type="submit">Asignar y notificar</button>
                                 </form>
                                 <p id="maintenanceTasksStatus" class="auth-status" role="status" aria-live="polite"></p>
+                                <div id="technicalDashboard" class="technical-dashboard" aria-live="polite"></div>
                                 <div id="maintenanceTasksList" class="maintenance-tasks-list" aria-live="polite"></div>
+                            </section>
+
+                            <section class="equipment-history-panel" aria-labelledby="equipmentHistoryTitle">
+                                <div class="inventory-heading">
+                                    <div>
+                                        <h4 id="equipmentHistoryTitle">Historial y fallas por equipo</h4>
+                                        <p>Consulta intervenciones anteriores y detecta equipos con correctivos repetidos.</p>
+                                    </div>
+                                    <label for="equipmentHistorySelect">Equipo
+                                        <select id="equipmentHistorySelect"><option value="">Selecciona un equipo</option></select>
+                                    </label>
+                                </div>
+                                <div id="repeatedFailuresSummary" class="repeated-failures-summary" aria-live="polite"></div>
+                                <div id="equipmentHistoryList" class="equipment-history-list" aria-live="polite"></div>
                             </section>
 
                             <div class="maintenance-report-action">

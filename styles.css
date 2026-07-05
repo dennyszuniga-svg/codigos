@@ -3605,6 +3605,58 @@ body.dark-theme .modal-dialog {
     grid-column: 1 / -1;
 }
 
+.maintenance-recurring-option {
+    display: flex !important;
+    grid-column: 1 / -1;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+}
+
+.maintenance-recurring-option input { width: 20px; height: 20px; }
+
+.technical-dashboard {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.technical-dashboard .management-card { min-height: 92px; }
+
+.equipment-history-panel {
+    margin: 16px 0;
+    padding: 16px;
+    border: 1px solid #cfd8e3;
+    border-left: 4px solid #ef4b23;
+    background: #fff;
+    border-radius: 8px;
+}
+
+.repeated-failures-summary,
+.equipment-history-list { display: grid; gap: 8px; margin-top: 12px; }
+
+.repeated-failure-item {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #f0b7aa;
+    border-left: 4px solid #d92d20;
+    border-radius: 5px;
+    background: #fff4f1;
+    color: #742016;
+    text-align: left;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.equipment-history-item {
+    padding: 11px 12px;
+    border: 1px solid #d8e2ea;
+    border-radius: 5px;
+    background: #f8fafc;
+}
+
+.equipment-history-item p { margin: 5px 0 0; color: #56677b; }
+
 .maintenance-tasks-list {
     display: grid;
     gap: 10px;
@@ -3631,7 +3683,8 @@ body.dark-theme .modal-dialog {
 .maintenance-task-note { grid-column: 1 / -1; display: grid; gap: 5px; }
 
 body.dark-theme .maintenance-tasks-panel,
-body.dark-theme .maintenance-task-card {
+body.dark-theme .maintenance-task-card,
+body.dark-theme .equipment-history-panel {
     background: #17202b;
     border-color: #3b4b5e;
 }
@@ -3639,9 +3692,13 @@ body.dark-theme .maintenance-task-card {
 body.dark-theme .maintenance-task-form { background: #111923; border-color: #3b4b5e; }
 body.dark-theme .maintenance-task-form label { color: #eef5fb; }
 body.dark-theme .maintenance-task-meta { color: #b9c7d5; }
+body.dark-theme .equipment-history-item { background: #111923; border-color: #3b4b5e; }
+body.dark-theme .equipment-history-item p { color: #b9c7d5; }
+body.dark-theme .repeated-failure-item { background: #341b1b; color: #ffd7cf; border-color: #794037; }
 
 @media (max-width: 760px) {
     .maintenance-task-form { grid-template-columns: 1fr; }
     .maintenance-task-card { grid-template-columns: 1fr; }
     .maintenance-task-actions { justify-content: flex-start; }
+    .technical-dashboard { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

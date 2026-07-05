@@ -645,6 +645,9 @@ function actualizarEstadoTareasMantenimiento(mensaje = '', estado = 'info') {
 async function cargarTareasMantenimiento() {
     if (!accesoMantenimientoActivo || !supabaseClient || !sesionActual?.user) return;
     const mes = obtenerElemento('maintenanceTasksMonth')?.value || obtenerMesActual();
+    if (usuarioEsSuperior()) {
+        await generarPreventivosAutomaticos(mes, { notificar: true });
+    }
     const inicio = `${mes}-01`;
     const finFecha = new Date(`${inicio}T00:00:00`);
     finFecha.setMonth(finFecha.getMonth() + 1);
@@ -653,7 +656,7 @@ async function cargarTareasMantenimiento() {
     actualizarEstadoTareasMantenimiento('Cargando tareas...', 'info');
     const { data, error } = await supabaseClient
         .from('tareas_mantenimiento')
-        .select('id,titulo,descripcion,sede,equipo_codigo,equipo_nombre,prioridad,fecha_limite,asignado_a,asignado_por,estado,observacion_tecnico,iniciada_at,completada_at,created_at,profiles!tareas_mantenimiento_asignado_a_fkey(nombre,email)')
+        .select('id,titulo,descripcion,sede,equipo_codigo,equipo_nombre,prioridad,fecha_limite,asignado_a,asignado_por,estado,observacion_tecnico,iniciada_at,completada_at,created_at,plan_preventivo_id,periodo,profiles!tareas_mantenimiento_asignado_a_fkey(nombre,email)')
         .gte('fecha_limite', inicio)
         .lt('fecha_limite', fin)
         .order('fecha_limite', { ascending: true });
@@ -667,6 +670,7 @@ async function cargarTareasMantenimiento() {
         actualizarEstadoTareasMantenimiento(`${tareasMantenimiento.length} tareas en el mes.`, 'success');
     }
     renderizarTareasMantenimiento();
+    renderizarDashboardTecnico();
 }
 
 function etiquetaEstadoTarea(estado) {
@@ -714,7 +718,8 @@ function renderizarTareasMantenimiento() {
         meta.className = 'maintenance-task-meta';
         const tecnico = tarea.profiles?.nombre || tarea.profiles?.email || 'Tecnico asignado';
         const equipo = tarea.equipo_codigo ? ` - ${tarea.equipo_codigo}` : '';
-        meta.textContent = `${obtenerNombreSede(tarea.sede)}${equipo} - ${tecnico} - Limite: ${tarea.fecha_limite} - Prioridad ${tarea.prioridad}`;
+        const automatico = tarea.plan_preventivo_id ? ' - Preventivo automatico' : '';
+        meta.textContent = `${obtenerNombreSede(tarea.sede)}${equipo} - ${tecnico} - Limite: ${tarea.fecha_limite} - Prioridad ${tarea.prioridad}${automatico}`;
         estado.className = 'maintenance-task-state';
         estado.textContent = vencida ? 'Vencida' : etiquetaEstadoTarea(tarea.estado);
         cuerpo.append(titulo, detalle, meta);
@@ -770,15 +775,45 @@ async function guardarTareaMantenimiento(event) {
         asignado_a: obtenerElemento('maintenanceTaskTechnician').value,
         asignado_por: sesionActual.user.id
     };
+    const recurrente = obtenerElemento('maintenanceTaskRecurring')?.checked === true;
     if (!payload.titulo || !payload.sede || !payload.fecha_limite || !payload.asignado_a) {
         actualizarEstadoTareasMantenimiento('Completa tarea, tecnico, sede y fecha limite.', 'error');
+        return;
+    }
+    if (recurrente && !payload.equipo_codigo) {
+        actualizarEstadoTareasMantenimiento('Para repetir mensualmente debes seleccionar un equipo.', 'error');
         return;
     }
 
     const boton = event.currentTarget.querySelector('button[type="submit"]');
     boton.disabled = true;
     actualizarEstadoTareasMantenimiento('Asignando tarea...', 'info');
-    const { data, error } = await supabaseClient.from('tareas_mantenimiento').insert(payload).select('id').single();
+    let data = null;
+    let error = null;
+    if (recurrente) {
+        const diaMes = Math.min(28, Number(payload.fecha_limite.slice(-2)) || 28);
+        const resultadoPlan = await supabaseClient.from('planes_preventivos').upsert({
+            titulo: payload.titulo,
+            descripcion: payload.descripcion,
+            sede: payload.sede,
+            equipo_codigo: payload.equipo_codigo,
+            equipo_nombre: payload.equipo_nombre,
+            prioridad: payload.prioridad,
+            tecnico_id: payload.asignado_a,
+            dia_mes: diaMes,
+            activo: true,
+            creado_por: sesionActual.user.id
+        }, { onConflict: 'sede,equipo_codigo,tecnico_id' });
+        error = resultadoPlan.error;
+        if (!error) {
+            const generadas = await generarPreventivosAutomaticos(payload.fecha_limite.slice(0, 7), { notificar: true });
+            data = generadas[0] || { id: '' };
+        }
+    } else {
+        const resultadoTarea = await supabaseClient.from('tareas_mantenimiento').insert(payload).select('id').single();
+        data = resultadoTarea.data;
+        error = resultadoTarea.error;
+    }
     boton.disabled = false;
     if (error) {
         actualizarEstadoTareasMantenimiento('No se pudo asignar la tarea.', 'error');
@@ -786,13 +821,17 @@ async function guardarTareaMantenimiento(event) {
         return;
     }
 
-    await enviarAlertaPushTarea(data.id, payload.asignado_a, payload.titulo, payload.fecha_limite, payload.sede);
+    if (!recurrente) {
+        await enviarAlertaPushTarea(data.id, payload.asignado_a, payload.titulo, payload.fecha_limite, payload.sede);
+    }
     event.currentTarget.reset();
     obtenerElemento('maintenanceTaskSite').value = obtenerSedeMantenimientoActiva();
     obtenerElemento('maintenanceTaskPriority').value = 'media';
     obtenerElemento('maintenanceTaskDueDate').value = `${obtenerElemento('maintenanceTasksMonth').value || obtenerMesActual()}-28`;
     actualizarEquiposAsignacionMantenimiento();
-    actualizarEstadoTareasMantenimiento('Tarea asignada y notificacion enviada.', 'success');
+    actualizarEstadoTareasMantenimiento(recurrente
+        ? 'Plan mensual creado y primera tarea generada.'
+        : 'Tarea asignada y notificacion enviada.', 'success');
     await cargarTareasMantenimiento();
 }
 
@@ -805,6 +844,116 @@ async function enviarAlertaPushTarea(tareaId, asignadoA, titulo, fechaLimite, se
     } catch (error) {
         console.warn('Funcion push no disponible para tarea:', error);
     }
+}
+
+async function generarPreventivosAutomaticos(mes = obtenerMesActual(), { notificar = false } = {}) {
+    if (!supabaseClient || !sesionActual?.user || !usuarioPuedeAccederMantenimiento()) return [];
+    const { data, error } = await supabaseClient.rpc('generar_tareas_preventivas', {
+        mes_arg: `${mes}-01`
+    });
+    if (error) {
+        console.warn('No se pudieron generar los preventivos automaticos:', error);
+        return [];
+    }
+    const generadas = Array.isArray(data) ? data : [];
+    if (notificar && usuarioEsSuperior()) {
+        for (const tarea of generadas) {
+            await enviarAlertaPushTarea(tarea.id, tarea.asignado_a, tarea.titulo, tarea.fecha_limite, tarea.sede);
+        }
+    }
+    return generadas;
+}
+
+function renderizarDashboardTecnico() {
+    const panel = obtenerElemento('technicalDashboard');
+    if (!panel) return;
+    limpiarElemento(panel);
+    const hoy = new Date().toISOString().slice(0, 10);
+    const total = tareasMantenimiento.length;
+    const pendientes = tareasMantenimiento.filter(item => item.estado === 'pendiente').length;
+    const proceso = tareasMantenimiento.filter(item => item.estado === 'en_proceso').length;
+    const completadas = tareasMantenimiento.filter(item => item.estado === 'completada').length;
+    const vencidas = tareasMantenimiento.filter(item => item.estado !== 'completada' && item.fecha_limite < hoy).length;
+    const cumplimiento = total ? Math.round((completadas / total) * 100) : 0;
+    panel.append(
+        crearTarjetaDashboard('Asignadas', String(total), 'Tareas del mes', 'neutral'),
+        crearTarjetaDashboard('Pendientes', String(pendientes), 'Aun no iniciadas', pendientes ? 'warning' : 'good'),
+        crearTarjetaDashboard('En proceso', String(proceso), 'Trabajos iniciados', proceso ? 'neutral' : 'good'),
+        crearTarjetaDashboard('Completadas', String(completadas), `${cumplimiento}% de cumplimiento`, cumplimiento >= 90 ? 'good' : 'warning'),
+        crearTarjetaDashboard('Vencidas', String(vencidas), 'Requieren atencion', vencidas ? 'danger' : 'good')
+    );
+}
+
+function actualizarSelectorHistorialEquipos() {
+    const selector = obtenerElemento('equipmentHistorySelect');
+    if (!selector) return;
+    const valor = selector.value;
+    limpiarElemento(selector);
+    const inicial = document.createElement('option');
+    inicial.value = '';
+    inicial.textContent = 'Selecciona un equipo';
+    selector.appendChild(inicial);
+    obtenerEquiposMantenimientoSede().forEach(equipo => {
+        const opcion = document.createElement('option');
+        opcion.value = equipo.codigo;
+        opcion.textContent = `${equipo.codigo} - ${equipo.nombre}`;
+        selector.appendChild(opcion);
+    });
+    if ([...selector.options].some(opcion => opcion.value === valor)) selector.value = valor;
+}
+
+function renderizarHistorialEquipos() {
+    const selector = obtenerElemento('equipmentHistorySelect');
+    const resumen = obtenerElemento('repeatedFailuresSummary');
+    const lista = obtenerElemento('equipmentHistoryList');
+    if (!selector || !resumen || !lista) return;
+    limpiarElemento(resumen);
+    limpiarElemento(lista);
+
+    const correctivosPorEquipo = intervencionesMantenimiento
+        .filter(item => item.tipo_mantenimiento === 'Correctivo')
+        .reduce((mapa, item) => {
+            const codigo = item.equipo_codigo || item.equipo_nombre || 'Sin equipo';
+            if (!mapa.has(codigo)) mapa.set(codigo, []);
+            mapa.get(codigo).push(item);
+            return mapa;
+        }, new Map());
+    const repetitivas = [...correctivosPorEquipo.entries()]
+        .filter(([, items]) => items.length >= 2)
+        .sort((a, b) => b[1].length - a[1].length);
+    if (!repetitivas.length) {
+        resumen.appendChild(crearMensajeVacio('No se detectan equipos con dos o mas correctivos registrados.', 'inventory-empty'));
+    } else {
+        repetitivas.forEach(([codigo, items]) => {
+            const alerta = document.createElement('button');
+            alerta.type = 'button';
+            alerta.className = 'repeated-failure-item';
+            alerta.dataset.historyEquipment = codigo;
+            alerta.textContent = `${codigo}: ${items.length} correctivos - Ultimo: ${items[0].motivo || 'sin causa detallada'}`;
+            resumen.appendChild(alerta);
+        });
+    }
+
+    if (!selector.value) {
+        lista.appendChild(crearMensajeVacio('Selecciona un equipo para revisar su historial completo.', 'inventory-empty'));
+        return;
+    }
+    const registros = intervencionesMantenimiento.filter(item => item.equipo_codigo === selector.value);
+    if (!registros.length) {
+        lista.appendChild(crearMensajeVacio('Este equipo aun no tiene intervenciones registradas.', 'inventory-empty'));
+        return;
+    }
+    registros.forEach(item => {
+        const fila = document.createElement('article');
+        const titulo = document.createElement('strong');
+        const detalle = document.createElement('p');
+        const fecha = new Date(item.fecha_guardado);
+        fila.className = 'equipment-history-item';
+        titulo.textContent = `${item.tipo_mantenimiento} - ${item.numero_informe}`;
+        detalle.textContent = `${Number.isNaN(fecha.getTime()) ? item.fecha_guardado : fecha.toLocaleDateString('es-PE')} - ${item.tecnico || 'Sin tecnico'} - ${minutosAHorasTexto(item.duracion_minutos)} - ${item.motivo || 'Sin detalle de falla'}`;
+        fila.append(titulo, detalle);
+        lista.appendChild(fila);
+    });
 }
 
 async function actualizarEstadoTareaMantenimiento(id, estado) {
@@ -1495,7 +1644,7 @@ async function cargarIntervencionesMantenimiento() {
         .filter(item => item?.sede === obtenerSedeMantenimientoActiva());
     const { data, error } = await supabaseClient
         .from('intervenciones_mantenimiento')
-        .select('id,numero_informe,sede,equipo_codigo,equipo_nombre,equipo_tipo,tipo_mantenimiento,prioridad,resultado_final,tecnico,supervisor,hora_inicio,hora_final,duracion_minutos,preventivo_estimado_minutos,genera_parada,repuestos_usados,fecha_guardado')
+        .select('id,numero_informe,sede,equipo_codigo,equipo_nombre,equipo_tipo,tipo_mantenimiento,prioridad,estado_inicial,resultado_final,motivo,solucion,tecnico,supervisor,hora_inicio,hora_final,duracion_minutos,preventivo_estimado_minutos,genera_parada,repuestos_usados,fecha_guardado')
         .eq('sede', obtenerSedeMantenimientoActiva())
         .order('fecha_guardado', { ascending: false })
         .limit(250);
@@ -1504,6 +1653,8 @@ async function cargarIntervencionesMantenimiento() {
         intervencionesMantenimiento = locales;
         console.warn('No se pudieron cargar intervenciones de mantenimiento:', error);
         renderizarKpisMantenimiento();
+        actualizarSelectorHistorialEquipos();
+        renderizarHistorialEquipos();
         return;
     }
 
@@ -1516,6 +1667,8 @@ async function cargarIntervencionesMantenimiento() {
     calcularProgramacionPreventivaBase();
     renderizarKpisMantenimiento();
     renderizarDashboardGerencial();
+    actualizarSelectorHistorialEquipos();
+    renderizarHistorialEquipos();
 }
 
 async function cargarMovimientosInventario() {
@@ -6915,6 +7068,13 @@ function configurarEventos() {
     obtenerElemento('maintenanceTaskForm')?.addEventListener('submit', guardarTareaMantenimiento);
     obtenerElemento('maintenanceTaskSite')?.addEventListener('change', actualizarEquiposAsignacionMantenimiento);
     obtenerElemento('maintenanceTasksMonth')?.addEventListener('change', cargarTareasMantenimiento);
+    obtenerElemento('equipmentHistorySelect')?.addEventListener('change', renderizarHistorialEquipos);
+    obtenerElemento('repeatedFailuresSummary')?.addEventListener('click', event => {
+        const boton = event.target.closest('button[data-history-equipment]');
+        if (!boton) return;
+        obtenerElemento('equipmentHistorySelect').value = boton.dataset.historyEquipment;
+        renderizarHistorialEquipos();
+    });
     obtenerElemento('maintenanceTasksList')?.addEventListener('click', event => {
         const actualizar = event.target.closest('button[data-update-maintenance-task]');
         if (actualizar) {
