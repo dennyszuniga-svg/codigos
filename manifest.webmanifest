@@ -1,6 +1,7 @@
 {
-    "name": "Codigos de Emergencia UrbaPark",
-    "short_name": "Codigos UrbaPark",
+    "id": "/codigos/",
+    "name": "URBAPARK",
+    "short_name": "URBAPARK",
     "description": "Sistema operativo UrbaPark para activar, seguir y reportar codigos de emergencia.",
     "lang": "es-PE",
     "start_url": ".",
