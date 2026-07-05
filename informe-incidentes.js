@@ -210,6 +210,7 @@ const groups = {
     resultadoFinal: document.getElementById('resultadoFinalGroup'),
     conclusiones: document.getElementById('conclusionesGroup'),
     actividades: document.getElementById('activityTasksGroup'),
+    inventoryConsumption: document.getElementById('inventoryConsumptionGroup'),
     firmaTecnico: document.getElementById('firmaTecnicoGroup'),
     firmaSupervisor: document.getElementById('firmaSupervisorGroup'),
     firmaSupervisorNombre: document.getElementById('firmaSupervisorGroup')
@@ -790,6 +791,18 @@ function obtenerRepuestosUsadosValidos() {
         .filter(uso => uso.id && uso.cantidad > 0);
 }
 
+function validarUsoInventario() {
+    if (!repuestosUsados.length) return { isValid: true, message: '' };
+    const validos = obtenerRepuestosUsadosValidos();
+    if (validos.length !== repuestosUsados.length) {
+        return {
+            isValid: false,
+            message: 'Completa cada repuesto del inventario con un artículo disponible y una cantidad válida.'
+        };
+    }
+    return { isValid: true, message: '' };
+}
+
 function renderizarUsoInventario() {
     const lista = document.getElementById('inventoryUsageList');
     const estado = document.getElementById('inventoryUsageStatus');
@@ -1211,6 +1224,9 @@ function validateReport(report) {
     const taskValidation = validateTasks();
     isValid = isValid && taskValidation.isValid;
 
+    const inventoryValidation = validarUsoInventario();
+    isValid = isValid && inventoryValidation.isValid;
+
     const hasTecnico = !signaturePads.firmaTecnico.isEmpty();
     const hasSupervisor = !signaturePads.firmaSupervisor.isEmpty();
     setFieldError('firmaTecnico', !hasTecnico);
@@ -1221,6 +1237,7 @@ function validateReport(report) {
         const firstInvalid = requiredFields.find((name) => !report[name])
             || (needsEstadoOtro && !report.estadoInicialOtro ? 'estadoInicialOtro' : null)
             || (!taskValidation.isValid ? 'actividades' : null)
+            || (!inventoryValidation.isValid ? 'inventoryConsumption' : null)
             || (!hasTecnico ? 'firmaTecnico' : null)
             || (!hasSupervisor ? 'firmaSupervisor' : null);
         abrirSeccionFormulario(firstInvalid);
@@ -1229,7 +1246,11 @@ function validateReport(report) {
         } else if (firstInvalid && groups[firstInvalid]) {
             groups[firstInvalid].scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        setStatus(taskValidation.message || 'Complete todos los campos obligatorios, firmas y tiempos antes de guardar.', true);
+        if (!inventoryValidation.isValid) {
+            const inventoryGroup = document.getElementById('inventoryConsumptionGroup');
+            inventoryGroup?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        setStatus(inventoryValidation.message || taskValidation.message || 'Complete todos los campos obligatorios, firmas y tiempos antes de guardar.', true);
         return false;
     }
 
@@ -1331,7 +1352,7 @@ async function downloadReport() {
     }
 
     renderPreview();
-    await markReportSaved(report);
+    const synced = await markReportSaved(report);
 
     const fileName = `${report.numeroInforme.toLowerCase()}-${formatFileDate(report.fechaGuardado)}.html`;
     const blob = new Blob([buildReportHtml(report)], { type: 'text/html;charset=utf-8' });
@@ -1342,7 +1363,12 @@ async function downloadReport() {
     link.download = fileName;
     link.click();
     URL.revokeObjectURL(url);
-    setStatus('Informe guardado en HTML con logo, colores, firmas y fotos comprimidas.');
+    const inventoryCount = obtenerRepuestosUsadosValidos().length;
+    setStatus(!synced
+        ? 'Informe guardado en HTML, pero el inventario no pudo sincronizarse. Revisa la conexión antes de cerrar.'
+        : inventoryCount
+        ? `Informe guardado en HTML. Inventario actualizado: ${inventoryCount} repuesto${inventoryCount === 1 ? '' : 's'} descontado${inventoryCount === 1 ? '' : 's'}.`
+        : 'Informe guardado en HTML sin descuento de inventario.', !synced);
 }
 
 function abrirSeccionFormulario(nombre) {
@@ -1360,8 +1386,13 @@ async function exportPdf() {
         lastGeneratedAt = null;
         return;
     }
-    await markReportSaved(getReportData());
-    setStatus('Vista lista. En la ventana de impresion seleccione Guardar como PDF.');
+    const synced = await markReportSaved(getReportData());
+    const inventoryCount = obtenerRepuestosUsadosValidos().length;
+    setStatus(!synced
+        ? 'Vista lista, pero el inventario no pudo sincronizarse. Revisa la conexión antes de cerrar.'
+        : inventoryCount
+        ? `Vista lista e inventario actualizado: ${inventoryCount} repuesto${inventoryCount === 1 ? '' : 's'} descontado${inventoryCount === 1 ? '' : 's'}. En impresión selecciona Guardar como PDF.`
+        : 'Vista lista sin descuento de inventario. En la ventana de impresión selecciona Guardar como PDF.', !synced);
     window.print();
 }
 
@@ -1820,6 +1851,7 @@ async function cargarInventarioInforme() {
 
 async function registerMaintenanceSummary(report) {
     const summary = buildMaintenanceSummary(report);
+    const inventoryCount = obtenerRepuestosUsadosValidos().length;
     saveMaintenanceSummaryLocal(summary);
     const synced = await saveMaintenanceSummaryRemote(summary);
     if (synced && APP_CONTEXT.tareaId) {
@@ -1832,8 +1864,11 @@ async function registerMaintenanceSummary(report) {
         if (error) console.warn('El informe se guardo, pero no se pudo completar la tarea asignada:', error);
     }
     setStatus(synced
-        ? 'Informe guardado y sincronizado para KPIs de mantenimiento.'
-        : 'Informe guardado. La sincronizacion de KPIs quedo pendiente.');
+        ? inventoryCount
+            ? `Informe guardado. Inventario actualizado: ${inventoryCount} repuesto${inventoryCount === 1 ? '' : 's'} descontado${inventoryCount === 1 ? '' : 's'}.`
+            : 'Informe guardado sin descuento de inventario: no se seleccionaron repuestos registrados.'
+        : 'Informe guardado. La sincronizacion de KPIs o inventario quedo pendiente.', !synced);
+    return synced;
 }
 
 function readDraft() {
@@ -1854,7 +1889,7 @@ async function markReportSaved(report = getReportData()) {
         reportSaved = true;
         saveDraft();
     }
-    await registerMaintenanceSummary(report);
+    return registerMaintenanceSummary(report);
 }
 
 function getStoredCounter() {
