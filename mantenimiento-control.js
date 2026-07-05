@@ -19,7 +19,7 @@ let inventoryMovements = [];
 
 const byId = id => document.getElementById(id);
 const clear = element => { while (element?.firstChild) element.firstChild.remove(); };
-const siteName = id => SEDES.find(item => item[0] === id)?.[1] || id;
+const siteName = id => id === 'general' ? 'Almacén general' : SEDES.find(item => item[0] === id)?.[1] || id;
 const isSuperior = () => profile?.rol === 'encargado_ti';
 const monthValue = () => byId('controlMonth').value || new Date().toISOString().slice(0, 7);
 const selectedSite = () => byId('controlSite').value;
@@ -155,10 +155,10 @@ async function loadData() {
     const [reportsResult, inventoryResult, movementsResult] = await Promise.all([
         reportsQuery,
         isSuperior()
-            ? client.from('inventario_repuestos').select('id,codigo,nombre,categoria,stock,stock_minimo,unidad,ubicacion,proveedor,contacto_proveedor,updated_at').eq('sede', site).order('nombre')
+            ? client.rpc('listar_inventario_consolidado')
             : Promise.resolve({ data: [], error: null }),
         isSuperior()
-            ? client.from('inventario_movimientos').select('id,repuesto_codigo,repuesto_nombre,tipo,cantidad,unidad,observacion,created_at').eq('sede', site).order('created_at', { ascending: false }).limit(100)
+            ? client.from('movimientos_stock_repuestos').select('id,tipo,cantidad,ubicacion_origen,ubicacion_destino,observacion,created_at,catalogo_repuestos(codigo,nombre,unidad)').order('created_at', { ascending: false }).limit(100)
             : Promise.resolve({ data: [], error: null })
     ]);
 
@@ -308,19 +308,22 @@ function renderInventory() {
     const list = byId('inventoryList');
     clear(summary); clear(list);
     if (!isSuperior()) return;
+    const uniqueParts = new Set(inventory.map(item => item.repuesto_id)).size;
+    const totalUnits = inventory.reduce((sum, item) => sum + Number(item.stock || 0), 0);
     const low = inventory.filter(item => Number(item.stock) <= Number(item.stock_minimo)).length;
     const unavailable = inventory.filter(item => Number(item.stock) === 0).length;
     summary.append(
-        metric('Repuestos', String(inventory.length), 'Registrados en la sede'),
+        metric('Repuestos', String(uniqueParts), 'Códigos del catálogo general'),
+        metric('Stock total', String(totalUnits), 'Todas las ubicaciones'),
         metric('Stock bajo', String(low), 'En mínimo o por debajo', low ? 'warning' : 'good'),
         metric('No disponibles', String(unavailable), 'Stock igual a cero', unavailable ? 'danger' : 'good')
     );
     const query = byId('inventoryFilter').value.trim().toLowerCase();
-    const rows = inventory.filter(item => `${item.codigo} ${item.nombre} ${item.categoria}`.toLowerCase().includes(query));
+    const rows = inventory.filter(item => `${item.codigo} ${item.nombre} ${item.categoria} ${item.compatibilidad} ${item.ubicacion_sede}`.toLowerCase().includes(query));
     if (!rows.length) { list.appendChild(empty('No hay repuestos que coincidan con la búsqueda.')); return; }
     rows.forEach(item => list.appendChild(record(
-        `${item.codigo} - ${item.nombre}`,
-        `${item.stock} ${item.unidad} - Mínimo ${item.stock_minimo} - ${item.ubicacion || 'Sin ubicación'}${item.proveedor ? ` - Proveedor: ${item.proveedor}` : ''}`,
+        `${item.codigo} - ${item.nombre} - ${siteName(item.ubicacion_sede)}`,
+        `${item.stock} ${item.unidad} en esta ubicación - Total general ${item.stock_total} - ${item.compatibilidad} - ${item.ubicacion_detalle || 'Sin detalle'}${item.proveedor ? ` - Proveedor: ${item.proveedor}` : ''}`,
         Number(item.stock) <= Number(item.stock_minimo) ? 'failure' : ''
     )));
     renderInventoryMovements();
@@ -339,14 +342,14 @@ function renderInventoryMovements() {
     inventory.forEach(item => {
         const option = document.createElement('option');
         option.value = item.id;
-        option.textContent = `${item.codigo} - ${item.nombre} (${item.stock} ${item.unidad})`;
+        option.textContent = `${item.codigo} - ${item.nombre} | ${siteName(item.ubicacion_sede)} (${item.stock} ${item.unidad})`;
         selector.appendChild(option);
     });
     if ([...selector.options].some(option => option.value === previous)) selector.value = previous;
     if (!inventoryMovements.length) { list.appendChild(empty('Todavía no hay movimientos registrados.')); return; }
     inventoryMovements.slice(0, 20).forEach(item => list.appendChild(record(
-        `${item.tipo.toUpperCase()} - ${item.repuesto_codigo} - ${item.repuesto_nombre}`,
-        `${item.cantidad} ${item.unidad} - ${new Date(item.created_at).toLocaleString('es-PE')} - ${item.observacion || 'Sin observación'}`
+        `${item.tipo.toUpperCase()} - ${item.catalogo_repuestos?.codigo || ''} - ${item.catalogo_repuestos?.nombre || ''}`,
+        `${item.cantidad} ${item.catalogo_repuestos?.unidad || 'unidad'} - ${siteName(item.ubicacion_origen)}${item.ubicacion_destino ? ` → ${siteName(item.ubicacion_destino)}` : ''} - ${new Date(item.created_at).toLocaleString('es-PE')} - ${item.observacion || 'Sin observación'}`
     )));
 }
 
@@ -373,25 +376,25 @@ async function saveInventoryItem(event) {
     const status = byId('inventoryFormStatus');
     const submit = event.currentTarget.querySelector('button[type="submit"]');
     const payload = {
-        sede: selectedSite(),
-        codigo: byId('inventoryCode').value.trim().toUpperCase(),
-        nombre: byId('inventoryName').value.trim(),
-        categoria: byId('inventoryCategory').value.trim() || 'General',
-        stock: Number(byId('inventoryStock').value),
-        stock_minimo: Number(byId('inventoryMinimum').value),
-        unidad: byId('inventoryUnit').value.trim() || 'unidad',
-        ubicacion: byId('inventoryLocation').value.trim(),
-        proveedor: byId('inventorySupplier').value.trim(),
-        contacto_proveedor: byId('inventorySupplierContact').value.trim(),
-        actualizado_por: session.user.id
+        codigo_arg: byId('inventoryCode').value.trim().toUpperCase(),
+        nombre_arg: byId('inventoryName').value.trim(),
+        categoria_arg: byId('inventoryCategory').value.trim() || 'General',
+        stock_arg: Number(byId('inventoryStock').value),
+        stock_minimo_arg: Number(byId('inventoryMinimum').value),
+        unidad_arg: byId('inventoryUnit').value.trim() || 'unidad',
+        compatibilidad_arg: byId('inventoryCompatibility').value,
+        ubicacion_sede_arg: byId('inventoryWarehouse').value,
+        ubicacion_detalle_arg: byId('inventoryLocation').value.trim(),
+        proveedor_arg: byId('inventorySupplier').value.trim(),
+        contacto_arg: byId('inventorySupplierContact').value.trim()
     };
-    if (!payload.codigo || !payload.nombre || !Number.isFinite(payload.stock) || payload.stock < 0 || !Number.isFinite(payload.stock_minimo) || payload.stock_minimo < 0) {
+    if (!payload.codigo_arg || !payload.nombre_arg || !Number.isFinite(payload.stock_arg) || payload.stock_arg < 0 || !Number.isFinite(payload.stock_minimo_arg) || payload.stock_minimo_arg < 0) {
         status.textContent = 'Completa el código, nombre y cantidades válidas.';
         return;
     }
     submit.disabled = true;
     status.textContent = 'Guardando repuesto...';
-    const { error } = await client.from('inventario_repuestos').upsert(payload, { onConflict: 'sede,codigo' });
+    const { error } = await client.rpc('guardar_stock_repuesto', payload);
     submit.disabled = false;
     if (error) {
         console.warn('No se pudo guardar el repuesto:', error);
@@ -409,17 +412,18 @@ async function saveInventoryMovement(event) {
     if (!isSuperior()) return;
     const status = byId('movementStatus');
     const payload = {
-        repuesto_id_arg: byId('movementItem').value,
+        stock_id_arg: byId('movementItem').value,
         tipo_arg: byId('movementType').value,
         cantidad_arg: Number(byId('movementQuantity').value),
+        destino_arg: byId('movementType').value === 'transferencia' ? byId('movementDestination').value : null,
         observacion_arg: byId('movementNote').value.trim()
     };
-    if (!payload.repuesto_id_arg || !Number.isFinite(payload.cantidad_arg) || payload.cantidad_arg < 0) {
+    if (!payload.stock_id_arg || !Number.isFinite(payload.cantidad_arg) || payload.cantidad_arg <= 0) {
         status.textContent = 'Selecciona un repuesto e ingresa una cantidad válida.';
         return;
     }
     status.textContent = 'Registrando movimiento...';
-    const { error } = await client.rpc('registrar_movimiento_inventario', payload);
+    const { error } = await client.rpc('registrar_movimiento_stock', payload);
     if (error) {
         status.textContent = error.message?.includes('Stock insuficiente') ? 'No existe stock suficiente para esa salida.' : 'No se pudo registrar el movimiento.';
         return;
@@ -476,6 +480,9 @@ function configureEvents() {
     byId('cancelInventoryForm').addEventListener('click', () => { resetInventoryForm(); showInventoryForm(false); });
     byId('inventoryForm').addEventListener('submit', saveInventoryItem);
     byId('inventoryMovementForm').addEventListener('submit', saveInventoryMovement);
+    byId('movementType').addEventListener('change', event => {
+        byId('movementDestinationGroup').hidden = event.target.value !== 'transferencia';
+    });
     byId('exportGeneralCsv').addEventListener('click', exportGeneralCsv);
     byId('exportGeneralPdf').addEventListener('click', () => window.print());
     document.querySelector('.control-tabs').addEventListener('click', event => {

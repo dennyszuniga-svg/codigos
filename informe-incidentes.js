@@ -829,7 +829,8 @@ function renderizarUsoInventario() {
         inventarioInforme.forEach(item => {
             const disponible = Number(item.stock) > 0;
             const disponibilidad = disponible ? `${item.stock} ${item.unidad}` : `${item.unidad} - No disponible`;
-            const opcion = new Option(`${item.codigo} - ${item.nombre} (${disponibilidad})`, item.id);
+            const almacen = item.almacen === 'general' ? 'Almacen general' : item.almacen || 'Sin ubicacion';
+            const opcion = new Option(`${item.codigo} - ${item.nombre} | ${almacen} (${disponibilidad})`, item.id);
             opcion.selected = item.id === uso.id;
             opcion.disabled = !disponible && item.id !== uso.id;
             selector.appendChild(opcion);

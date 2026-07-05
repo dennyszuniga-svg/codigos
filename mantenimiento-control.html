@@ -79,6 +79,8 @@
                 <label>Stock<input id="inventoryStock" type="number" min="0" step="0.01" required></label>
                 <label>Stock mínimo<input id="inventoryMinimum" type="number" min="0" step="0.01" value="0" required></label>
                 <label>Unidad<input id="inventoryUnit" type="text" maxlength="30" value="unidad" required></label>
+                <label>Compatibilidad<select id="inventoryCompatibility" required><option value="universal">Universal</option><option value="actual">Equipos actuales (Primavera)</option><option value="antiguo">Equipos antiguos</option></select></label>
+                <label>Almacén / ubicación<select id="inventoryWarehouse" required><option value="general">Almacén general</option><option value="civico">Cívico</option><option value="salaverry">Salaverry</option><option value="primavera">Primavera</option><option value="puruchuco">Puruchuco</option><option value="gama">GAMA</option></select></label>
                 <label class="inventory-location">Ubicación<input id="inventoryLocation" type="text" maxlength="160" placeholder="Almacén, estante o módulo"></label>
                 <label>Proveedor<input id="inventorySupplier" type="text" maxlength="160"></label>
                 <label>Contacto proveedor<input id="inventorySupplierContact" type="text" maxlength="160"></label>
@@ -94,8 +96,9 @@
                 <h3>Registrar movimiento</h3>
                 <form id="inventoryMovementForm" class="inventory-movement-form">
                     <label>Repuesto<select id="movementItem" required><option value="">Selecciona un repuesto</option></select></label>
-                    <label>Movimiento<select id="movementType" required><option value="ingreso">Ingreso</option><option value="salida">Salida</option><option value="ajuste">Ajuste de stock</option></select></label>
+                    <label>Movimiento<select id="movementType" required><option value="ingreso">Ingreso</option><option value="salida">Salida</option><option value="ajuste">Ajuste de stock</option><option value="transferencia">Transferir a otra sede</option></select></label>
                     <label>Cantidad<input id="movementQuantity" type="number" min="0" step="0.01" required></label>
+                    <label id="movementDestinationGroup" hidden>Destino<select id="movementDestination"><option value="general">Almacén general</option><option value="civico">Cívico</option><option value="salaverry">Salaverry</option><option value="primavera">Primavera</option><option value="puruchuco">Puruchuco</option><option value="gama">GAMA</option></select></label>
                     <label>Observación<input id="movementNote" type="text" maxlength="500"></label>
                     <button type="submit">Registrar movimiento</button>
                 </form>
