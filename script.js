@@ -853,7 +853,7 @@ function usuarioPuedeAccederMantenimiento() {
 }
 
 function usuarioPuedeGestionarInventario() {
-    return usuarioPuedeAccederMantenimiento();
+    return usuarioEsSuperior();
 }
 
 function actualizarEstadoAccesoMantenimiento(mensaje = '', estado = 'info') {
@@ -1305,7 +1305,13 @@ function actualizarAreaMantenimientoUI() {
     const acceso = obtenerElemento('maintenanceAccessGate');
     const contenido = obtenerElemento('maintenancePrivateContent');
     const formularioInventario = obtenerElemento('inventoryForm');
+    const panelInventario = obtenerElemento('inventoryPanel');
     const sede = obtenerElemento('maintenanceSiteLabel');
+    const controlesGerenciales = [
+        obtenerElemento('toggleManagementDashboard'),
+        obtenerElemento('exportMonthlyMaintenance'),
+        obtenerElemento('toggleMaintenanceKpis')
+    ];
 
     const autorizado = usuarioPuedeAccederMantenimiento();
     accesoMantenimientoActivo = autorizado;
@@ -1322,6 +1328,12 @@ function actualizarAreaMantenimientoUI() {
     if (formularioInventario) {
         formularioInventario.hidden = !usuarioPuedeGestionarInventario();
     }
+    if (panelInventario) {
+        panelInventario.hidden = !usuarioPuedeGestionarInventario();
+    }
+    controlesGerenciales.forEach(control => {
+        if (control) control.hidden = !usuarioEsSuperior();
+    });
     if (sede) {
         sede.textContent = `Area de mantenimiento: ${obtenerNombreSede(obtenerSedeMantenimientoActiva())}`;
     }
@@ -1449,6 +1461,10 @@ async function cargarInventarioRepuestos() {
     if (!accesoMantenimientoActivo || !supabaseClient || !sesionActual?.user) {
         return;
     }
+    if (!usuarioEsSuperior()) {
+        inventarioRepuestos = [];
+        return;
+    }
 
     actualizarEstadoInventario('Cargando inventario...', 'info');
     const { data, error } = await supabaseClient
@@ -1504,6 +1520,10 @@ async function cargarIntervencionesMantenimiento() {
 
 async function cargarMovimientosInventario() {
     if (!accesoMantenimientoActivo || !supabaseClient || !sesionActual?.user) {
+        return;
+    }
+    if (!usuarioEsSuperior()) {
+        movimientosInventario = [];
         return;
     }
 

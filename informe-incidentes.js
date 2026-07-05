@@ -777,11 +777,12 @@ function obtenerRepuestosUsadosValidos() {
         .map(uso => {
             const repuesto = inventarioInforme.find(item => item.id === uso.id);
             const cantidad = Number(uso.cantidad);
+            const stock = Number(repuesto?.stock || 0);
             return {
                 id: uso.id,
                 codigo: repuesto?.codigo || uso.codigo || '',
                 nombre: repuesto?.nombre || uso.nombre || '',
-                cantidad: Number.isFinite(cantidad) && cantidad > 0 ? cantidad : 0,
+                cantidad: Number.isFinite(cantidad) && cantidad > 0 && cantidad <= stock ? cantidad : 0,
                 unidad: repuesto?.unidad || uso.unidad || 'unidad',
                 observacion: uso.observacion || ''
             };
@@ -826,14 +827,19 @@ function renderizarUsoInventario() {
         selector.setAttribute('aria-label', `Repuesto usado ${indice + 1}`);
         selector.appendChild(new Option('Selecciona repuesto', ''));
         inventarioInforme.forEach(item => {
-            const opcion = new Option(`${item.codigo} - ${item.nombre} (${item.stock} ${item.unidad})`, item.id);
+            const disponible = Number(item.stock) > 0;
+            const disponibilidad = disponible ? `${item.stock} ${item.unidad}` : `${item.unidad} - No disponible`;
+            const opcion = new Option(`${item.codigo} - ${item.nombre} (${disponibilidad})`, item.id);
             opcion.selected = item.id === uso.id;
+            opcion.disabled = !disponible && item.id !== uso.id;
             selector.appendChild(opcion);
         });
 
         cantidad.type = 'number';
         cantidad.min = '0';
         cantidad.step = '0.01';
+        cantidad.max = repuestoSeleccionado ? String(repuestoSeleccionado.stock) : '';
+        cantidad.disabled = Boolean(repuestoSeleccionado && Number(repuestoSeleccionado.stock) <= 0);
         cantidad.value = uso.cantidad || '1';
         cantidad.dataset.action = 'usage-quantity';
         cantidad.setAttribute('aria-label', `Cantidad usada ${indice + 1}`);
@@ -1798,11 +1804,9 @@ async function cargarInventarioInforme() {
         estado.textContent = 'Cargando inventario de la sede...';
     }
 
-    const { data, error } = await client
-        .from('inventario_repuestos')
-        .select('id,codigo,nombre,stock,unidad,categoria')
-        .eq('sede', getActiveSiteId())
-        .order('nombre', { ascending: true });
+    const { data, error } = await client.rpc('listar_inventario_para_informe', {
+        sede_arg: getActiveSiteId()
+    });
 
     if (error) {
         console.warn('No se pudo cargar inventario para informe:', error);
