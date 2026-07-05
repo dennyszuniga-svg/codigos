@@ -23,6 +23,7 @@
         <section class="control-filters" aria-label="Filtros del centro de control">
             <label>Sede<select id="controlSite"></select></label>
             <label>Mes<input id="controlMonth" type="month"></label>
+            <label id="technicianFilterGroup">Técnico<select id="controlTechnician"><option value="">Todos los técnicos</option></select></label>
             <button id="refreshControl" type="button">Actualizar</button>
         </section>
 
@@ -40,8 +41,8 @@
             <h2>Dashboard técnico</h2>
             <div id="dashboardCards" class="metric-grid"></div>
             <div class="split-grid">
-                <article class="data-panel"><h3>Avance de tareas</h3><div id="taskProgress"></div></article>
-                <article class="data-panel"><h3>Próximos trabajos</h3><div id="upcomingTasks" class="record-list"></div></article>
+                <article class="data-panel"><h3>Evolución de 6 meses</h3><div id="monthlyActivity" class="monthly-activity"></div></article>
+                <article class="data-panel"><h3>Intervenciones recientes</h3><div id="recentInterventions" class="record-list"></div></article>
             </div>
         </section>
 

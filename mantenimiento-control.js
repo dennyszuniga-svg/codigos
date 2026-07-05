@@ -14,7 +14,6 @@ let client = null;
 let session = null;
 let profile = null;
 let interventions = [];
-let tasks = [];
 let inventory = [];
 
 const byId = id => document.getElementById(id);
@@ -107,7 +106,35 @@ function configureFilters() {
         ? requestedSite
         : profile.sede === 'general' ? 'civico' : profile.sede;
     byId('controlMonth').value = new Date().toISOString().slice(0, 7);
-    if (!isSuperior()) byId('inventoryTab').hidden = true;
+    if (!isSuperior()) {
+        byId('inventoryTab').hidden = true;
+        byId('technicianFilterGroup').hidden = true;
+    }
+}
+
+function visibleInterventions() {
+    const technician = byId('controlTechnician')?.value || '';
+    return technician
+        ? interventions.filter(item => (item.tecnico || 'Sin técnico') === technician)
+        : interventions;
+}
+
+function configureTechnicianFilter() {
+    const selector = byId('controlTechnician');
+    if (!selector || !isSuperior()) return;
+    const previous = selector.value;
+    clear(selector);
+    const all = document.createElement('option');
+    all.value = '';
+    all.textContent = 'Todos los técnicos';
+    selector.appendChild(all);
+    [...new Set(interventions.map(item => item.tecnico).filter(Boolean))].sort().forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        selector.appendChild(option);
+    });
+    if ([...selector.options].some(option => option.value === previous)) selector.value = previous;
 }
 
 async function loadData() {
@@ -119,66 +146,84 @@ async function loadData() {
     endDate.setMonth(endDate.getMonth() + 1);
     const end = endDate.toISOString().slice(0, 10);
 
-    const [reportsResult, tasksResult, inventoryResult] = await Promise.all([
-        client.from('intervenciones_mantenimiento')
-            .select('id,numero_informe,sede,equipo_codigo,equipo_nombre,equipo_tipo,tipo_mantenimiento,prioridad,estado_inicial,resultado_final,motivo,solucion,tecnico,supervisor,duracion_minutos,genera_parada,fecha_guardado')
-            .eq('sede', site).order('fecha_guardado', { ascending: false }).limit(500),
-        client.from('tareas_mantenimiento')
-            .select('id,titulo,descripcion,sede,equipo_codigo,equipo_nombre,prioridad,fecha_limite,estado,asignado_a,observacion_tecnico,profiles!tareas_mantenimiento_asignado_a_fkey(nombre,email)')
-            .eq('sede', site).gte('fecha_limite', start).lt('fecha_limite', end).order('fecha_limite'),
+    let reportsQuery = client.from('intervenciones_mantenimiento')
+        .select('id,numero_informe,sede,equipo_codigo,equipo_nombre,equipo_tipo,tipo_mantenimiento,prioridad,estado_inicial,resultado_final,motivo,solucion,tecnico,supervisor,duracion_minutos,genera_parada,fecha_guardado,creado_por')
+        .eq('sede', site).order('fecha_guardado', { ascending: false }).limit(500);
+    if (!isSuperior()) reportsQuery = reportsQuery.eq('creado_por', session.user.id);
+
+    const [reportsResult, inventoryResult] = await Promise.all([
+        reportsQuery,
         isSuperior()
             ? client.from('inventario_repuestos').select('id,codigo,nombre,categoria,stock,stock_minimo,unidad,ubicacion,updated_at').eq('sede', site).order('nombre')
             : Promise.resolve({ data: [], error: null })
     ]);
 
-    const error = reportsResult.error || tasksResult.error || inventoryResult.error;
+    const error = reportsResult.error || inventoryResult.error;
     if (error) {
         setStatus('No se pudo cargar toda la información. Actualiza e inténtalo nuevamente.', 'error');
         console.warn('Centro de control:', error);
         return;
     }
     interventions = reportsResult.data || [];
-    tasks = tasksResult.data || [];
     inventory = inventoryResult.data || [];
+    configureTechnicianFilter();
     renderAll();
     setStatus(`Actualizado: ${siteName(site)} - ${month}`, 'success');
 }
 
 function renderDashboard() {
     const cards = byId('dashboardCards');
-    const progress = byId('taskProgress');
-    const upcoming = byId('upcomingTasks');
-    clear(cards); clear(progress); clear(upcoming);
-    const monthReports = interventions.filter(item => inSelectedMonth(item.fecha_guardado));
-    const completed = tasks.filter(item => item.estado === 'completada').length;
-    const pending = tasks.filter(item => item.estado !== 'completada').length;
-    const overdue = tasks.filter(item => item.estado !== 'completada' && item.fecha_limite < new Date().toISOString().slice(0, 10)).length;
-    const compliance = tasks.length ? Math.round(completed / tasks.length * 100) : 0;
+    const activity = byId('monthlyActivity');
+    const recent = byId('recentInterventions');
+    clear(cards); clear(activity); clear(recent);
+    const visible = visibleInterventions();
+    const monthReports = visible.filter(item => inSelectedMonth(item.fecha_guardado));
+    const preventive = monthReports.filter(item => ['Preventivo', 'PreventivoMensual'].includes(item.tipo_mantenimiento));
+    const corrective = monthReports.filter(item => item.tipo_mantenimiento === 'Correctivo');
     const downtime = monthReports.filter(item => item.genera_parada !== false).reduce((sum, item) => sum + Number(item.duracion_minutos || 0), 0);
+    const average = monthReports.length ? Math.round(monthReports.reduce((sum, item) => sum + Number(item.duracion_minutos || 0), 0) / monthReports.length) : 0;
     cards.append(
-        metric('Tareas del mes', String(tasks.length), `${pending} pendientes`, pending ? 'warning' : 'good'),
-        metric('Completadas', String(completed), `${compliance}% de cumplimiento`, compliance >= 90 ? 'good' : 'warning'),
-        metric('Vencidas', String(overdue), 'Fuera de fecha', overdue ? 'danger' : 'good'),
-        metric('Informes', String(monthReports.length), 'Intervenciones registradas'),
+        metric('Intervenciones', String(monthReports.length), 'Realizadas en el mes'),
+        metric('Preventivos', String(preventive.length), 'Mantenimientos ejecutados', preventive.length ? 'good' : 'warning'),
+        metric('Correctivos', String(corrective.length), 'Atenciones por falla', corrective.length ? 'danger' : 'good'),
+        metric('Duración promedio', formatMinutes(average), 'Por intervención'),
         metric('Parada operativa', formatMinutes(downtime), 'Acumulado del mes', downtime ? 'warning' : 'good')
     );
-    const label = document.createElement('p');
-    const track = document.createElement('div');
-    const bar = document.createElement('span');
-    label.textContent = `${completed} de ${tasks.length} tareas completadas`;
-    track.className = 'progress-track';
-    bar.style.width = `${compliance}%`;
-    track.appendChild(bar);
-    progress.append(label, track);
-    const next = tasks.filter(item => item.estado !== 'completada').slice(0, 6);
-    if (!next.length) upcoming.appendChild(empty('No hay trabajos pendientes en este mes.'));
-    next.forEach(item => upcoming.appendChild(record(item.titulo, `${item.fecha_limite} - ${item.profiles?.nombre || 'Técnico'} - ${item.equipo_codigo || 'Trabajo general'}`)));
+
+    const selectedMonth = new Date(`${monthValue()}-01T00:00:00`);
+    for (let offset = 5; offset >= 0; offset -= 1) {
+        const date = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - offset, 1);
+        const key = date.toISOString().slice(0, 7);
+        const rows = visible.filter(item => new Date(item.fecha_guardado).toISOString().slice(0, 7) === key);
+        const row = document.createElement('div');
+        const label = document.createElement('strong');
+        const bars = document.createElement('div');
+        const preventiveBar = document.createElement('span');
+        const correctiveBar = document.createElement('span');
+        row.className = 'monthly-row';
+        bars.className = 'monthly-bars';
+        preventiveBar.className = 'monthly-bar';
+        correctiveBar.className = 'monthly-bar corrective';
+        label.textContent = date.toLocaleDateString('es-PE', { month: 'short', year: '2-digit' });
+        preventiveBar.textContent = `P: ${rows.filter(item => ['Preventivo', 'PreventivoMensual'].includes(item.tipo_mantenimiento)).length}`;
+        correctiveBar.textContent = `C: ${rows.filter(item => item.tipo_mantenimiento === 'Correctivo').length}`;
+        bars.append(preventiveBar, correctiveBar);
+        row.append(label, bars);
+        activity.appendChild(row);
+    }
+    const latest = visible.slice(0, 6);
+    if (!latest.length) recent.appendChild(empty('Este técnico todavía no registra intervenciones.'));
+    latest.forEach(item => recent.appendChild(record(
+        `${item.tipo_mantenimiento} - ${item.equipo_codigo || item.equipo_nombre}`,
+        `${new Date(item.fecha_guardado).toLocaleDateString('es-PE')} - ${item.numero_informe} - ${formatMinutes(item.duracion_minutos)}`,
+        item.tipo_mantenimiento === 'Correctivo' ? 'corrective' : ''
+    )));
 }
 
 function renderKpis() {
     const cards = byId('kpiCards');
     clear(cards);
-    const reports = interventions.filter(item => inSelectedMonth(item.fecha_guardado));
+    const reports = visibleInterventions().filter(item => inSelectedMonth(item.fecha_guardado));
     const preventive = reports.filter(item => ['Preventivo', 'PreventivoMensual'].includes(item.tipo_mantenimiento));
     const corrective = reports.filter(item => item.tipo_mantenimiento === 'Correctivo');
     const average = reports.length ? Math.round(reports.reduce((sum, item) => sum + Number(item.duracion_minutos || 0), 0) / reports.length) : 0;
@@ -202,7 +247,7 @@ function configureHistorySelector() {
     initial.textContent = 'Selecciona un equipo';
     selector.appendChild(initial);
     const equipment = new Map();
-    interventions.forEach(item => {
+    visibleInterventions().forEach(item => {
         if (item.equipo_codigo) equipment.set(item.equipo_codigo, item.equipo_nombre || item.equipo_codigo);
     });
     [...equipment.entries()].sort().forEach(([code, name]) => {
@@ -220,7 +265,7 @@ function renderHistory() {
     clear(list);
     const code = byId('historyEquipment').value;
     if (!code) { list.appendChild(empty('Selecciona un equipo para consultar su historial.')); return; }
-    const rows = interventions.filter(item => item.equipo_codigo === code);
+    const rows = visibleInterventions().filter(item => item.equipo_codigo === code);
     if (!rows.length) { list.appendChild(empty('No existen intervenciones para este equipo.')); return; }
     rows.forEach(item => {
         const date = new Date(item.fecha_guardado);
@@ -234,7 +279,7 @@ function renderHistory() {
 
 function repeatedFailures() {
     const groups = new Map();
-    interventions.filter(item => item.tipo_mantenimiento === 'Correctivo').forEach(item => {
+    visibleInterventions().filter(item => item.tipo_mantenimiento === 'Correctivo').forEach(item => {
         const code = item.equipo_codigo || 'Sin equipo';
         if (!groups.has(code)) groups.set(code, []);
         groups.get(code).push(item);
@@ -344,6 +389,7 @@ function configureEvents() {
     byId('refreshControl').addEventListener('click', loadData);
     byId('controlSite').addEventListener('change', loadData);
     byId('controlMonth').addEventListener('change', loadData);
+    byId('controlTechnician').addEventListener('change', renderAll);
     byId('historyEquipment').addEventListener('change', renderHistory);
     byId('inventoryFilter').addEventListener('input', renderInventory);
     byId('toggleInventoryForm').addEventListener('click', event => showInventoryForm(event.currentTarget.getAttribute('aria-expanded') !== 'true'));
