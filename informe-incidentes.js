@@ -508,6 +508,8 @@ function readAppContext() {
         usuarioId: params.get('usuarioId')?.trim() || '',
         sede: params.get('sede')?.trim() || '',
         sedeId: params.get('sedeId')?.trim() || '',
+        equipo: params.get('equipo')?.trim() || '',
+        tareaId: params.get('tareaId')?.trim() || '',
         regreso: params.get('regreso') || 'index.html?module=mantenimiento'
     };
 }
@@ -526,7 +528,14 @@ function applyAppContext() {
     if (volver) {
         volver.href = APP_CONTEXT.regreso;
     }
+    if (!fields.equipo.value && APP_CONTEXT.equipo) {
+        const equipo = EQUIPOS_MANTENIMIENTO.find(item =>
+            item.sede === APP_CONTEXT.sedeId && item.codigo === APP_CONTEXT.equipo
+        );
+        if (equipo) fields.tipoEquipoInforme.value = obtenerTipoInformeEquipo(equipo);
+    }
     renderEquipmentCatalog();
+    if (!fields.equipo.value && APP_CONTEXT.equipo) fields.equipo.value = APP_CONTEXT.equipo;
 }
 
 function getActiveSiteId() {
@@ -1808,6 +1817,15 @@ async function registerMaintenanceSummary(report) {
     const summary = buildMaintenanceSummary(report);
     saveMaintenanceSummaryLocal(summary);
     const synced = await saveMaintenanceSummaryRemote(summary);
+    if (synced && APP_CONTEXT.tareaId) {
+        const client = await getSupabaseClient();
+        const { error } = await client.rpc('actualizar_estado_tarea_mantenimiento', {
+            tarea_id: APP_CONTEXT.tareaId,
+            estado_nuevo: 'completada',
+            observacion_nueva: `Informe ${report.numeroInforme} generado.`
+        });
+        if (error) console.warn('El informe se guardo, pero no se pudo completar la tarea asignada:', error);
+    }
     setStatus(synced
         ? 'Informe guardado y sincronizado para KPIs de mantenimiento.'
         : 'Informe guardado. La sincronizacion de KPIs quedo pendiente.');

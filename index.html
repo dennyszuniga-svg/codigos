@@ -526,6 +526,31 @@
                                 <div id="maintenanceKpiCategories" class="maintenance-kpi-categories"></div>
                             </section>
 
+                            <section class="maintenance-tasks-panel" aria-labelledby="maintenanceTasksTitle">
+                                <div class="inventory-heading">
+                                    <div>
+                                        <h4 id="maintenanceTasksTitle">Plan mensual de tareas</h4>
+                                        <p id="maintenanceTasksSubtitle">Consulta las tareas asignadas y su fecha limite.</p>
+                                    </div>
+                                    <label class="month-filter" for="maintenanceTasksMonth">Mes
+                                        <input id="maintenanceTasksMonth" type="month">
+                                    </label>
+                                </div>
+
+                                <form id="maintenanceTaskForm" class="maintenance-task-form" hidden>
+                                    <label>Tarea<input id="maintenanceTaskTitle" type="text" maxlength="160" required placeholder="Ej. Preventivo mensual de carril"></label>
+                                    <label>Tecnico<select id="maintenanceTaskTechnician" required><option value="">Selecciona un tecnico</option></select></label>
+                                    <label>Sede<select id="maintenanceTaskSite" required></select></label>
+                                    <label>Equipo<select id="maintenanceTaskEquipment"><option value="">Trabajo general / sin equipo</option></select></label>
+                                    <label>Prioridad<select id="maintenanceTaskPriority" required><option value="baja">Baja</option><option value="media" selected>Media</option><option value="alta">Alta</option><option value="critica">Critica</option></select></label>
+                                    <label>Fecha limite<input id="maintenanceTaskDueDate" type="date" required></label>
+                                    <label class="maintenance-task-description">Indicaciones<textarea id="maintenanceTaskDescription" rows="3" maxlength="1000" placeholder="Detalle del trabajo que debe realizarse"></textarea></label>
+                                    <button class="finish-btn" type="submit">Asignar y notificar</button>
+                                </form>
+                                <p id="maintenanceTasksStatus" class="auth-status" role="status" aria-live="polite"></p>
+                                <div id="maintenanceTasksList" class="maintenance-tasks-list" aria-live="polite"></div>
+                            </section>
+
                             <div class="maintenance-report-action">
                                 <span class="maintenance-report-icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" focusable="false">

@@ -70,7 +70,11 @@ Deno.serve(async (req) => {
   }
 
   const body = await req.json().catch(() => ({}));
-  const evento = body.evento === 'nuevo_abonado' ? 'nuevo_abonado' : 'codigo';
+  const evento = body.evento === 'nuevo_abonado'
+    ? 'nuevo_abonado'
+    : body.evento === 'tarea_mantenimiento'
+      ? 'tarea_mantenimiento'
+      : 'codigo';
   const codigo = typeof body.codigo === 'string' ? body.codigo : '';
   const nombre = typeof body.nombre === 'string' ? body.nombre : nombresCodigo[codigo] || 'Codigo activado';
   const sedeSolicitada = typeof body.sede === 'string' ? body.sede : senderProfile.sede;
@@ -92,6 +96,32 @@ Deno.serve(async (req) => {
     });
   }
 
+  const asignadoA = typeof body.asignadoA === 'string' ? body.asignadoA : '';
+  const tareaId = typeof body.tareaId === 'string' ? body.tareaId : '';
+  const tituloTarea = typeof body.titulo === 'string' ? body.titulo.slice(0, 160) : 'Nueva tarea de mantenimiento';
+  const fechaLimite = typeof body.fechaLimite === 'string' ? body.fechaLimite : '';
+  if (evento === 'tarea_mantenimiento' && senderProfile.rol !== 'encargado_ti') {
+    return new Response(JSON.stringify({ error: 'Solo el encargado puede asignar tareas tecnicas' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+  if (evento === 'tarea_mantenimiento') {
+    const { data: tarea } = await supabase
+      .from('tareas_mantenimiento')
+      .select('id,asignado_a,asignado_por')
+      .eq('id', tareaId)
+      .eq('asignado_a', asignadoA)
+      .eq('asignado_por', userData.user.id)
+      .maybeSingle();
+    if (!tarea) {
+      return new Response(JSON.stringify({ error: 'Asignacion de mantenimiento no valida' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
   const { data: siteUsers, error: siteUsersError } = await supabase
     .from('profiles')
     .select('id,sede,rol')
@@ -108,7 +138,9 @@ Deno.serve(async (req) => {
     .filter((item) => item.id !== userData.user.id)
     .filter((item) => evento === 'nuevo_abonado'
       ? item.rol === 'encargado_ti' || (item.rol === 'admin' && item.sede === sedeDestino)
-      : item.sede === sedeDestino)
+      : evento === 'tarea_mantenimiento'
+        ? item.id === asignadoA && item.rol === 'tecnico'
+        : item.sede === sedeDestino)
     .map((item) => item.id);
   if (!recipientIds.length) {
     await supabase.from('push_delivery_logs').insert({
@@ -135,17 +167,23 @@ Deno.serve(async (req) => {
 
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
-  const payload = JSON.stringify(evento === 'nuevo_abonado' ? {
+  const payloadData = evento === 'nuevo_abonado' ? {
     title: 'Nuevo abonado registrado',
     body: `Hay una nueva solicitud de abonado en ${sedeDestino}. Ingresa a la app para atenderla.`,
     tag: `nuevo-abonado-${sedeDestino}`,
     data: { tipo: 'nuevo_abonado', module: 'abonados', sede: sedeDestino },
+  } : evento === 'tarea_mantenimiento' ? {
+    title: 'Nueva tarea de mantenimiento',
+    body: `${tituloTarea}. Fecha limite: ${fechaLimite || 'por confirmar'}.`,
+    tag: `tarea-mantenimiento-${tareaId || asignadoA}`,
+    data: { tipo: 'tarea_mantenimiento', module: 'mantenimiento', tareaId, sede: sedeDestino },
   } : {
     title: `${nombre} activado`,
     body: `${senderProfile.nombre || 'Un usuario'} activo ${nombre}. Revisa el checklist operativo.`,
     tag: `codigo-activo-${sedeDestino}-${codigo}`,
     data: { codigo, sede: sedeDestino },
-  });
+  };
+  const payload = JSON.stringify(payloadData);
 
   const results = await Promise.allSettled(
     (subscriptions || []).map(async (subscription) => {

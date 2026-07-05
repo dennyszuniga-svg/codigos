@@ -3567,3 +3567,81 @@ body.dark-theme .modal-dialog {
         transition-duration: 0.01ms !important;
     }
 }
+
+.maintenance-tasks-panel {
+    margin: 16px 0;
+    padding: 16px;
+    border: 1px solid #cfd8e3;
+    border-left: 4px solid #1596ce;
+    background: #fff;
+    border-radius: 8px;
+}
+
+.maintenance-task-form {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin: 14px 0;
+    padding: 14px;
+    background: #f4f8fb;
+    border: 1px solid #d8e2ea;
+    border-radius: 6px;
+}
+
+.maintenance-task-form label {
+    display: grid;
+    gap: 5px;
+    font-weight: 700;
+    color: #24364b;
+}
+
+.maintenance-task-form input,
+.maintenance-task-form select,
+.maintenance-task-form textarea {
+    width: 100%;
+}
+
+.maintenance-task-description {
+    grid-column: 1 / -1;
+}
+
+.maintenance-tasks-list {
+    display: grid;
+    gap: 10px;
+}
+
+.maintenance-task-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    padding: 13px;
+    border: 1px solid #d8e2ea;
+    border-left: 4px solid #1596ce;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.maintenance-task-card.is-overdue { border-left-color: #d92d20; }
+.maintenance-task-card.is-completed { border-left-color: #168453; opacity: 0.82; }
+.maintenance-task-card h5 { margin: 0 0 5px; font-size: 1rem; }
+.maintenance-task-card p { margin: 4px 0; }
+.maintenance-task-meta { color: #56677b; font-size: 0.83rem; }
+.maintenance-task-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 7px; }
+.maintenance-task-state { font-size: 0.78rem; font-weight: 800; text-transform: uppercase; color: #17638a; }
+.maintenance-task-note { grid-column: 1 / -1; display: grid; gap: 5px; }
+
+body.dark-theme .maintenance-tasks-panel,
+body.dark-theme .maintenance-task-card {
+    background: #17202b;
+    border-color: #3b4b5e;
+}
+
+body.dark-theme .maintenance-task-form { background: #111923; border-color: #3b4b5e; }
+body.dark-theme .maintenance-task-form label { color: #eef5fb; }
+body.dark-theme .maintenance-task-meta { color: #b9c7d5; }
+
+@media (max-width: 760px) {
+    .maintenance-task-form { grid-template-columns: 1fr; }
+    .maintenance-task-card { grid-template-columns: 1fr; }
+    .maintenance-task-actions { justify-content: flex-start; }
+}

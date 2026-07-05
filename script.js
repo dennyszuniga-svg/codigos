@@ -375,9 +375,12 @@ let inventarioRepuestos = [];
 let intervencionesMantenimiento = [];
 let movimientosInventario = [];
 let mantenimientoProgramado = [];
+let tareasMantenimiento = [];
+let tecnicosMantenimiento = [];
 let canalInventario = null;
 let canalIntervencionesMantenimiento = null;
 let canalMantenimientoProgramado = null;
+let canalTareasMantenimiento = null;
 let solicitudesAbonados = [];
 let canalSolicitudesAbonados = null;
 let sedeActivaPorModulo = {
@@ -548,6 +551,288 @@ function prepararEnlaceInformeMantenimiento() {
         regreso: 'index.html?module=mantenimiento'
     });
     enlace.href = `informe-incidentes.html?${parametros.toString()}`;
+}
+
+function obtenerMesActual() {
+    return new Date().toISOString().slice(0, 7);
+}
+
+function configurarPanelTareasMantenimiento() {
+    const formulario = obtenerElemento('maintenanceTaskForm');
+    const mes = obtenerElemento('maintenanceTasksMonth');
+    const sede = obtenerElemento('maintenanceTaskSite');
+    const fecha = obtenerElemento('maintenanceTaskDueDate');
+    const subtitulo = obtenerElemento('maintenanceTasksSubtitle');
+
+    if (formulario) formulario.hidden = !usuarioEsSuperior();
+    if (mes && !mes.value) mes.value = obtenerMesActual();
+    if (fecha && !fecha.value) fecha.value = `${mes?.value || obtenerMesActual()}-28`;
+    if (subtitulo) {
+        subtitulo.textContent = usuarioEsSuperior()
+            ? 'Asigna trabajos a cada tecnico y controla su avance durante el mes.'
+            : 'Estas son las tareas que debes completar durante el mes.';
+    }
+
+    if (sede && !sede.options.length) {
+        SEDES_OPERACION.forEach(item => {
+            const opcion = document.createElement('option');
+            opcion.value = item.id;
+            opcion.textContent = item.nombre;
+            sede.appendChild(opcion);
+        });
+        sede.value = obtenerSedeMantenimientoActiva();
+    }
+    actualizarEquiposAsignacionMantenimiento();
+}
+
+function actualizarEquiposAsignacionMantenimiento() {
+    const selector = obtenerElemento('maintenanceTaskEquipment');
+    const sede = obtenerElemento('maintenanceTaskSite')?.value || obtenerSedeMantenimientoActiva();
+    if (!selector) return;
+
+    limpiarElemento(selector);
+    const general = document.createElement('option');
+    general.value = '';
+    general.textContent = 'Trabajo general / sin equipo';
+    selector.appendChild(general);
+    EQUIPOS_MANTENIMIENTO
+        .filter(equipo => equipo.sede === sede)
+        .forEach(equipo => {
+            const opcion = document.createElement('option');
+            opcion.value = equipo.codigo;
+            opcion.textContent = `${equipo.codigo} - ${equipo.nombre}`;
+            opcion.dataset.nombre = equipo.nombre;
+            selector.appendChild(opcion);
+        });
+}
+
+async function cargarTecnicosMantenimiento() {
+    const selector = obtenerElemento('maintenanceTaskTechnician');
+    if (!usuarioEsSuperior() || !supabaseClient || !selector) return;
+
+    const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('id,nombre,email')
+        .eq('rol', 'tecnico')
+        .eq('activo', true)
+        .order('nombre', { ascending: true });
+    if (error) {
+        actualizarEstadoTareasMantenimiento('No se pudo cargar la lista de tecnicos.', 'error');
+        return;
+    }
+
+    tecnicosMantenimiento = Array.isArray(data) ? data : [];
+    limpiarElemento(selector);
+    const inicial = document.createElement('option');
+    inicial.value = '';
+    inicial.textContent = tecnicosMantenimiento.length ? 'Selecciona un tecnico' : 'No hay tecnicos activos';
+    selector.appendChild(inicial);
+    tecnicosMantenimiento.forEach(tecnico => {
+        const opcion = document.createElement('option');
+        opcion.value = tecnico.id;
+        opcion.textContent = tecnico.nombre || tecnico.email;
+        selector.appendChild(opcion);
+    });
+}
+
+function actualizarEstadoTareasMantenimiento(mensaje = '', estado = 'info') {
+    const salida = obtenerElemento('maintenanceTasksStatus');
+    if (!salida) return;
+    salida.textContent = mensaje;
+    salida.dataset.status = estado;
+}
+
+async function cargarTareasMantenimiento() {
+    if (!accesoMantenimientoActivo || !supabaseClient || !sesionActual?.user) return;
+    const mes = obtenerElemento('maintenanceTasksMonth')?.value || obtenerMesActual();
+    const inicio = `${mes}-01`;
+    const finFecha = new Date(`${inicio}T00:00:00`);
+    finFecha.setMonth(finFecha.getMonth() + 1);
+    const fin = finFecha.toISOString().slice(0, 10);
+
+    actualizarEstadoTareasMantenimiento('Cargando tareas...', 'info');
+    const { data, error } = await supabaseClient
+        .from('tareas_mantenimiento')
+        .select('id,titulo,descripcion,sede,equipo_codigo,equipo_nombre,prioridad,fecha_limite,asignado_a,asignado_por,estado,observacion_tecnico,iniciada_at,completada_at,created_at,profiles!tareas_mantenimiento_asignado_a_fkey(nombre,email)')
+        .gte('fecha_limite', inicio)
+        .lt('fecha_limite', fin)
+        .order('fecha_limite', { ascending: true });
+
+    if (error) {
+        tareasMantenimiento = [];
+        actualizarEstadoTareasMantenimiento('No se pudieron cargar las tareas mensuales.', 'error');
+        console.warn('No se pudieron cargar tareas de mantenimiento:', error);
+    } else {
+        tareasMantenimiento = Array.isArray(data) ? data : [];
+        actualizarEstadoTareasMantenimiento(`${tareasMantenimiento.length} tareas en el mes.`, 'success');
+    }
+    renderizarTareasMantenimiento();
+}
+
+function etiquetaEstadoTarea(estado) {
+    return { pendiente: 'Pendiente', en_proceso: 'En proceso', completada: 'Completada' }[estado] || estado;
+}
+
+function crearEnlaceInformeTarea(tarea) {
+    const parametros = new URLSearchParams({
+        tecnico: obtenerNombreUsuarioActivo(),
+        usuarioId: sesionActual?.user?.id || '',
+        sede: obtenerNombreSede(tarea.sede),
+        sedeId: tarea.sede,
+        equipo: tarea.equipo_codigo || '',
+        tareaId: tarea.id,
+        regreso: 'index.html?module=mantenimiento'
+    });
+    return `informe-incidentes.html?${parametros.toString()}`;
+}
+
+function renderizarTareasMantenimiento() {
+    const contenedor = obtenerElemento('maintenanceTasksList');
+    if (!contenedor) return;
+    limpiarElemento(contenedor);
+    if (!tareasMantenimiento.length) {
+        contenedor.appendChild(crearMensajeVacio('No hay tareas asignadas para este mes.', 'inventory-empty'));
+        return;
+    }
+
+    tareasMantenimiento.forEach(tarea => {
+        const tarjeta = document.createElement('article');
+        const cuerpo = document.createElement('div');
+        const titulo = document.createElement('h5');
+        const detalle = document.createElement('p');
+        const meta = document.createElement('p');
+        const estado = document.createElement('span');
+        const acciones = document.createElement('div');
+        const informe = document.createElement('a');
+        const vencida = tarea.estado !== 'completada' && tarea.fecha_limite < new Date().toISOString().slice(0, 10);
+
+        tarjeta.className = 'maintenance-task-card';
+        tarjeta.classList.toggle('is-overdue', vencida);
+        tarjeta.classList.toggle('is-completed', tarea.estado === 'completada');
+        titulo.textContent = tarea.titulo;
+        detalle.textContent = tarea.descripcion || 'Sin indicaciones adicionales.';
+        meta.className = 'maintenance-task-meta';
+        const tecnico = tarea.profiles?.nombre || tarea.profiles?.email || 'Tecnico asignado';
+        const equipo = tarea.equipo_codigo ? ` - ${tarea.equipo_codigo}` : '';
+        meta.textContent = `${obtenerNombreSede(tarea.sede)}${equipo} - ${tecnico} - Limite: ${tarea.fecha_limite} - Prioridad ${tarea.prioridad}`;
+        estado.className = 'maintenance-task-state';
+        estado.textContent = vencida ? 'Vencida' : etiquetaEstadoTarea(tarea.estado);
+        cuerpo.append(titulo, detalle, meta);
+
+        informe.className = 'clear-btn';
+        informe.href = crearEnlaceInformeTarea(tarea);
+        informe.textContent = 'Abrir informe';
+        acciones.className = 'maintenance-task-actions';
+        acciones.append(estado, informe);
+
+        if (!usuarioEsSuperior() && tarea.estado !== 'completada') {
+            const avanzar = document.createElement('button');
+            avanzar.type = 'button';
+            avanzar.className = 'finish-btn';
+            avanzar.dataset.updateMaintenanceTask = tarea.id;
+            avanzar.dataset.taskState = tarea.estado === 'pendiente' ? 'en_proceso' : 'completada';
+            avanzar.textContent = tarea.estado === 'pendiente' ? 'Iniciar tarea' : 'Marcar completada';
+            acciones.appendChild(avanzar);
+        }
+        if (usuarioEsSuperior()) {
+            const eliminar = document.createElement('button');
+            eliminar.type = 'button';
+            eliminar.className = 'clear-btn danger-action';
+            eliminar.dataset.deleteMaintenanceTask = tarea.id;
+            eliminar.textContent = 'Eliminar';
+            acciones.appendChild(eliminar);
+        }
+
+        tarjeta.append(cuerpo, acciones);
+        if (tarea.observacion_tecnico) {
+            const nota = document.createElement('p');
+            nota.className = 'maintenance-task-note';
+            nota.textContent = `Nota del tecnico: ${tarea.observacion_tecnico}`;
+            tarjeta.appendChild(nota);
+        }
+        contenedor.appendChild(tarjeta);
+    });
+}
+
+async function guardarTareaMantenimiento(event) {
+    event.preventDefault();
+    if (!usuarioEsSuperior() || !supabaseClient) return;
+    const equipoSelect = obtenerElemento('maintenanceTaskEquipment');
+    const opcionEquipo = equipoSelect?.selectedOptions?.[0];
+    const payload = {
+        titulo: obtenerElemento('maintenanceTaskTitle').value.trim(),
+        descripcion: obtenerElemento('maintenanceTaskDescription').value.trim(),
+        sede: obtenerElemento('maintenanceTaskSite').value,
+        equipo_codigo: equipoSelect?.value || null,
+        equipo_nombre: equipoSelect?.value ? opcionEquipo?.dataset.nombre || opcionEquipo?.textContent || '' : null,
+        prioridad: obtenerElemento('maintenanceTaskPriority').value,
+        fecha_limite: obtenerElemento('maintenanceTaskDueDate').value,
+        asignado_a: obtenerElemento('maintenanceTaskTechnician').value,
+        asignado_por: sesionActual.user.id
+    };
+    if (!payload.titulo || !payload.sede || !payload.fecha_limite || !payload.asignado_a) {
+        actualizarEstadoTareasMantenimiento('Completa tarea, tecnico, sede y fecha limite.', 'error');
+        return;
+    }
+
+    const boton = event.currentTarget.querySelector('button[type="submit"]');
+    boton.disabled = true;
+    actualizarEstadoTareasMantenimiento('Asignando tarea...', 'info');
+    const { data, error } = await supabaseClient.from('tareas_mantenimiento').insert(payload).select('id').single();
+    boton.disabled = false;
+    if (error) {
+        actualizarEstadoTareasMantenimiento('No se pudo asignar la tarea.', 'error');
+        console.warn('No se pudo asignar tarea:', error);
+        return;
+    }
+
+    await enviarAlertaPushTarea(data.id, payload.asignado_a, payload.titulo, payload.fecha_limite, payload.sede);
+    event.currentTarget.reset();
+    obtenerElemento('maintenanceTaskSite').value = obtenerSedeMantenimientoActiva();
+    obtenerElemento('maintenanceTaskPriority').value = 'media';
+    obtenerElemento('maintenanceTaskDueDate').value = `${obtenerElemento('maintenanceTasksMonth').value || obtenerMesActual()}-28`;
+    actualizarEquiposAsignacionMantenimiento();
+    actualizarEstadoTareasMantenimiento('Tarea asignada y notificacion enviada.', 'success');
+    await cargarTareasMantenimiento();
+}
+
+async function enviarAlertaPushTarea(tareaId, asignadoA, titulo, fechaLimite, sede) {
+    try {
+        const { error } = await supabaseClient.functions.invoke('send-code-alert', {
+            body: { evento: 'tarea_mantenimiento', tareaId, asignadoA, titulo, fechaLimite, sede }
+        });
+        if (error) console.warn('No se pudo notificar la tarea:', error);
+    } catch (error) {
+        console.warn('Funcion push no disponible para tarea:', error);
+    }
+}
+
+async function actualizarEstadoTareaMantenimiento(id, estado) {
+    let observacion = '';
+    if (estado === 'completada') {
+        observacion = window.prompt('Observacion final de la tarea (opcional):', '') || '';
+    }
+    const { error } = await supabaseClient.rpc('actualizar_estado_tarea_mantenimiento', {
+        tarea_id: id,
+        estado_nuevo: estado,
+        observacion_nueva: observacion
+    });
+    if (error) {
+        mostrarToast('No se pudo actualizar la tarea.');
+        return;
+    }
+    mostrarToast(estado === 'completada' ? 'Tarea completada.' : 'Tarea iniciada.');
+    await cargarTareasMantenimiento();
+}
+
+async function eliminarTareaMantenimiento(id) {
+    if (!usuarioEsSuperior() || !window.confirm('Eliminar esta tarea asignada?')) return;
+    const { error } = await supabaseClient.from('tareas_mantenimiento').delete().eq('id', id);
+    if (error) {
+        mostrarToast('No se pudo eliminar la tarea.');
+        return;
+    }
+    await cargarTareasMantenimiento();
 }
 
 function aplicarModuloSolicitadoDesdeURL() {
@@ -1040,6 +1325,7 @@ function actualizarAreaMantenimientoUI() {
     if (sede) {
         sede.textContent = `Area de mantenimiento: ${obtenerNombreSede(obtenerSedeMantenimientoActiva())}`;
     }
+    configurarPanelTareasMantenimiento();
     renderizarKpisMantenimiento();
     renderizarDashboardGerencial();
 }
@@ -1097,11 +1383,14 @@ async function validarAccesoMantenimiento(event) {
         cargarInventarioRepuestos(),
         cargarIntervencionesMantenimiento(),
         cargarMovimientosInventario(),
-        cargarMantenimientoProgramado()
+        cargarMantenimientoProgramado(),
+        cargarTareasMantenimiento(),
+        cargarTecnicosMantenimiento()
     ]);
     suscribirInventarioRepuestos();
     suscribirIntervencionesMantenimiento();
     suscribirMantenimientoProgramado();
+    suscribirTareasMantenimiento();
 }
 
 function restaurarAccesoMantenimiento() {
@@ -1112,9 +1401,12 @@ function restaurarAccesoMantenimiento() {
         cargarIntervencionesMantenimiento();
         cargarMovimientosInventario();
         cargarMantenimientoProgramado();
+        cargarTareasMantenimiento();
+        cargarTecnicosMantenimiento();
         suscribirInventarioRepuestos();
         suscribirIntervencionesMantenimiento();
         suscribirMantenimientoProgramado();
+        suscribirTareasMantenimiento();
     }
 }
 
@@ -1142,6 +1434,10 @@ function bloquearAreaMantenimiento() {
     if (canalMantenimientoProgramado && supabaseClient) {
         supabaseClient.removeChannel(canalMantenimientoProgramado);
         canalMantenimientoProgramado = null;
+    }
+    if (canalTareasMantenimiento && supabaseClient) {
+        supabaseClient.removeChannel(canalTareasMantenimiento);
+        canalTareasMantenimiento = null;
     }
     actualizarAreaMantenimientoUI();
     renderizarInventarioRepuestos();
@@ -1472,6 +1768,19 @@ function suscribirMantenimientoProgramado() {
                 filter: `sede=eq.${obtenerSedeMantenimientoActiva()}`
             },
             () => cargarMantenimientoProgramado()
+        )
+        .subscribe();
+}
+
+function suscribirTareasMantenimiento() {
+    if (!accesoMantenimientoActivo || !supabaseClient || !sesionActual?.user) return;
+    if (canalTareasMantenimiento) supabaseClient.removeChannel(canalTareasMantenimiento);
+    canalTareasMantenimiento = supabaseClient
+        .channel(`tareas-mantenimiento-${sesionActual.user.id}`)
+        .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'tareas_mantenimiento' },
+            () => cargarTareasMantenimiento()
         )
         .subscribe();
 }
@@ -2663,6 +2972,10 @@ function seleccionarSedeModulo(modulo, sede, opciones = {}) {
     if (modulo === 'mantenimiento' && accesoMantenimientoActivo) {
         prepararEnlaceInformeMantenimiento();
         actualizarAreaMantenimientoUI();
+        if (usuarioEsSuperior() && obtenerElemento('maintenanceTaskSite')) {
+            obtenerElemento('maintenanceTaskSite').value = sede;
+            actualizarEquiposAsignacionMantenimiento();
+        }
         cargarInventarioRepuestos();
         cargarIntervencionesMantenimiento();
         cargarMovimientosInventario();
@@ -2670,6 +2983,7 @@ function seleccionarSedeModulo(modulo, sede, opciones = {}) {
         suscribirInventarioRepuestos();
         suscribirIntervencionesMantenimiento();
         suscribirMantenimientoProgramado();
+        suscribirTareasMantenimiento();
     }
 
     if (opciones.desplazar) {
@@ -6578,6 +6892,18 @@ function configurarEventos() {
         establecerPanelKpisMantenimiento(false, { enfocar: true });
     });
     obtenerElemento('inventoryForm')?.addEventListener('submit', guardarRepuestoInventario);
+    obtenerElemento('maintenanceTaskForm')?.addEventListener('submit', guardarTareaMantenimiento);
+    obtenerElemento('maintenanceTaskSite')?.addEventListener('change', actualizarEquiposAsignacionMantenimiento);
+    obtenerElemento('maintenanceTasksMonth')?.addEventListener('change', cargarTareasMantenimiento);
+    obtenerElemento('maintenanceTasksList')?.addEventListener('click', event => {
+        const actualizar = event.target.closest('button[data-update-maintenance-task]');
+        if (actualizar) {
+            actualizarEstadoTareaMantenimiento(actualizar.dataset.updateMaintenanceTask, actualizar.dataset.taskState);
+            return;
+        }
+        const eliminar = event.target.closest('button[data-delete-maintenance-task]');
+        if (eliminar) eliminarTareaMantenimiento(eliminar.dataset.deleteMaintenanceTask);
+    });
     obtenerElemento('inventorySearch')?.addEventListener('input', renderizarInventarioRepuestos);
     obtenerElemento('inventoryList')?.addEventListener('click', event => {
         const boton = event.target.closest('button[data-delete-inventory]');
