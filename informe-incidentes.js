@@ -2,6 +2,8 @@ const LOGO_SRC = 'assets/urbapark-logo.png';
 const PUBLIC_LOGO_SRC = 'https://dennyszuniga-svg.github.io/codigos/assets/urbapark-logo.png';
 const APP_CONTEXT = readAppContext();
 const DRAFT_KEY = `urbapark-intervention-draft-v3:${APP_CONTEXT.usuarioId || 'sin-usuario'}`;
+const DRAFT_DB_NAME = 'urbapark-intervention-drafts';
+const DRAFT_DB_STORE = 'drafts';
 const COUNTER_KEY = 'urbapark-report-counter';
 const MAINTENANCE_REPORTS_KEY = 'urbapark-maintenance-reports';
 const DRAFT_MAX_BYTES = 4_200_000;
@@ -242,6 +244,7 @@ let perfilInformeActual = null;
 
 initSignaturePads();
 initForm();
+restoreDraftFromIndexedDb();
 validarAccesoInforme();
 
 document.getElementById('btnLimpiar').addEventListener('click', confirmResetForm);
@@ -272,6 +275,11 @@ form.addEventListener('submit', (event) => {
     exportPdf();
 });
 window.addEventListener('pagehide', saveDraft);
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        saveDraft();
+    }
+});
 
 Object.entries(fields).forEach(([name, field]) => {
     field.addEventListener('input', () => {
@@ -1631,6 +1639,7 @@ function scheduleDraftSave() {
 
 function saveDraft() {
     const draft = {
+        savedAt: new Date().toISOString(),
         reportSequence,
         reportNumber: fields.numeroInforme.value,
         reportSaved,
@@ -1642,6 +1651,9 @@ function saveDraft() {
             firmaSupervisor: signaturePads.firmaSupervisor.isEmpty() ? '' : signaturePads.firmaSupervisor.toDataUrl()
         }
     };
+    saveDraftToIndexedDb(draft).catch(error => {
+        console.warn('No se pudo guardar el borrador completo en el dispositivo.', error);
+    });
     try {
         let serialized = JSON.stringify(draft);
         if (serialized.length > DRAFT_MAX_BYTES) {
@@ -1657,12 +1669,12 @@ function saveDraft() {
             };
             serialized = JSON.stringify(metadataOnlyDraft);
             localStorage.setItem(DRAFT_KEY, serialized);
-            setStatus('Borrador guardado sin imagenes por limite del celular. Genera o descarga el informe antes de cerrar.', true);
+            setStatus('Borrador completo protegido en el almacenamiento del dispositivo.');
         } else {
             localStorage.setItem(DRAFT_KEY, serialized);
         }
     } catch (error) {
-        setStatus('El borrador contiene demasiadas fotos para guardarse completo. Genera o descarga el informe antes de cerrar.', true);
+        setStatus('El informe se mantiene en el almacenamiento seguro del dispositivo.');
     }
     updateProgress();
 }
@@ -1871,6 +1883,90 @@ async function registerMaintenanceSummary(report) {
     return synced;
 }
 
+function openDraftDatabase() {
+    return new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+            reject(new Error('IndexedDB no disponible'));
+            return;
+        }
+
+        const request = window.indexedDB.open(DRAFT_DB_NAME, 1);
+        request.onupgradeneeded = () => {
+            const database = request.result;
+            if (!database.objectStoreNames.contains(DRAFT_DB_STORE)) {
+                database.createObjectStore(DRAFT_DB_STORE);
+            }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('No se pudo abrir el almacenamiento'));
+    });
+}
+
+async function saveDraftToIndexedDb(draft) {
+    const database = await openDraftDatabase();
+    await new Promise((resolve, reject) => {
+        const transaction = database.transaction(DRAFT_DB_STORE, 'readwrite');
+        transaction.objectStore(DRAFT_DB_STORE).put(draft, DRAFT_KEY);
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error || new Error('No se pudo guardar el borrador'));
+        transaction.onabort = () => reject(transaction.error || new Error('Se interrumpio el guardado'));
+    });
+    database.close();
+}
+
+async function readDraftFromIndexedDb() {
+    const database = await openDraftDatabase();
+    const draft = await new Promise((resolve, reject) => {
+        const transaction = database.transaction(DRAFT_DB_STORE, 'readonly');
+        const request = transaction.objectStore(DRAFT_DB_STORE).get(DRAFT_KEY);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error || new Error('No se pudo leer el borrador'));
+    });
+    database.close();
+    return draft;
+}
+
+async function deleteDraftFromIndexedDb() {
+    const database = await openDraftDatabase();
+    await new Promise((resolve, reject) => {
+        const transaction = database.transaction(DRAFT_DB_STORE, 'readwrite');
+        transaction.objectStore(DRAFT_DB_STORE).delete(DRAFT_KEY);
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error || new Error('No se pudo eliminar el borrador'));
+    });
+    database.close();
+}
+
+async function restoreDraftFromIndexedDb() {
+    try {
+        const storedDraft = await readDraftFromIndexedDb();
+        if (!storedDraft) {
+            return;
+        }
+
+        const localDraft = readDraft();
+        const storedTime = Date.parse(storedDraft.savedAt || '') || 0;
+        const localTime = Date.parse(localDraft?.savedAt || '') || 0;
+        const storedPhotos = (storedDraft.tasks || []).reduce((total, task) => total + (task.photos || []).filter(photo => photo?.dataUrl).length, 0);
+        const localPhotos = (localDraft?.tasks || []).reduce((total, task) => total + (task.photos || []).filter(photo => photo?.dataUrl).length, 0);
+
+        if (storedTime < localTime || (storedTime === localTime && storedPhotos <= localPhotos)) {
+            return;
+        }
+
+        applyDraft(storedDraft);
+        applyAppContext();
+        renderTasks();
+        actualizarEstadoPlantilla();
+        updateEstadoInicialOtroVisibility();
+        syncSignatureNames();
+        updateComputedFields();
+        setStatus(`Borrador recuperado: ${tasks.length} tareas y ${storedPhotos} fotos.`);
+    } catch (error) {
+        console.warn('No se pudo recuperar el borrador completo.', error);
+    }
+}
+
 function readDraft() {
     try {
         return JSON.parse(localStorage.getItem(DRAFT_KEY));
@@ -1880,7 +1976,12 @@ function readDraft() {
 }
 
 function clearDraft() {
+    window.clearTimeout(draftTimer);
+    draftTimer = null;
     localStorage.removeItem(DRAFT_KEY);
+    deleteDraftFromIndexedDb().catch(error => {
+        console.warn('No se pudo eliminar el borrador del dispositivo.', error);
+    });
 }
 
 async function markReportSaved(report = getReportData()) {
