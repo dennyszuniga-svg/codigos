@@ -244,6 +244,7 @@ let perfilInformeActual = null;
 
 initSignaturePads();
 initForm();
+requestPersistentDraftStorage();
 restoreDraftFromIndexedDb();
 validarAccesoInforme();
 
@@ -1637,6 +1638,20 @@ function scheduleDraftSave() {
     draftTimer = window.setTimeout(saveDraft, 250);
 }
 
+async function requestPersistentDraftStorage() {
+    if (!navigator.storage?.persist) {
+        return false;
+    }
+
+    try {
+        const alreadyPersistent = await navigator.storage.persisted?.();
+        return alreadyPersistent || await navigator.storage.persist();
+    } catch (error) {
+        console.warn('No se pudo solicitar almacenamiento persistente.', error);
+        return false;
+    }
+}
+
 function saveDraft() {
     const draft = {
         savedAt: new Date().toISOString(),
@@ -1653,6 +1668,7 @@ function saveDraft() {
     };
     saveDraftToIndexedDb(draft).catch(error => {
         console.warn('No se pudo guardar el borrador completo en el dispositivo.', error);
+        setStatus('No hay espacio suficiente para proteger todas las fotos. Libera espacio antes de cerrar la app.', true);
     });
     try {
         let serialized = JSON.stringify(draft);
