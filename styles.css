@@ -1080,6 +1080,21 @@ body.dark-theme .bottom-nav button:hover {
     line-height: 1.2;
 }
 
+body.dark-theme .guide-site-options label {
+    background: var(--surface-strong);
+    color: var(--text);
+    border-color: #475569;
+}
+
+body.dark-theme .guide-site-options label:has(input:checked) {
+    background: rgba(32, 151, 212, 0.2);
+    border-color: #38bdf8;
+}
+
+body.dark-theme .guide-site-options input {
+    color-scheme: dark;
+}
+
 .guide-site-field .form-helper {
     margin: 0;
     color: var(--muted);
@@ -1162,6 +1177,23 @@ body.dark-theme .bottom-nav button:hover {
     border: 1px dashed #b8d7e8;
     border-radius: 8px;
     background: #f8fafc;
+}
+
+body.dark-theme .guide-task-photo {
+    background: var(--surface-strong);
+    border-color: #52637a;
+}
+
+body.dark-theme .guide-task-description,
+body.dark-theme .photo-status,
+body.dark-theme .guide-site-field .form-helper {
+    color: var(--muted);
+}
+
+body.dark-theme .guide-task-card .clear-btn:disabled {
+    background: #475569;
+    color: #cbd5e1;
+    opacity: 1;
 }
 
 .guide-task-preview {
