@@ -298,8 +298,20 @@ function renderDashboard() {
         row.append(label, bars);
         activity.appendChild(row);
     }
-    const latest = visible.slice(0, 6);
-    if (!latest.length) recent.appendChild(empty('Este técnico todavía no registra intervenciones.'));
+    const query = (byId('recentSearch')?.value || '').trim().toLowerCase();
+    const latest = visible
+        .filter(item => {
+            if (!query) return true;
+            return [
+                item.equipo_codigo,
+                item.equipo_nombre,
+                item.numero_informe,
+                item.tecnico,
+                item.tipo_mantenimiento
+            ].some(value => String(value || '').toLowerCase().includes(query));
+        })
+        .slice(0, 20);
+    if (!latest.length) recent.appendChild(empty(query ? 'No hay intervenciones que coincidan con la busqueda.' : 'Este tecnico todavia no registra intervenciones.'));
     latest.forEach(item => recent.appendChild(record(
         `${item.tipo_mantenimiento} - ${item.equipo_codigo || item.equipo_nombre}`,
         `${new Date(item.fecha_guardado).toLocaleDateString('es-PE')} - ${item.numero_informe} - ${formatMinutes(item.duracion_minutos)}`,
@@ -747,6 +759,7 @@ function configureEvents() {
     });
     byId('controlMonth').addEventListener('change', loadData);
     byId('controlTechnician').addEventListener('change', renderAll);
+    byId('recentSearch').addEventListener('input', renderDashboard);
     byId('manualMaintenanceForm').addEventListener('submit', saveManualMaintenance);
     byId('resetManualForm').addEventListener('click', resetManualMaintenanceForm);
     byId('manualSite').addEventListener('change', syncManualEquipmentSuggestions);
