@@ -32,6 +32,34 @@ const SEDES_OPERACION = [
 ];
 const MODULOS_POR_SEDE = new Set(['mantenimiento', 'caja', 'ronda']);
 const ROL_SUPERIOR = 'encargado_ti';
+const ROLES_OPERACION_GLOBAL = ['jefe_operaciones', 'coordinador_operaciones', 'gdh'];
+const ROLES_GLOBALES = [ROL_SUPERIOR, 'comercial_abonados', ...ROLES_OPERACION_GLOBAL];
+const ROLES_USUARIO = [
+    ROL_SUPERIOR,
+    'admin',
+    'comercial_abonados',
+    'jefe_operaciones',
+    'coordinador_operaciones',
+    'gdh',
+    'tecnico',
+    'supervisor',
+    'eco',
+    'charly',
+    'anfitrion'
+];
+const ETIQUETAS_ROL = {
+    [ROL_SUPERIOR]: 'Encargado de Mantenimiento y TI',
+    admin: 'Administrador',
+    comercial_abonados: 'Comercial de abonados',
+    jefe_operaciones: 'Jefe de operaciones',
+    coordinador_operaciones: 'Coordinador de operaciones',
+    gdh: 'GDH',
+    tecnico: 'Tecnico de mantenimiento',
+    supervisor: 'Supervisor',
+    eco: 'ECO',
+    charly: 'Charly',
+    anfitrion: 'Anfitrion'
+};
 const TIPOS_ABONO = {
     locatario_lv: { nombre: 'Locatario auto - lunes a viernes', monto: 150 },
     locatario_sd: { nombre: 'Locatario auto - sabado a domingo', monto: 200 }
@@ -1977,7 +2005,7 @@ function suscribirTareasMantenimiento() {
 function actualizarSesionUI() {
     const etiqueta = obtenerElemento('authUserLabel');
     const rolActual = perfilActual?.rol || 'sin-rol';
-    const roles = [ROL_SUPERIOR, 'admin', 'comercial_abonados', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion'];
+    const roles = ROLES_USUARIO;
 
     document.body.classList.remove('operational-mode', 'admin-mode', 'technical-mode', ...roles.map(rol => `role-${rol}`));
     document.body.dataset.role = rolActual;
@@ -2001,9 +2029,7 @@ function actualizarSesionUI() {
         return;
     }
 
-    const nombreRol = perfilActual?.rol === ROL_SUPERIOR
-        ? 'Encargado de Mantenimiento y TI'
-        : perfilActual?.rol;
+    const nombreRol = obtenerEtiquetaRol(perfilActual?.rol);
     const rol = nombreRol ? ` - ${nombreRol}` : '';
     const sede = perfilActual?.sede ? ` - ${obtenerNombreSede(perfilActual.sede)}` : '';
     etiqueta.textContent = `${obtenerNombreUsuarioActivo()}${rol}${sede}`;
@@ -2015,6 +2041,14 @@ function usuarioEsAdmin() {
 
 function usuarioEsSuperior() {
     return perfilActual?.rol === ROL_SUPERIOR && perfilActual?.activo !== false;
+}
+
+function usuarioEsRolGlobal(rol = perfilActual?.rol) {
+    return ROLES_GLOBALES.includes(rol);
+}
+
+function obtenerEtiquetaRol(rol) {
+    return ETIQUETAS_ROL[rol] || rol || '';
 }
 
 function usuarioPuedeGestionarAbonados() {
@@ -2927,7 +2961,7 @@ function usuarioPuedeVerGuia(guia) {
         return true;
     }
 
-    return [ROL_SUPERIOR, 'admin', 'supervisor'].includes(perfilActual?.rol);
+    return [ROL_SUPERIOR, 'admin', 'supervisor', ...ROLES_OPERACION_GLOBAL].includes(perfilActual?.rol);
 }
 
 function obtenerFuenteFotoGuia(foto) {
@@ -4057,19 +4091,17 @@ function renderizarUsuariosAdmin() {
             : `${acceso} - sin avance registrado`;
         datos.append(nombre, email);
 
-        [ROL_SUPERIOR, 'admin', 'comercial_abonados', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion'].forEach(opcion => {
+        ROLES_USUARIO.forEach(opcion => {
             const option = document.createElement('option');
             option.value = opcion;
-            option.textContent = opcion === ROL_SUPERIOR
-                ? 'Encargado de Mantenimiento y TI'
-                : opcion === 'comercial_abonados' ? 'Comercial de abonados' : opcion;
+            option.textContent = obtenerEtiquetaRol(opcion);
             option.selected = usuario.rol === opcion;
             option.disabled = opcion === ROL_SUPERIOR && usuario.rol !== ROL_SUPERIOR;
             rol.appendChild(option);
         });
         rol.dataset.userRole = usuario.id;
 
-        const sedesUsuario = usuario.rol === ROL_SUPERIOR || usuario.rol === 'comercial_abonados'
+        const sedesUsuario = usuarioEsRolGlobal(usuario.rol)
             ? [{ id: 'general', nombre: 'General' }, ...SEDES_OPERACION]
             : SEDES_OPERACION;
         sedesUsuario.forEach(item => {
@@ -4126,7 +4158,7 @@ async function guardarUsuarioAdmin(id) {
     const sede = document.querySelector(`[data-user-site="${id}"]`)?.value;
     const activo = document.querySelector(`[data-user-active="${id}"]`)?.value === 'true';
 
-    if (sede === 'general' && ![ROL_SUPERIOR, 'comercial_abonados'].includes(rol)) {
+    if (sede === 'general' && !usuarioEsRolGlobal(rol)) {
         mostrarToast('La sede General solo corresponde a roles globales.');
         return;
     }
@@ -4247,9 +4279,9 @@ async function crearUsuarioDesdeAdmin(event) {
     const sede = obtenerElemento('newUserSite')?.value;
     const rol = obtenerElemento('newUserRole')?.value;
 
-    if (sede === 'general' && rol !== 'comercial_abonados') {
+    if (sede === 'general' && !usuarioEsRolGlobal(rol)) {
         if (estado) {
-            estado.textContent = 'La sede General solo puede usarse para el Comercial de abonados.';
+            estado.textContent = 'La sede General solo puede usarse para roles globales.';
             estado.dataset.status = 'error';
         }
         return;

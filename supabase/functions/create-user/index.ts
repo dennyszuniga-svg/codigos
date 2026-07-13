@@ -6,7 +6,19 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const rolesPermitidos = new Set(['admin', 'comercial_abonados', 'tecnico', 'supervisor', 'eco', 'charly', 'anfitrion']);
+const rolesPermitidos = new Set([
+  'admin',
+  'comercial_abonados',
+  'jefe_operaciones',
+  'coordinador_operaciones',
+  'gdh',
+  'tecnico',
+  'supervisor',
+  'eco',
+  'charly',
+  'anfitrion',
+]);
+const rolesGlobales = new Set(['comercial_abonados', 'jefe_operaciones', 'coordinador_operaciones', 'gdh']);
 const sedesPermitidas = new Set(['general', 'puruchuco', 'salaverry', 'primavera', 'civico', 'gama']);
 const dominioInterno = 'usuarios.urbapark.pe';
 
@@ -89,7 +101,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Sede invalida' }, 400);
   }
 
-  if (sede === 'general' && rol !== 'comercial_abonados') {
+  if (sede === 'general' && !rolesGlobales.has(rol)) {
     return jsonResponse({ error: 'La sede General solo corresponde a roles globales' }, 400);
   }
 

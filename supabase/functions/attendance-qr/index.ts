@@ -78,7 +78,8 @@ Deno.serve(async req => {
 
     if (body.action === 'generate') {
       const site = String(body.site || '');
-      const allowed = profile.rol === 'encargado_ti' || (profile.rol === 'admin' && profile.sede === site);
+      const allowed = ['encargado_ti', 'jefe_operaciones', 'coordinador_operaciones', 'gdh'].includes(profile.rol)
+        || (profile.rol === 'admin' && profile.sede === site);
       if (!allowed) return json({ error: 'No autorizado para mostrar este QR.' }, 403);
       const { data: siteRow } = await admin.from('asistencia_sedes').select('codigo,nombre').eq('codigo', site).eq('activa', true).single();
       if (!siteRow) return json({ error: 'Sede no configurada.' }, 404);

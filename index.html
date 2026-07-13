@@ -282,7 +282,7 @@
                         <input id="newUserPassword" type="password" minlength="6" placeholder="Minimo 6 caracteres" required>
                     </label>
                     <label>
-                        Sede base (no limita al Comercial de abonados)
+                        Sede base (General para roles globales)
                         <select id="newUserSite" required>
                             <option value="general">General (roles globales)</option>
                             <option value="puruchuco">Real Plaza Puruchuco</option>
@@ -301,11 +301,14 @@
                             <option value="eco">ECO</option>
                             <option value="supervisor">Supervisor</option>
                             <option value="comercial_abonados">Comercial de abonados</option>
+                            <option value="jefe_operaciones">Jefe de operaciones</option>
+                            <option value="coordinador_operaciones">Coordinador de operaciones</option>
+                            <option value="gdh">GDH</option>
                             <option value="admin">Administrador</option>
                         </select>
                     </label>
                     <button class="finish-btn" type="submit">Crear usuario</button>
-                    <p class="form-helper">El Comercial de abonados trabaja con todas las sedes. Para los demas roles, la sede define sus alertas y operacion.</p>
+                    <p class="form-helper">Los roles globales trabajan con todas las sedes. Para los demas roles, la sede define sus alertas y operacion.</p>
                     <p id="createUserStatus" class="auth-status" role="status" aria-live="polite"></p>
                 </form>
                 <p id="usersAdminStatus" class="auth-status" role="status" aria-live="polite"></p>

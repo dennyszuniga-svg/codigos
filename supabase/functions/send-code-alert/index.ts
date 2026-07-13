@@ -19,6 +19,8 @@ const nombresCodigo: Record<string, string> = {
   capta: 'Codigo CAPTA',
 };
 
+const rolesGlobales = ['encargado_ti', 'comercial_abonados', 'jefe_operaciones', 'coordinador_operaciones', 'gdh'];
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -80,7 +82,7 @@ Deno.serve(async (req) => {
   const codigo = typeof body.codigo === 'string' ? body.codigo : '';
   const nombre = typeof body.nombre === 'string' ? body.nombre : nombresCodigo[codigo] || 'Codigo activado';
   const sedeSolicitada = typeof body.sede === 'string' ? body.sede : senderProfile.sede;
-  const sedeDestino = ['encargado_ti', 'comercial_abonados'].includes(senderProfile.rol)
+  const sedeDestino = rolesGlobales.includes(senderProfile.rol)
     ? sedeSolicitada
     : senderProfile.sede;
 
@@ -91,7 +93,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (evento === 'nuevo_abonado' && !['encargado_ti', 'admin', 'comercial_abonados'].includes(senderProfile.rol)) {
+  if (evento === 'nuevo_abonado' && !['encargado_ti', 'admin', 'comercial_abonados', 'jefe_operaciones', 'coordinador_operaciones', 'gdh'].includes(senderProfile.rol)) {
     return new Response(JSON.stringify({ error: 'Rol no autorizado para registrar abonados' }), {
       status: 403,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -148,12 +150,12 @@ Deno.serve(async (req) => {
   const recipientIds = (siteUsers || [])
     .filter((item) => item.id !== userData.user.id)
     .filter((item) => evento === 'nuevo_abonado'
-      ? item.rol === 'encargado_ti' || (item.rol === 'admin' && item.sede === sedeDestino)
+      ? rolesGlobales.includes(item.rol) || (item.rol === 'admin' && item.sede === sedeDestino)
       : evento === 'tarea_mantenimiento'
         ? item.id === asignadoA && item.rol === 'tecnico'
         : evento === 'tarea_completada'
           ? item.rol === 'encargado_ti'
-        : item.sede === sedeDestino)
+        : item.sede === sedeDestino || rolesGlobales.includes(item.rol))
     .map((item) => item.id);
   if (!recipientIds.length) {
     await supabase.from('push_delivery_logs').insert({

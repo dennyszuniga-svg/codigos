@@ -11,8 +11,10 @@ const formatDateTime=value=>value?new Date(value).toLocaleString('es-PE',{dateSt
 const clear=node=>{while(node?.firstChild)node.firstChild.remove()};
 function status(message,error=false){$('attendanceStatus').textContent=message;$('attendanceStatus').style.color=error?'#b42318':'#607184'}
 function option(text,value){const item=document.createElement('option');item.textContent=text;item.value=value;return item}
-function isManager(){return ['encargado_ti','admin'].includes(profile?.rol)}
-function allowedSites(){return profile?.rol==='encargado_ti'?sites:sites.filter(site=>site.codigo===profile?.sede)}
+const globalRoles = ['encargado_ti','jefe_operaciones','coordinador_operaciones','gdh'];
+function isGlobalRole(){return globalRoles.includes(profile?.rol)}
+function isManager(){return ['encargado_ti','admin','jefe_operaciones','coordinador_operaciones','gdh'].includes(profile?.rol)}
+function allowedSites(){return isGlobalRole()?sites:sites.filter(site=>site.codigo===profile?.sede)}
 function fillSiteSelect(select,preferred=''){clear(select);allowedSites().forEach(site=>select.appendChild(option(site.nombre,site.codigo)));if([...select.options].some(item=>item.value===preferred))select.value=preferred}
 
 async function init(){
@@ -23,7 +25,7 @@ async function init(){
  if(siteResult.error||shiftResult.error){status('No se pudo cargar la configuracion de asistencia.',true);return}
  sites=siteResult.data||[];shifts=shiftResult.data||[];$('attendanceUser').textContent=`${profile.nombre} - ${profile.rol}`;$('attendanceApp').hidden=false;
  if(['anfitrion','tecnico','supervisor'].includes(profile.rol)){$('workerPanel').hidden=false;await loadWorker()}
- if(isManager()){$('adminPanel').hidden=false;['qrSite','scheduleSite','summarySite'].forEach(id=>fillSiteSelect($(id),profile.rol==='encargado_ti'?'puruchuco':profile.sede));$('scheduleWeek').value=dateIso(schedulingMonday());$('summaryMonth').value=dateIso(new Date()).slice(0,7);await loadSchedule()}
+ if(isManager()){$('adminPanel').hidden=false;['qrSite','scheduleSite','summarySite'].forEach(id=>fillSiteSelect($(id),isGlobalRole()?'puruchuco':profile.sede));$('scheduleWeek').value=dateIso(schedulingMonday());$('summaryMonth').value=dateIso(new Date()).slice(0,7);await loadSchedule()}
  status('Asistencia lista.');
 }
 
