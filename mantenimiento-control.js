@@ -25,6 +25,10 @@ const isSuperior = () => profile?.rol === 'encargado_ti';
 const monthValue = () => byId('controlMonth').value || new Date().toISOString().slice(0, 7);
 const selectedSite = () => byId('controlSite').value;
 const formatMoney = (value, currency = 'PEN') => new Intl.NumberFormat('es-PE', { style: 'currency', currency }).format(Number(value || 0));
+const todayLocal = () => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+};
 
 function setStatus(message, state = '') {
     const status = byId('controlStatus');
@@ -70,6 +74,24 @@ function formatMinutes(value) {
     return hours ? `${hours} h${rest ? ` ${rest} min` : ''}` : `${rest} min`;
 }
 
+function calculateMinutesBetween(start, end) {
+    if (!start || !end) return null;
+    const [startHour, startMinute] = start.split(':').map(Number);
+    const [endHour, endMinute] = end.split(':').map(Number);
+    if ([startHour, startMinute, endHour, endMinute].some(value => !Number.isFinite(value))) return null;
+    let startTotal = startHour * 60 + startMinute;
+    let endTotal = endHour * 60 + endMinute;
+    if (endTotal < startTotal) endTotal += 24 * 60;
+    return endTotal - startTotal;
+}
+
+function buildManualReportNumber() {
+    const now = new Date();
+    const stamp = now.toISOString().replace(/\D/g, '').slice(0, 14);
+    const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `MAN-${stamp}-${suffix}`;
+}
+
 function inSelectedMonth(value) {
     if (!value) return false;
     const date = new Date(value);
@@ -98,17 +120,24 @@ async function verifyAccess() {
 
 function configureFilters() {
     const site = byId('controlSite');
+    const manualSite = byId('manualSite');
     SEDES.forEach(([value, label]) => {
         const option = document.createElement('option');
         option.value = value;
         option.textContent = label;
         site.appendChild(option);
+        manualSite.appendChild(option.cloneNode(true));
     });
     const requestedSite = new URLSearchParams(window.location.search).get('sede');
     site.value = SEDES.some(item => item[0] === requestedSite)
         ? requestedSite
         : profile.sede === 'general' ? 'civico' : profile.sede;
+    manualSite.value = site.value;
     byId('controlMonth').value = new Date().toISOString().slice(0, 7);
+    byId('manualDate').value = todayLocal();
+    byId('manualTechnician').value = profile.nombre || session.user.email || '';
+    byId('manualSupervisor').value = isSuperior() ? profile.nombre || '' : '';
+    byId('manualReason').value = 'Registro manual por perdida del borrador/fotos del informe de intervencion.';
     if (!isSuperior()) {
         byId('inventoryTab').hidden = true;
         byId('technicianFilterGroup').hidden = true;
@@ -138,6 +167,52 @@ function configureTechnicianFilter() {
         selector.appendChild(option);
     });
     if ([...selector.options].some(option => option.value === previous)) selector.value = previous;
+}
+
+function syncManualEquipmentSuggestions() {
+    const list = byId('manualEquipmentSuggestions');
+    const site = byId('manualSite')?.value || selectedSite();
+    if (!list) return;
+    clear(list);
+    const equipment = new Map();
+    interventions
+        .filter(item => item.sede === site)
+        .forEach(item => {
+            if (item.equipo_codigo) equipment.set(item.equipo_codigo, item.equipo_nombre || item.equipo_codigo);
+        });
+    [...equipment.entries()].sort().forEach(([code, name]) => {
+        const option = document.createElement('option');
+        option.value = code;
+        option.label = name;
+        list.appendChild(option);
+    });
+}
+
+function syncManualFormSite() {
+    const manualSite = byId('manualSite');
+    if (manualSite) {
+        manualSite.value = selectedSite();
+        syncManualEquipmentSuggestions();
+    }
+}
+
+function updateManualDurationPreview() {
+    const manualValue = Number(byId('manualDuration')?.value);
+    const calculated = calculateMinutesBetween(byId('manualStartTime')?.value, byId('manualEndTime')?.value);
+    const minutes = Number.isFinite(manualValue) && byId('manualDuration').value !== '' ? manualValue : calculated;
+    const preview = byId('manualDurationPreview');
+    if (!preview) return;
+    preview.textContent = Number.isFinite(minutes) && minutes >= 0
+        ? `Duracion: ${formatMinutes(minutes)}`
+        : 'Duracion: pendiente';
+}
+
+function hydrateManualEquipmentFromSuggestion() {
+    const code = byId('manualEquipmentCode').value.trim();
+    const row = interventions.find(item => item.sede === byId('manualSite').value && item.equipo_codigo === code);
+    if (!row) return;
+    if (!byId('manualEquipmentName').value.trim()) byId('manualEquipmentName').value = row.equipo_nombre || code;
+    if (!byId('manualEquipmentType').value.trim()) byId('manualEquipmentType').value = row.equipo_tipo || '';
 }
 
 async function loadData() {
@@ -178,6 +253,7 @@ async function loadData() {
     inventoryMovements = movementsResult.data || [];
     inventoryPygRows = pygResult.data || [];
     configureTechnicianFilter();
+    syncManualEquipmentSuggestions();
     renderAll();
     setStatus(`Actualizado: ${siteName(site)} - ${month}`, 'success');
 }
@@ -520,6 +596,96 @@ async function updateInventoryCost(button) {
     await loadData();
 }
 
+function resetManualMaintenanceForm() {
+    const form = byId('manualMaintenanceForm');
+    if (!form) return;
+    form.reset();
+    byId('manualSite').value = selectedSite();
+    byId('manualDate').value = todayLocal();
+    byId('manualType').value = 'PreventivoMensual';
+    byId('manualPriority').value = 'Media';
+    byId('manualDowntime').value = 'true';
+    byId('manualResult').value = 'Operativo';
+    byId('manualTechnician').value = profile?.nombre || session?.user?.email || '';
+    byId('manualSupervisor').value = isSuperior() ? profile?.nombre || '' : '';
+    byId('manualReason').value = 'Registro manual por perdida del borrador/fotos del informe de intervencion.';
+    byId('manualMaintenanceStatus').textContent = '';
+    updateManualDurationPreview();
+    syncManualEquipmentSuggestions();
+}
+
+async function saveManualMaintenance(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const status = byId('manualMaintenanceStatus');
+    const submit = form.querySelector('button[type="submit"]');
+    const manualDuration = byId('manualDuration').value === '' ? null : Number(byId('manualDuration').value);
+    const calculatedDuration = calculateMinutesBetween(byId('manualStartTime').value, byId('manualEndTime').value);
+    const duration = Number.isFinite(manualDuration) ? manualDuration : calculatedDuration;
+    const site = byId('manualSite').value;
+    const date = byId('manualDate').value;
+    const endTime = byId('manualEndTime').value || byId('manualStartTime').value || '00:00';
+    const savedAt = new Date(`${date}T${endTime}:00`);
+    const equipmentCode = byId('manualEquipmentCode').value.trim().toUpperCase();
+    const equipmentName = byId('manualEquipmentName').value.trim();
+    const reason = byId('manualReason').value.trim();
+
+    if (!site || !date || !equipmentCode || !equipmentName || !Number.isFinite(duration) || duration < 0 || !reason) {
+        status.textContent = 'Completa sede, fecha, equipo, motivo y un tiempo valido.';
+        status.dataset.state = 'error';
+        return;
+    }
+
+    const payload = {
+        numero_informe: buildManualReportNumber(),
+        sede: site,
+        sede_nombre: siteName(site),
+        equipo_codigo: equipmentCode,
+        equipo_nombre: equipmentName,
+        equipo_tipo: byId('manualEquipmentType').value.trim(),
+        componentes: [],
+        tipo_mantenimiento: byId('manualType').value,
+        genera_parada: byId('manualDowntime').value === 'true',
+        prioridad: byId('manualPriority').value,
+        estado_inicial: 'Registro manual',
+        resultado_final: byId('manualResult').value,
+        tecnico: byId('manualTechnician').value.trim() || profile?.nombre || '',
+        supervisor: byId('manualSupervisor').value.trim(),
+        hora_inicio: byId('manualStartTime').value,
+        hora_final: byId('manualEndTime').value,
+        duracion_minutos: Math.round(duration),
+        preventivo_estimado_minutos: byId('manualType').value === 'Correctivo' ? null : 120,
+        motivo: reason,
+        solucion: byId('manualSolution').value.trim() || 'Registro manual de mantenimiento preventivo.',
+        repuestos: '',
+        fecha_guardado: Number.isNaN(savedAt.getTime()) ? new Date().toISOString() : savedAt.toISOString(),
+        creado_por: session.user.id
+    };
+
+    submit.disabled = true;
+    status.textContent = 'Guardando preventivo manual...';
+    status.dataset.state = '';
+    const { error } = await client.from('intervenciones_mantenimiento').insert(payload);
+    submit.disabled = false;
+
+    if (error) {
+        console.warn('No se pudo guardar el preventivo manual:', error);
+        status.textContent = error.message?.includes('row-level security')
+            ? 'No tienes permiso para guardar en esa sede. Revisa que tu usuario sea admin/tecnico o encargado.'
+            : 'No se pudo guardar el preventivo manual.';
+        status.dataset.state = 'error';
+        return;
+    }
+
+    byId('controlSite').value = site;
+    byId('controlMonth').value = date.slice(0, 7);
+    resetManualMaintenanceForm();
+    await loadData();
+    status.textContent = 'Preventivo manual guardado correctamente.';
+    status.dataset.state = 'success';
+    setStatus(`Preventivo manual guardado: ${equipmentCode} - ${formatMinutes(payload.duracion_minutos)}`, 'success');
+}
+
 function csvCell(value) {
     return `"${String(value ?? '').replace(/"/g, '""')}"`;
 }
@@ -575,9 +741,17 @@ function selectTab(name) {
 
 function configureEvents() {
     byId('refreshControl').addEventListener('click', loadData);
-    byId('controlSite').addEventListener('change', loadData);
+    byId('controlSite').addEventListener('change', () => {
+        syncManualFormSite();
+        loadData();
+    });
     byId('controlMonth').addEventListener('change', loadData);
     byId('controlTechnician').addEventListener('change', renderAll);
+    byId('manualMaintenanceForm').addEventListener('submit', saveManualMaintenance);
+    byId('resetManualForm').addEventListener('click', resetManualMaintenanceForm);
+    byId('manualSite').addEventListener('change', syncManualEquipmentSuggestions);
+    byId('manualEquipmentCode').addEventListener('change', hydrateManualEquipmentFromSuggestion);
+    ['manualStartTime', 'manualEndTime', 'manualDuration'].forEach(id => byId(id).addEventListener('input', updateManualDurationPreview));
     byId('historyEquipment').addEventListener('change', renderHistory);
     byId('inventoryFilter').addEventListener('input', renderInventory);
     byId('inventoryList').addEventListener('click', event => {

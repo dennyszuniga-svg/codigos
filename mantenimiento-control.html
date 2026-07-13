@@ -31,6 +31,7 @@
 
         <nav class="control-tabs" aria-label="Vistas de mantenimiento">
             <button type="button" data-control-tab="dashboard" aria-selected="true">Dashboard</button>
+            <button type="button" data-control-tab="manual" aria-selected="false">Registro manual</button>
             <button type="button" data-control-tab="kpis" aria-selected="false">KPIs</button>
             <button type="button" data-control-tab="history" aria-selected="false">Historial</button>
             <button type="button" data-control-tab="failures" aria-selected="false">Fallas repetitivas</button>
@@ -46,6 +47,89 @@
                 <article class="data-panel"><h3>Evolución de 6 meses</h3><div id="monthlyActivity" class="monthly-activity"></div></article>
                 <article class="data-panel"><h3>Intervenciones recientes</h3><div id="recentInterventions" class="record-list"></div></article>
             </div>
+        </section>
+
+        <section class="control-view" data-control-view="manual" hidden>
+            <div class="section-row">
+                <div>
+                    <h2>Registro manual de preventivo</h2>
+                    <p class="section-help">Usa este control cuando el informe completo no se pudo guardar. El registro entra directo a KPIs, historial y exportaciones.</p>
+                </div>
+            </div>
+            <form id="manualMaintenanceForm" class="manual-maintenance-form">
+                <label>Sede
+                    <select id="manualSite" required></select>
+                </label>
+                <label>Fecha de mantenimiento
+                    <input id="manualDate" type="date" required>
+                </label>
+                <label>Tipo
+                    <select id="manualType" required>
+                        <option value="PreventivoMensual">Preventivo mensual</option>
+                        <option value="Preventivo">Preventivo</option>
+                    </select>
+                </label>
+                <label>Codigo de equipo
+                    <input id="manualEquipmentCode" type="text" maxlength="120" placeholder="Ej. TPA 1, SALIDA 2" required list="manualEquipmentSuggestions">
+                </label>
+                <label>Nombre / detalle del equipo
+                    <input id="manualEquipmentName" type="text" maxlength="180" placeholder="Ej. Cajero automatico / carril" required>
+                </label>
+                <label>Tipo de equipo
+                    <input id="manualEquipmentType" type="text" maxlength="120" placeholder="Carril, TPA, infraestructura">
+                </label>
+                <label>Hora inicio
+                    <input id="manualStartTime" type="time" required>
+                </label>
+                <label>Hora final
+                    <input id="manualEndTime" type="time" required>
+                </label>
+                <label>Duracion manual (min)
+                    <input id="manualDuration" type="number" min="0" step="1" placeholder="Auto si queda vacio">
+                </label>
+                <label>Tecnico
+                    <input id="manualTechnician" type="text" maxlength="180" required>
+                </label>
+                <label>Supervisor / validador
+                    <input id="manualSupervisor" type="text" maxlength="180">
+                </label>
+                <label>Prioridad
+                    <select id="manualPriority">
+                        <option value="Media">Media</option>
+                        <option value="Alta">Alta</option>
+                        <option value="Baja">Baja</option>
+                    </select>
+                </label>
+                <label>Impacto operativo
+                    <select id="manualDowntime">
+                        <option value="true">Con parada operativa</option>
+                        <option value="false">Sin parada operativa</option>
+                    </select>
+                </label>
+                <label>Resultado
+                    <select id="manualResult">
+                        <option value="Operativo">Operativo</option>
+                        <option value="Operativo con observacion">Operativo con observacion</option>
+                        <option value="Pendiente">Pendiente</option>
+                    </select>
+                </label>
+                <label class="manual-wide">Motivo / sustento del registro manual
+                    <textarea id="manualReason" maxlength="1200" rows="3" placeholder="Ej. Registro manual por perdida del borrador/fotos del informe." required></textarea>
+                </label>
+                <label class="manual-wide">Trabajos realizados / observaciones
+                    <textarea id="manualSolution" maxlength="1600" rows="3"></textarea>
+                </label>
+                <div class="manual-summary" aria-live="polite">
+                    <strong id="manualDurationPreview">Duracion: pendiente</strong>
+                    <span>Se guardara como intervencion de mantenimiento.</span>
+                </div>
+                <div class="manual-actions">
+                    <button type="submit">Guardar preventivo manual</button>
+                    <button class="secondary-button" id="resetManualForm" type="button">Limpiar</button>
+                </div>
+                <datalist id="manualEquipmentSuggestions"></datalist>
+            </form>
+            <p id="manualMaintenanceStatus" class="status" role="status" aria-live="polite"></p>
         </section>
 
         <section class="control-view" data-control-view="kpis" hidden>
