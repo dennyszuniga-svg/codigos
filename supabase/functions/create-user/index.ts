@@ -19,6 +19,7 @@ const rolesPermitidos = new Set([
   'anfitrion',
 ]);
 const rolesGlobales = new Set(['comercial_abonados', 'jefe_operaciones', 'coordinador_operaciones', 'gdh']);
+const rolesCreablesPorAdmin = new Set(['supervisor', 'eco', 'charly', 'anfitrion']);
 const sedesPermitidas = new Set(['general', 'puruchuco', 'salaverry', 'primavera', 'civico', 'gama']);
 const dominioInterno = 'usuarios.urbapark.pe';
 
@@ -69,12 +70,12 @@ Deno.serve(async (req) => {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('rol,activo')
+    .select('rol,activo,sede')
     .eq('id', userData.user.id)
     .maybeSingle();
 
-  if (profileError || profile?.rol !== 'encargado_ti' || profile?.activo !== true) {
-    return jsonResponse({ error: 'Solo el Encargado de Mantenimiento y TI puede crear usuarios' }, 403);
+  if (profileError || !['encargado_ti', 'admin'].includes(profile?.rol || '') || profile?.activo !== true) {
+    return jsonResponse({ error: 'Solo administradores autorizados pueden crear usuarios' }, 403);
   }
 
   const body = await req.json().catch(() => ({}));
@@ -99,6 +100,10 @@ Deno.serve(async (req) => {
 
   if (!sedesPermitidas.has(sede)) {
     return jsonResponse({ error: 'Sede invalida' }, 400);
+  }
+
+  if (profile.rol === 'admin' && (sede !== profile.sede || !rolesCreablesPorAdmin.has(rol))) {
+    return jsonResponse({ error: 'El administrador solo puede crear cuentas operativas para su propia sede' }, 403);
   }
 
   if (sede === 'general' && !rolesGlobales.has(rol)) {

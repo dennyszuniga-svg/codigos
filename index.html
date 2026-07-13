@@ -184,7 +184,7 @@
                         id="toggleUsersAdmin"
                         aria-expanded="false"
                         aria-controls="adminUsersPanel"
-                    >Usuarios y roles</button>
+                    >Crear usuarios</button>
                 </div>
             </section>
 
@@ -268,7 +268,7 @@
                     <div>
                         <p class="eyebrow">Solo administradores</p>
                         <h2 id="adminUsersTitle">Usuarios y roles</h2>
-                        <p>Crea cuentas, ajusta roles o elimina definitivamente usuarios que ya no deben ingresar.</p>
+                        <p id="adminUsersDescription">Crea cuentas, ajusta roles o elimina definitivamente usuarios que ya no deben ingresar.</p>
                     </div>
                     <button class="clear-btn" type="button" id="refreshUsers">Actualizar usuarios</button>
                 </div>
@@ -308,7 +308,7 @@
                         </select>
                     </label>
                     <button class="finish-btn" type="submit">Crear usuario</button>
-                    <p class="form-helper">Los roles globales trabajan con todas las sedes. Para los demas roles, la sede define sus alertas y operacion.</p>
+                    <p class="form-helper" id="createUserHelper">Los roles globales trabajan con todas las sedes. Para los demas roles, la sede define sus alertas y operacion.</p>
                     <p id="createUserStatus" class="auth-status" role="status" aria-live="polite"></p>
                 </form>
                 <p id="usersAdminStatus" class="auth-status" role="status" aria-live="polite"></p>

@@ -34,6 +34,7 @@ const MODULOS_POR_SEDE = new Set(['mantenimiento', 'caja', 'ronda']);
 const ROL_SUPERIOR = 'encargado_ti';
 const ROLES_OPERACION_GLOBAL = ['jefe_operaciones', 'coordinador_operaciones', 'gdh'];
 const ROLES_GLOBALES = [ROL_SUPERIOR, 'comercial_abonados', ...ROLES_OPERACION_GLOBAL];
+const ROLES_CREABLES_POR_ADMIN = ['supervisor', 'eco', 'charly', 'anfitrion'];
 const ROLES_USUARIO = [
     ROL_SUPERIOR,
     'admin',
@@ -2321,7 +2322,7 @@ function actualizarPanelAdminGuias() {
 
     const admin = usuarioEsAdmin();
     acciones.hidden = !admin;
-    botonUsuarios.hidden = !usuarioEsSuperior();
+    botonUsuarios.hidden = !admin;
 
     if (!admin) {
         panel.hidden = true;
@@ -2335,6 +2336,7 @@ function actualizarPanelAdminGuias() {
     }
 
     if (admin) {
+        configurarFormularioCreacionUsuario();
         if (!guiaTareasBorrador.length) {
             guiaTareasBorrador = [crearTareaBorrador()];
         }
@@ -2364,7 +2366,7 @@ function cerrarPanelesAdmin() {
     }
 
     if (botonUsuarios) {
-        botonUsuarios.textContent = 'Usuarios y roles';
+        botonUsuarios.textContent = 'Crear usuarios';
         botonUsuarios.setAttribute('aria-expanded', 'false');
     }
 
@@ -2380,11 +2382,6 @@ function alternarPanelAdmin(tipo) {
     if (!usuarioEsAdmin()) {
         return;
     }
-    if (tipo === 'usuarios' && !usuarioEsSuperior()) {
-        mostrarToast('Solo el Encargado de Mantenimiento y TI administra usuarios y roles.');
-        return;
-    }
-
     const panelGuias = obtenerElemento('adminGuidePanel');
     const panelUsuarios = obtenerElemento('adminUsersPanel');
     const botonGuias = obtenerElemento('toggleGuideAdmin');
@@ -2404,7 +2401,7 @@ function alternarPanelAdmin(tipo) {
     botonGuias?.setAttribute('aria-expanded', String(abrirGuias));
     botonUsuarios?.setAttribute('aria-expanded', String(abrirUsuarios));
     botonGuias.textContent = abrirGuias ? 'Ocultar crear guias' : 'Crear guias';
-    botonUsuarios.textContent = abrirUsuarios ? 'Ocultar usuarios y roles' : 'Usuarios y roles';
+    botonUsuarios.textContent = abrirUsuarios ? 'Ocultar crear usuario' : 'Crear usuarios';
 
     if (abrirGuias) {
         renderizarTareasBorrador();
@@ -2412,8 +2409,58 @@ function alternarPanelAdmin(tipo) {
     }
 
     if (abrirUsuarios) {
-        cargarUsuariosAdmin();
+        configurarFormularioCreacionUsuario();
+        if (usuarioEsSuperior()) {
+            cargarUsuariosAdmin();
+        }
         panelUsuarios.querySelector('[data-close-admin-panel]')?.focus();
+    }
+}
+
+function configurarFormularioCreacionUsuario() {
+    const esSuperior = usuarioEsSuperior();
+    const selectorSede = obtenerElemento('newUserSite');
+    const selectorRol = obtenerElemento('newUserRole');
+    const titulo = obtenerElemento('adminUsersTitle');
+    const descripcion = obtenerElemento('adminUsersDescription');
+    const ayuda = obtenerElemento('createUserHelper');
+    const actualizar = obtenerElemento('refreshUsers');
+    const estadoUsuarios = obtenerElemento('usersAdminStatus');
+    const lista = obtenerElemento('usersAdminList');
+
+    if (titulo) titulo.textContent = esSuperior ? 'Usuarios y roles' : 'Crear usuario de sede';
+    if (descripcion) {
+        descripcion.textContent = esSuperior
+            ? 'Crea cuentas, ajusta roles o elimina definitivamente usuarios que ya no deben ingresar.'
+            : 'Crea cuentas operativas únicamente para tu sede asignada.';
+    }
+    if (ayuda) {
+        ayuda.textContent = esSuperior
+            ? 'Los roles globales trabajan con todas las sedes. Para los demas roles, la sede define sus alertas y operacion.'
+            : 'Puedes crear anfitriones, Charly, ECO y supervisores para tu misma sede.';
+    }
+    if (actualizar) actualizar.hidden = !esSuperior;
+    if (estadoUsuarios) estadoUsuarios.hidden = !esSuperior;
+    if (lista) lista.hidden = !esSuperior;
+
+    if (selectorSede) {
+        Array.from(selectorSede.options).forEach(opcion => {
+            opcion.hidden = !esSuperior && opcion.value !== obtenerSedeActual();
+            opcion.disabled = !esSuperior && opcion.value !== obtenerSedeActual();
+        });
+        if (!esSuperior) selectorSede.value = obtenerSedeActual();
+        selectorSede.disabled = !esSuperior;
+    }
+
+    if (selectorRol) {
+        Array.from(selectorRol.options).forEach(opcion => {
+            const permitida = esSuperior || ROLES_CREABLES_POR_ADMIN.includes(opcion.value);
+            opcion.hidden = !permitida;
+            opcion.disabled = !permitida;
+        });
+        if (!esSuperior && !ROLES_CREABLES_POR_ADMIN.includes(selectorRol.value)) {
+            selectorRol.value = 'anfitrion';
+        }
     }
 }
 
@@ -3529,7 +3576,7 @@ function cargarGuiaEnEditor(id) {
         }
         botonUsuarios?.setAttribute('aria-expanded', 'false');
         if (botonUsuarios) {
-            botonUsuarios.textContent = 'Usuarios y roles';
+            botonUsuarios.textContent = 'Crear usuarios';
         }
     }
 
@@ -4269,7 +4316,7 @@ async function eliminarUsuarioAdmin(id) {
 async function crearUsuarioDesdeAdmin(event) {
     event.preventDefault();
 
-    if (!usuarioEsSuperior() || !supabaseClient) {
+    if (!usuarioEsAdmin() || !supabaseClient) {
         return;
     }
 
@@ -4278,6 +4325,14 @@ async function crearUsuarioDesdeAdmin(event) {
     const password = obtenerElemento('newUserPassword')?.value;
     const sede = obtenerElemento('newUserSite')?.value;
     const rol = obtenerElemento('newUserRole')?.value;
+
+    if (!usuarioEsSuperior() && (sede !== obtenerSedeActual() || !ROLES_CREABLES_POR_ADMIN.includes(rol))) {
+        if (estado) {
+            estado.textContent = 'Solo puedes crear cuentas operativas para tu sede.';
+            estado.dataset.status = 'error';
+        }
+        return;
+    }
 
     if (sede === 'general' && !usuarioEsRolGlobal(rol)) {
         if (estado) {
@@ -4311,12 +4366,15 @@ async function crearUsuarioDesdeAdmin(event) {
         }
 
         obtenerElemento('createUserForm')?.reset();
+        configurarFormularioCreacionUsuario();
         if (estado) {
             estado.textContent = `${nombre} fue creado con rol ${rol} en ${obtenerNombreSede(sede)}.`;
             estado.dataset.status = 'success';
         }
         mostrarToast(`Usuario creado: ${nombre}`);
-        await cargarUsuariosAdmin();
+        if (usuarioEsSuperior()) {
+            await cargarUsuariosAdmin();
+        }
     } catch (error) {
         console.warn('No se pudo crear usuario:', error);
         if (estado) {
