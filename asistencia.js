@@ -4,6 +4,7 @@ const $=id=>document.getElementById(id);let session=null,profile=null,sites=[],s
 const siteName=id=>sites.find(site=>site.codigo===id)?.nombre||id;
 const dateIso=date=>{const copy=new Date(date);copy.setMinutes(copy.getMinutes()-copy.getTimezoneOffset());return copy.toISOString().slice(0,10)};
 const mondayOf=value=>{const date=new Date(`${value||dateIso(new Date())}T12:00:00`);const day=date.getDay()||7;date.setDate(date.getDate()-day+1);return date};
+const schedulingMonday=()=>{const today=new Date();const monday=mondayOf(dateIso(today));if(today.getDay()===0)monday.setDate(monday.getDate()+7);return monday};
 const addDays=(date,days)=>{const next=new Date(date);next.setDate(next.getDate()+days);return next};
 const formatDate=value=>new Date(`${value}T12:00:00`).toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'2-digit'});
 const formatDateTime=value=>value?new Date(value).toLocaleString('es-PE',{dateStyle:'short',timeStyle:'short'}):'-';
@@ -22,7 +23,7 @@ async function init(){
  if(siteResult.error||shiftResult.error){status('No se pudo cargar la configuracion de asistencia.',true);return}
  sites=siteResult.data||[];shifts=shiftResult.data||[];$('attendanceUser').textContent=`${profile.nombre} - ${profile.rol}`;$('attendanceApp').hidden=false;
  if(['anfitrion','tecnico','supervisor'].includes(profile.rol)){$('workerPanel').hidden=false;await loadWorker()}
- if(isManager()){$('adminPanel').hidden=false;['qrSite','scheduleSite','summarySite'].forEach(id=>fillSiteSelect($(id),profile.rol==='encargado_ti'?'puruchuco':profile.sede));$('scheduleWeek').value=dateIso(mondayOf());$('summaryMonth').value=dateIso(new Date()).slice(0,7);await loadSchedule()}
+ if(isManager()){$('adminPanel').hidden=false;['qrSite','scheduleSite','summarySite'].forEach(id=>fillSiteSelect($(id),profile.rol==='encargado_ti'?'puruchuco':profile.sede));$('scheduleWeek').value=dateIso(schedulingMonday());$('summaryMonth').value=dateIso(new Date()).slice(0,7);await loadSchedule()}
  status('Asistencia lista.');
 }
 
