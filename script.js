@@ -413,6 +413,8 @@ let canalMantenimientoProgramado = null;
 let canalTareasMantenimiento = null;
 let solicitudesAbonados = [];
 let canalSolicitudesAbonados = null;
+let activosOperaciones = [];
+let canalActivosOperaciones = null;
 let sedeActivaPorModulo = {
     mantenimiento: 'puruchuco',
     caja: 'gama',
@@ -2046,6 +2048,217 @@ function usuarioEsSuperior() {
 
 function usuarioEsRolGlobal(rol = perfilActual?.rol) {
     return ROLES_GLOBALES.includes(rol);
+}
+
+function usuarioPuedeGestionarActivosOperaciones() {
+    return perfilActual?.activo !== false
+        && [ROL_SUPERIOR, 'admin', 'jefe_operaciones', 'coordinador_operaciones'].includes(perfilActual?.rol);
+}
+
+function usuarioPuedeElegirSedeActivosOperaciones() {
+    return perfilActual?.activo !== false
+        && [ROL_SUPERIOR, 'jefe_operaciones', 'coordinador_operaciones', 'gdh'].includes(perfilActual?.rol);
+}
+
+function configurarSedeActivosOperaciones() {
+    const selector = obtenerElemento('operationsAssetsSite');
+    if (!selector || !perfilActual) return;
+    const sedePerfil = SEDES_OPERACION.some(item => item.id === perfilActual.sede)
+        ? perfilActual.sede
+        : SEDES_OPERACION[0].id;
+    if (!usuarioPuedeElegirSedeActivosOperaciones()) selector.value = sedePerfil;
+    selector.disabled = !usuarioPuedeElegirSedeActivosOperaciones();
+    const agregar = obtenerElemento('addOperationsAsset');
+    if (agregar) agregar.hidden = !usuarioPuedeGestionarActivosOperaciones();
+}
+
+function obtenerSedeActivosOperaciones() {
+    const sede = obtenerElemento('operationsAssetsSite')?.value;
+    return SEDES_OPERACION.some(item => item.id === sede) ? sede : SEDES_OPERACION[0].id;
+}
+
+function formatearCostoActivo(valor) {
+    return new Intl.NumberFormat('es-PE', {
+        style: 'currency',
+        currency: 'PEN',
+        minimumFractionDigits: 2
+    }).format(Number(valor || 0));
+}
+
+function actualizarEstadoActivosOperaciones(mensaje = '', estado = 'info') {
+    const salida = obtenerElemento('operationsAssetsStatus');
+    if (!salida) return;
+    salida.textContent = mensaje;
+    salida.dataset.status = estado;
+}
+
+async function cargarActivosOperaciones() {
+    if (!supabaseClient || !sesionActual?.user) return;
+    actualizarEstadoActivosOperaciones('Cargando activos...', 'info');
+    const { data, error } = await supabaseClient
+        .from('activos_operaciones')
+        .select('id,sede,codigo,nombre,costo,updated_at')
+        .eq('sede', obtenerSedeActivosOperaciones())
+        .order('nombre', { ascending: true });
+
+    if (error) {
+        console.warn('No se pudieron cargar los activos:', error);
+        actualizarEstadoActivosOperaciones('No se pudieron cargar los activos.', 'error');
+        return;
+    }
+
+    activosOperaciones = Array.isArray(data) ? data : [];
+    actualizarEstadoActivosOperaciones(`${activosOperaciones.length} activos registrados.`, 'success');
+    renderizarActivosOperaciones();
+}
+
+function renderizarActivosOperaciones() {
+    const contenedor = obtenerElemento('operationsAssetsList');
+    if (!contenedor) return;
+    limpiarElemento(contenedor);
+    const busqueda = obtenerElemento('operationsAssetsSearch')?.value.trim().toLowerCase() || '';
+    const visibles = activosOperaciones.filter(activo =>
+        [activo.codigo, activo.nombre].some(valor => String(valor || '').toLowerCase().includes(busqueda))
+    );
+
+    if (!visibles.length) {
+        contenedor.appendChild(crearMensajeVacio(
+            busqueda ? 'No hay activos que coincidan con la busqueda.' : 'Aun no hay activos registrados.',
+            'operations-assets-empty'
+        ));
+        return;
+    }
+
+    visibles.forEach(activo => {
+        const tarjeta = document.createElement('article');
+        const datos = document.createElement('div');
+        const nombre = document.createElement('strong');
+        const codigo = document.createElement('span');
+        const costo = document.createElement('b');
+        tarjeta.className = 'operations-asset-item';
+        nombre.textContent = activo.nombre;
+        codigo.textContent = activo.codigo;
+        costo.textContent = formatearCostoActivo(activo.costo);
+        datos.append(nombre, codigo);
+        tarjeta.append(datos, costo);
+
+        if (usuarioPuedeGestionarActivosOperaciones()) {
+            const acciones = document.createElement('div');
+            const editar = document.createElement('button');
+            const eliminar = document.createElement('button');
+            acciones.className = 'operations-asset-actions';
+            editar.className = 'clear-btn';
+            editar.type = 'button';
+            editar.dataset.editOperationsAsset = activo.id;
+            editar.textContent = 'Editar';
+            eliminar.className = 'clear-btn danger-action';
+            eliminar.type = 'button';
+            eliminar.dataset.deleteOperationsAsset = activo.id;
+            eliminar.textContent = 'Eliminar';
+            acciones.append(editar, eliminar);
+            tarjeta.appendChild(acciones);
+        }
+        contenedor.appendChild(tarjeta);
+    });
+}
+
+function establecerPanelActivosOperaciones(abierto) {
+    const panel = obtenerElemento('operationsAssetsPanel');
+    const boton = obtenerElemento('openOperationsAssets');
+    if (!panel || !boton) return;
+    panel.hidden = !abierto;
+    boton.setAttribute('aria-expanded', String(abierto));
+    if (abierto) {
+        configurarSedeActivosOperaciones();
+        cargarActivosOperaciones();
+        panel.scrollIntoView({ block: 'start' });
+        obtenerElemento('operationsAssetsSearch')?.focus({ preventScroll: true });
+    } else {
+        establecerFormularioActivoOperaciones(false);
+        boton.focus({ preventScroll: true });
+    }
+}
+
+function establecerFormularioActivoOperaciones(abierto, activo = null) {
+    const formulario = obtenerElemento('operationsAssetForm');
+    if (!formulario || !usuarioPuedeGestionarActivosOperaciones()) return;
+    formulario.hidden = !abierto;
+    if (!abierto) {
+        formulario.reset();
+        obtenerElemento('operationsAssetId').value = '';
+        obtenerElemento('operationsAssetCost').value = '0';
+        return;
+    }
+    obtenerElemento('operationsAssetId').value = activo?.id || '';
+    obtenerElemento('operationsAssetCode').value = activo?.codigo || '';
+    obtenerElemento('operationsAssetName').value = activo?.nombre || '';
+    obtenerElemento('operationsAssetCost').value = Number(activo?.costo || 0).toFixed(2);
+    obtenerElemento('operationsAssetCode').focus();
+}
+
+async function guardarActivoOperaciones(event) {
+    event.preventDefault();
+    if (!usuarioPuedeGestionarActivosOperaciones() || !supabaseClient) return;
+    const id = obtenerElemento('operationsAssetId').value;
+    const payload = {
+        sede: obtenerSedeActivosOperaciones(),
+        codigo: obtenerElemento('operationsAssetCode').value.trim().toUpperCase(),
+        nombre: obtenerElemento('operationsAssetName').value.trim(),
+        costo: Number(obtenerElemento('operationsAssetCost').value),
+        actualizado_por: sesionActual.user.id
+    };
+    if (!payload.codigo || !payload.nombre || !Number.isFinite(payload.costo) || payload.costo < 0) {
+        actualizarEstadoActivosOperaciones('Completa el codigo, nombre y costo valido.', 'error');
+        return;
+    }
+
+    actualizarEstadoActivosOperaciones('Guardando activo...', 'info');
+    const consulta = id
+        ? supabaseClient.from('activos_operaciones').update(payload).eq('id', id)
+        : supabaseClient.from('activos_operaciones').insert({ ...payload, creado_por: sesionActual.user.id });
+    const { error } = await consulta;
+    if (error) {
+        console.warn('No se pudo guardar el activo:', error);
+        actualizarEstadoActivosOperaciones(
+            error.code === '23505' ? 'Ya existe un activo con ese codigo.' : 'No se pudo guardar el activo.',
+            'error'
+        );
+        return;
+    }
+    establecerFormularioActivoOperaciones(false);
+    actualizarEstadoActivosOperaciones('Activo guardado correctamente.', 'success');
+    await cargarActivosOperaciones();
+}
+
+async function eliminarActivoOperaciones(id) {
+    if (!usuarioPuedeGestionarActivosOperaciones() || !supabaseClient) return;
+    const activo = activosOperaciones.find(item => item.id === id);
+    if (!activo || !window.confirm(`Eliminar el activo ${activo.codigo} - ${activo.nombre}?`)) return;
+    const { error } = await supabaseClient.from('activos_operaciones').delete().eq('id', id);
+    if (error) {
+        actualizarEstadoActivosOperaciones('No se pudo eliminar el activo.', 'error');
+        return;
+    }
+    actualizarEstadoActivosOperaciones('Activo eliminado.', 'success');
+    await cargarActivosOperaciones();
+}
+
+function suscribirActivosOperaciones() {
+    if (!supabaseClient || !sesionActual?.user) return;
+    if (canalActivosOperaciones) supabaseClient.removeChannel(canalActivosOperaciones);
+    canalActivosOperaciones = supabaseClient
+        .channel(`activos-operaciones-${obtenerSedeActivosOperaciones()}`)
+        .on(
+            'postgres_changes',
+            {
+                event: '*',
+                schema: 'public',
+                table: 'activos_operaciones',
+                filter: `sede=eq.${obtenerSedeActivosOperaciones()}`
+            },
+            cargarActivosOperaciones
+        )
+        .subscribe();
 }
 
 function obtenerEtiquetaRol(rol) {
@@ -4753,6 +4966,11 @@ async function aplicarSesion(session) {
             supabaseClient.removeChannel(canalSolicitudesAbonados);
             canalSolicitudesAbonados = null;
         }
+        if (canalActivosOperaciones && supabaseClient) {
+            supabaseClient.removeChannel(canalActivosOperaciones);
+            canalActivosOperaciones = null;
+        }
+        activosOperaciones = [];
         solicitudesAbonados = [];
         mostrarAppAutenticada(false);
         actualizarEstadoAuth('Ingresa con tu usuario asignado.', 'info');
@@ -4766,6 +4984,9 @@ async function aplicarSesion(session) {
     actualizarSesionUI();
     actualizarBotonAlertas();
     await cargarPerfilActual();
+    configurarSedeActivosOperaciones();
+    await cargarActivosOperaciones();
+    suscribirActivosOperaciones();
     if (usuarioPuedeGestionarAbonados()) {
         await cargarSolicitudesAbonados();
         suscribirSolicitudesAbonados();
@@ -7231,6 +7452,29 @@ function configurarEventos() {
     obtenerElemento('toggleUsersAdmin')?.addEventListener('click', () => alternarPanelAdmin('usuarios'));
     obtenerElemento('createUserForm')?.addEventListener('submit', crearUsuarioDesdeAdmin);
     obtenerElemento('subscriberForm')?.addEventListener('submit', guardarSolicitudAbonado);
+    obtenerElemento('openOperationsAssets')?.addEventListener('click', () => establecerPanelActivosOperaciones(true));
+    obtenerElemento('closeOperationsAssets')?.addEventListener('click', () => establecerPanelActivosOperaciones(false));
+    obtenerElemento('addOperationsAsset')?.addEventListener('click', () => establecerFormularioActivoOperaciones(true));
+    obtenerElemento('cancelOperationsAsset')?.addEventListener('click', () => establecerFormularioActivoOperaciones(false));
+    obtenerElemento('operationsAssetForm')?.addEventListener('submit', guardarActivoOperaciones);
+    obtenerElemento('operationsAssetsSearch')?.addEventListener('input', renderizarActivosOperaciones);
+    obtenerElemento('operationsAssetsSite')?.addEventListener('change', async () => {
+        establecerFormularioActivoOperaciones(false);
+        await cargarActivosOperaciones();
+        suscribirActivosOperaciones();
+    });
+    obtenerElemento('operationsAssetsList')?.addEventListener('click', event => {
+        const editar = event.target.closest('button[data-edit-operations-asset]');
+        if (editar) {
+            establecerFormularioActivoOperaciones(
+                true,
+                activosOperaciones.find(item => item.id === editar.dataset.editOperationsAsset)
+            );
+            return;
+        }
+        const eliminar = event.target.closest('button[data-delete-operations-asset]');
+        if (eliminar) eliminarActivoOperaciones(eliminar.dataset.deleteOperationsAsset);
+    });
     obtenerElemento('subscriberMonth')?.addEventListener('change', cargarSolicitudesAbonados);
     obtenerElemento('subscriberSite')?.addEventListener('change', cargarSolicitudesAbonados);
     obtenerElemento('refreshSubscribers')?.addEventListener('click', cargarSolicitudesAbonados);

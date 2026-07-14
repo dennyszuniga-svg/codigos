@@ -1212,6 +1212,137 @@ body.dark-theme .guide-task-card .clear-btn:disabled {
     margin-top: 16px;
 }
 
+.operations-assets-open {
+    width: fit-content;
+    margin-top: 12px;
+}
+
+.operations-assets-panel {
+    display: grid;
+    gap: 16px;
+    margin-top: 16px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-left: 6px solid var(--brand-blue);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+}
+
+.operations-assets-panel[hidden] {
+    display: none;
+}
+
+.operations-assets-heading {
+    align-items: flex-start;
+}
+
+.operations-assets-toolbar,
+.operations-asset-form {
+    display: grid;
+    grid-template-columns: minmax(160px, 0.55fr) minmax(200px, 1fr) auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.operations-assets-toolbar label,
+.operations-asset-form label {
+    display: grid;
+    gap: 6px;
+    color: var(--text);
+    font-weight: 800;
+}
+
+.operations-assets-toolbar input,
+.operations-assets-toolbar select,
+.operations-asset-form input {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+}
+
+.operations-asset-form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+}
+
+.operations-asset-form[hidden] {
+    display: none;
+}
+
+.operations-asset-form-actions,
+.operations-asset-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.operations-asset-form-actions {
+    grid-column: 1 / -1;
+}
+
+.operations-assets-list {
+    display: grid;
+    gap: 10px;
+}
+
+.operations-asset-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 14px;
+    align-items: center;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+}
+
+.operations-asset-item > div:first-child {
+    display: grid;
+    gap: 3px;
+}
+
+.operations-asset-item strong {
+    color: var(--text);
+}
+
+.operations-asset-item span {
+    color: var(--muted);
+    font-size: 0.86rem;
+    font-weight: 800;
+}
+
+.operations-asset-item > b {
+    color: #087443;
+    font-size: 1.05rem;
+    white-space: nowrap;
+}
+
+body.dark-theme .operations-assets-panel,
+body.dark-theme .operations-asset-item,
+body.dark-theme .operations-asset-form {
+    background: var(--surface-muted);
+    border-color: var(--border);
+}
+
+body.dark-theme .operations-assets-toolbar input,
+body.dark-theme .operations-assets-toolbar select,
+body.dark-theme .operations-asset-form input {
+    background: var(--surface-strong);
+}
+
+body.dark-theme .operations-asset-item > b {
+    color: #6ee7b7;
+}
+
 .dynamic-guides:empty {
     display: none;
 }
@@ -3542,6 +3673,18 @@ body.dark-theme .modal-dialog {
         align-items: stretch;
         grid-template-columns: 1fr;
         flex-direction: column;
+    }
+
+    .operations-assets-toolbar,
+    .operations-asset-form,
+    .operations-asset-item {
+        grid-template-columns: 1fr;
+    }
+
+    .operations-assets-toolbar .clear-btn,
+    .operations-asset-form-actions button,
+    .operations-asset-actions button {
+        width: 100%;
     }
 
     .summary-grid {
