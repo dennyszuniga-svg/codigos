@@ -1245,6 +1245,19 @@ body.dark-theme .guide-task-card .clear-btn:disabled {
     align-items: end;
 }
 
+.operations-assets-toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.operations-assets-toolbar-actions .clear-btn {
+    width: auto;
+    min-height: 44px;
+    white-space: nowrap;
+}
+
 .operations-assets-toolbar label,
 .operations-asset-form label {
     display: grid;
@@ -3682,6 +3695,7 @@ body.dark-theme .modal-dialog {
     }
 
     .operations-assets-toolbar .clear-btn,
+    .operations-assets-toolbar-actions,
     .operations-asset-form-actions button,
     .operations-asset-actions button {
         width: 100%;

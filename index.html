@@ -783,7 +783,11 @@
                             Buscar activo
                             <input id="operationsAssetsSearch" type="search" placeholder="Codigo o nombre">
                         </label>
-                        <button class="clear-btn" id="addOperationsAsset" type="button">Agregar activo</button>
+                        <div class="operations-assets-toolbar-actions">
+                            <button class="clear-btn" id="exportOperationsAssetsPdf" type="button">Generar PDF</button>
+                            <button class="clear-btn" id="exportOperationsAssetsExcel" type="button">Exportar Excel</button>
+                            <button class="clear-btn" id="addOperationsAsset" type="button">Agregar activo</button>
+                        </div>
                     </div>
                     <form class="operations-asset-form" id="operationsAssetForm" hidden>
                         <input id="operationsAssetId" type="hidden">
@@ -971,6 +975,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="assets/xlsx.full.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

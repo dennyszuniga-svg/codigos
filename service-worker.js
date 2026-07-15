@@ -1,9 +1,10 @@
-const CACHE_NAME = 'codigos-urbapark-v95';
+const CACHE_NAME = 'codigos-urbapark-v96';
 const APP_SHELL = [
     './',
     './index.html',
     './styles.css',
     './script.js',
+    './assets/xlsx.full.min.js',
     './informe-incidentes.html',
     './informe-incidentes.css',
     './informe-incidentes.js',

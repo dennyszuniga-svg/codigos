@@ -2085,6 +2085,148 @@ function formatearCostoActivo(valor) {
     }).format(Number(valor || 0));
 }
 
+function obtenerNombreArchivoActivos(extension) {
+    const sede = SEDES_OPERACION.find(item => item.id === obtenerSedeActivosOperaciones())?.corto || 'Sede';
+    const fecha = new Date().toISOString().slice(0, 10);
+    const sedeSegura = sede.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-');
+    return `Activos-Operaciones-${sedeSegura}-${fecha}.${extension}`;
+}
+
+function obtenerFechaExportacionActivos() {
+    return new Intl.DateTimeFormat('es-PE', {
+        dateStyle: 'long',
+        timeStyle: 'short'
+    }).format(new Date());
+}
+
+function exportarActivosOperacionesExcel() {
+    if (!activosOperaciones.length) {
+        actualizarEstadoActivosOperaciones('No hay activos para exportar en esta sede.', 'error');
+        return;
+    }
+    if (!window.XLSX) {
+        actualizarEstadoActivosOperaciones('No se pudo cargar el generador de Excel. Verifica tu conexion.', 'error');
+        return;
+    }
+
+    const filas = activosOperaciones.map(activo => ({
+        Sede: obtenerNombreSede(activo.sede),
+        Codigo: activo.codigo,
+        'Nombre del activo': activo.nombre,
+        'Costo (S/)': Number(activo.costo || 0),
+        'Ultima actualizacion': formatearFechaHoraISO(activo.updated_at)
+    }));
+    const hoja = XLSX.utils.json_to_sheet(filas);
+    hoja['!cols'] = [
+        { wch: 24 },
+        { wch: 18 },
+        { wch: 42 },
+        { wch: 16 },
+        { wch: 23 }
+    ];
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, 'Activos');
+    XLSX.writeFile(libro, obtenerNombreArchivoActivos('xlsx'), { compression: true });
+    actualizarEstadoActivosOperaciones('Excel generado correctamente.', 'success');
+}
+
+function crearCeldaReporteActivos(etiqueta, tipo = 'td') {
+    const celda = document.createElement(tipo);
+    celda.textContent = etiqueta;
+    return celda;
+}
+
+function generarPdfActivosOperaciones() {
+    if (!activosOperaciones.length) {
+        actualizarEstadoActivosOperaciones('No hay activos para generar el PDF de esta sede.', 'error');
+        return;
+    }
+
+    const ventana = window.open('', '_blank');
+    if (!ventana) {
+        actualizarEstadoActivosOperaciones('Permite ventanas emergentes para generar el PDF.', 'error');
+        return;
+    }
+    ventana.opener = null;
+
+    const documento = ventana.document;
+    const sede = obtenerNombreSede(obtenerSedeActivosOperaciones());
+    const total = activosOperaciones.reduce((suma, activo) => suma + Number(activo.costo || 0), 0);
+    documento.title = obtenerNombreArchivoActivos('pdf').replace('.pdf', '');
+
+    const estilo = documento.createElement('style');
+    estilo.textContent = `
+        @page { size: A4; margin: 12mm; }
+        * { box-sizing: border-box; }
+        body { margin: 0; color: #142536; font-family: Arial, sans-serif; font-size: 11px; }
+        header { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; padding-bottom: 12px; border-bottom: 4px solid #ef4b1b; }
+        .brand { color: #1596cf; font-size: 22px; font-weight: 800; }
+        h1 { margin: 4px 0 2px; font-size: 20px; }
+        p { margin: 3px 0; color: #526471; }
+        .summary { display: flex; gap: 12px; margin: 14px 0; }
+        .summary div { flex: 1; padding: 10px; border: 1px solid #d7e2e8; background: #f5f9fb; }
+        .summary b { display: block; margin-top: 3px; color: #0c658f; font-size: 15px; }
+        table { width: 100%; border-collapse: collapse; }
+        thead { display: table-header-group; }
+        tr { break-inside: avoid; page-break-inside: avoid; }
+        th { padding: 8px; background: #172638; color: #fff; text-align: left; }
+        td { padding: 8px; border-bottom: 1px solid #d7e2e8; vertical-align: top; }
+        th:last-child, td:last-child { text-align: right; white-space: nowrap; }
+        footer { margin-top: 12px; color: #6b7782; font-size: 9px; text-align: right; }
+        @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+    `;
+    documento.head.appendChild(estilo);
+
+    const encabezado = documento.createElement('header');
+    const tituloGrupo = documento.createElement('div');
+    const marca = documento.createElement('div');
+    const titulo = documento.createElement('h1');
+    const subtitulo = documento.createElement('p');
+    const fecha = documento.createElement('p');
+    marca.className = 'brand';
+    marca.textContent = 'UrbaPark';
+    titulo.textContent = 'Activos de operaciones';
+    subtitulo.textContent = sede;
+    fecha.textContent = `Generado: ${obtenerFechaExportacionActivos()}`;
+    tituloGrupo.append(marca, titulo, subtitulo);
+    encabezado.append(tituloGrupo, fecha);
+
+    const resumen = documento.createElement('section');
+    resumen.className = 'summary';
+    const cantidad = documento.createElement('div');
+    const valor = documento.createElement('div');
+    cantidad.append(crearCeldaReporteActivos('Activos registrados', 'span'), crearCeldaReporteActivos(String(activosOperaciones.length), 'b'));
+    valor.append(crearCeldaReporteActivos('Valorizacion total', 'span'), crearCeldaReporteActivos(formatearCostoActivo(total), 'b'));
+    resumen.append(cantidad, valor);
+
+    const tabla = documento.createElement('table');
+    const cabecera = documento.createElement('thead');
+    const filaCabecera = documento.createElement('tr');
+    ['Codigo', 'Nombre del activo', 'Costo actual'].forEach(texto => filaCabecera.appendChild(crearCeldaReporteActivos(texto, 'th')));
+    cabecera.appendChild(filaCabecera);
+    const cuerpo = documento.createElement('tbody');
+    activosOperaciones.forEach(activo => {
+        const fila = documento.createElement('tr');
+        fila.append(
+            crearCeldaReporteActivos(activo.codigo),
+            crearCeldaReporteActivos(activo.nombre),
+            crearCeldaReporteActivos(formatearCostoActivo(activo.costo))
+        );
+        cuerpo.appendChild(fila);
+    });
+    tabla.append(cabecera, cuerpo);
+
+    const pie = documento.createElement('footer');
+    pie.textContent = 'Registro de activos de operaciones - UrbaPark';
+    documento.body.append(encabezado, resumen, tabla, pie);
+    documento.close();
+    actualizarEstadoActivosOperaciones('PDF preparado. Selecciona Guardar como PDF.', 'success');
+    setTimeout(() => {
+        ventana.focus();
+        ventana.print();
+    }, 300);
+}
+
 function actualizarEstadoActivosOperaciones(mensaje = '', estado = 'info') {
     const salida = obtenerElemento('operationsAssetsStatus');
     if (!salida) return;
@@ -7455,6 +7597,8 @@ function configurarEventos() {
     obtenerElemento('openOperationsAssets')?.addEventListener('click', () => establecerPanelActivosOperaciones(true));
     obtenerElemento('closeOperationsAssets')?.addEventListener('click', () => establecerPanelActivosOperaciones(false));
     obtenerElemento('addOperationsAsset')?.addEventListener('click', () => establecerFormularioActivoOperaciones(true));
+    obtenerElemento('exportOperationsAssetsPdf')?.addEventListener('click', generarPdfActivosOperaciones);
+    obtenerElemento('exportOperationsAssetsExcel')?.addEventListener('click', exportarActivosOperacionesExcel);
     obtenerElemento('cancelOperationsAsset')?.addEventListener('click', () => establecerFormularioActivoOperaciones(false));
     obtenerElemento('operationsAssetForm')?.addEventListener('submit', guardarActivoOperaciones);
     obtenerElemento('operationsAssetsSearch')?.addEventListener('input', renderizarActivosOperaciones);
