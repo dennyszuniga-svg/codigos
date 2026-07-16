@@ -185,6 +185,14 @@
                         aria-expanded="false"
                         aria-controls="adminUsersPanel"
                     >Crear usuarios</button>
+                    <button
+                        class="clear-btn"
+                        type="button"
+                        id="toggleSystemHealth"
+                        aria-expanded="false"
+                        aria-controls="systemHealthPanel"
+                        hidden
+                    >Salud de Supabase</button>
                 </div>
             </section>
 
@@ -313,6 +321,42 @@
                 </form>
                 <p id="usersAdminStatus" class="auth-status" role="status" aria-live="polite"></p>
                 <div id="usersAdminList" class="users-admin-list" aria-live="polite"></div>
+            </section>
+
+            <section class="admin-guide-panel system-health-panel" id="systemHealthPanel" role="dialog" aria-modal="true" aria-labelledby="systemHealthTitle" tabindex="-1" hidden>
+                <button class="modal-close admin-panel-close" type="button" data-close-admin-panel aria-label="Cerrar panel de salud" title="Cerrar">&times;</button>
+                <div class="section-heading system-health-heading">
+                    <div>
+                        <p class="eyebrow">Acceso exclusivo de Dennys</p>
+                        <h2 id="systemHealthTitle">Salud de Supabase</h2>
+                        <p>Capacidad, usuarios, almacenamiento y crecimiento de la plataforma.</p>
+                    </div>
+                    <div class="system-health-heading-actions">
+                        <button class="clear-btn" type="button" id="refreshSystemHealth">Actualizar</button>
+                        <a class="clear-btn system-health-dashboard-link" href="https://supabase.com/dashboard/project/uibiwhkxlyxdfytvudbn" target="_blank" rel="noopener noreferrer">Abrir Supabase</a>
+                    </div>
+                </div>
+                <p class="auth-status" id="systemHealthStatus" role="status" aria-live="polite"></p>
+                <div class="system-health-overview" id="systemHealthOverview" aria-live="polite"></div>
+                <div class="system-health-sections">
+                    <section class="system-health-section" aria-labelledby="systemHealthRolesTitle">
+                        <h3 id="systemHealthRolesTitle">Usuarios por rol</h3>
+                        <div class="system-health-list" id="systemHealthRoles"></div>
+                    </section>
+                    <section class="system-health-section" aria-labelledby="systemHealthSitesTitle">
+                        <h3 id="systemHealthSitesTitle">Usuarios por sede</h3>
+                        <div class="system-health-list" id="systemHealthSites"></div>
+                    </section>
+                    <section class="system-health-section system-health-wide" aria-labelledby="systemHealthHostsTitle">
+                        <h3 id="systemHealthHostsTitle">Anfitriones creados</h3>
+                        <div class="system-health-users" id="systemHealthHosts"></div>
+                    </section>
+                    <section class="system-health-section system-health-wide" aria-labelledby="systemHealthTablesTitle">
+                        <h3 id="systemHealthTablesTitle">Tablas con mayor uso</h3>
+                        <div class="system-health-tables" id="systemHealthTables"></div>
+                    </section>
+                </div>
+                <p class="system-health-updated" id="systemHealthUpdated"></p>
             </section>
 
             <section class="summary-panel" id="activityPanel" aria-labelledby="summaryTitle" hidden>

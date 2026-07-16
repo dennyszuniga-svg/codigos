@@ -1007,6 +1007,179 @@ body.dark-theme .bottom-nav button:hover {
     gap: 10px;
 }
 
+.system-health-heading {
+    align-items: flex-start;
+}
+
+.system-health-heading-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.system-health-dashboard-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    text-decoration: none;
+}
+
+.system-health-overview {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin: 16px 0 22px;
+}
+
+.system-health-metric {
+    min-width: 0;
+    padding: 15px;
+    border: 1px solid var(--border);
+    border-top: 5px solid var(--brand-blue);
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+.system-health-metric > span,
+.system-health-metric > small {
+    display: block;
+    color: var(--muted);
+}
+
+.system-health-metric > strong {
+    display: block;
+    margin: 7px 0 5px;
+    color: var(--text);
+    font-size: 1.42rem;
+    overflow-wrap: anywhere;
+}
+
+.system-health-metric > b {
+    display: block;
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 0.78rem;
+}
+
+.system-health-metric.health-warning {
+    border-top-color: #d97706;
+}
+
+.system-health-metric.health-danger {
+    border-top-color: #dc2626;
+}
+
+.system-health-metric.health-healthy {
+    border-top-color: #059669;
+}
+
+.system-health-progress {
+    height: 8px;
+    margin-top: 12px;
+    overflow: hidden;
+    border-radius: 4px;
+    background: var(--surface-muted);
+}
+
+.system-health-progress span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: #059669;
+}
+
+.health-warning .system-health-progress span {
+    background: #d97706;
+}
+
+.health-danger .system-health-progress span {
+    background: #dc2626;
+}
+
+.system-health-sections {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px;
+}
+
+.system-health-section {
+    min-width: 0;
+    padding-top: 14px;
+    border-top: 2px solid var(--border);
+}
+
+.system-health-section h3 {
+    margin: 0 0 12px;
+    color: var(--brand-blue-dark);
+    font-size: 1rem;
+}
+
+.system-health-wide {
+    grid-column: 1 / -1;
+}
+
+.system-health-list,
+.system-health-users,
+.system-health-tables {
+    display: grid;
+    gap: 8px;
+}
+
+.system-health-list-row,
+.system-health-user-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.system-health-list-row span,
+.system-health-user-row > div {
+    display: grid;
+    gap: 2px;
+}
+
+.system-health-list-row small,
+.system-health-user-row span {
+    color: var(--muted);
+    font-size: 0.82rem;
+}
+
+.system-health-user-row {
+    grid-template-columns: minmax(180px, 1fr) minmax(140px, 0.7fr) auto;
+}
+
+.health-user-active {
+    color: #047857;
+}
+
+.health-user-inactive {
+    color: #b42318;
+}
+
+.system-health-updated {
+    margin: 18px 0 0;
+    color: var(--muted);
+    text-align: right;
+    font-size: 0.82rem;
+}
+
+body.dark-theme .system-health-metric {
+    background: var(--surface-strong);
+}
+
+body.dark-theme .system-health-section h3 {
+    color: #7dd3fc;
+}
+
+body.dark-theme .health-user-active {
+    color: #6ee7b7;
+}
+
 .admin-guide-form {
     display: grid;
     grid-template-columns: minmax(160px, 0.75fr) minmax(220px, 1fr);
@@ -3489,6 +3662,26 @@ body.dark-theme .modal-dialog {
 }
 
 @media (max-width: 760px) {
+    .system-health-overview,
+    .system-health-sections {
+        grid-template-columns: 1fr;
+    }
+
+    .system-health-wide {
+        grid-column: auto;
+    }
+
+    .system-health-heading-actions,
+    .system-health-heading-actions .clear-btn,
+    .system-health-dashboard-link {
+        width: 100%;
+    }
+
+    .system-health-user-row {
+        grid-template-columns: 1fr;
+        gap: 5px;
+    }
+
     .maintenance-password-row,
     .inventory-form,
     .inventory-item {
