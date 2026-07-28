@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codigos-urbapark-v98';
+const CACHE_NAME = 'codigos-urbapark-v99';
 const APP_SHELL = [
     './',
     './index.html',
@@ -47,10 +47,6 @@ self.addEventListener('activate', event => {
                     .map(key => caches.delete(key))
             ))
             .then(() => self.clients.claim())
-            .then(() => self.clients.matchAll({ type: 'window' }))
-            .then(clientList => Promise.all(
-                clientList.map(client => client.navigate(client.url).catch(() => null))
-            ))
     );
 });
 
