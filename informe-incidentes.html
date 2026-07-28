@@ -14,7 +14,9 @@
                 <span aria-hidden="true">&#8592;</span>
                 Volver a Mantenimiento
             </a>
-            <span>Borrador automatico activo</span>
+            <span id="draftSaveIndicator" class="draft-save-indicator" data-state="ready" role="status" aria-live="polite">
+                Borrador protegido
+            </span>
         </nav>
         <header class="header">
             <img src="assets/urbapark-logo.png" alt="UrbaPark" class="brand-logo">
@@ -39,6 +41,10 @@
                     </div>
                     <div class="progress-track">
                         <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                    <div class="draft-storage-status" id="draftStorageStatus">
+                        <strong>Proteccion de evidencias activa</strong>
+                        <span>Las fotos se guardan una por una en este dispositivo.</span>
                     </div>
                 </div>
 

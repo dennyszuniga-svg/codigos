@@ -4,9 +4,10 @@ const APP_CONTEXT = readAppContext();
 const DRAFT_KEY = `urbapark-intervention-draft-v3:${APP_CONTEXT.usuarioId || 'sin-usuario'}`;
 const DRAFT_DB_NAME = 'urbapark-intervention-drafts';
 const DRAFT_DB_STORE = 'drafts';
+const DRAFT_DB_PHOTO_STORE = 'photos';
+const DRAFT_DB_VERSION = 2;
 const COUNTER_KEY = 'urbapark-report-counter';
 const MAINTENANCE_REPORTS_KEY = 'urbapark-maintenance-reports';
-const DRAFT_MAX_BYTES = 4_200_000;
 const PHOTO_COMPRESSION = {
     normal: { maxSize: 1280, quality: 0.66 },
     bulk: { maxSize: 960, quality: 0.58 }
@@ -166,6 +167,8 @@ const taskList = document.getElementById('taskList');
 const progressBar = document.getElementById('progressBar');
 const progressText = document.getElementById('progressText');
 const reportNumberLabel = document.getElementById('reportNumberLabel');
+const draftSaveIndicator = document.getElementById('draftSaveIndicator');
+const draftStorageStatus = document.getElementById('draftStorageStatus');
 
 const fields = {
     numeroInforme: document.getElementById('numeroInforme'),
@@ -235,6 +238,13 @@ let reportSequence = 1;
 let reportSaved = false;
 let lastGeneratedAt = null;
 let draftTimer = null;
+let pendingDraftSnapshot = null;
+let draftSaveWorker = null;
+let draftSaveInProgress = false;
+let draftRestoreComplete = false;
+let draftRestorePromise = Promise.resolve();
+let persistentStorageGranted = false;
+let persistedPhotoKeys = new Set();
 let signaturePads = {};
 let supabaseClient = null;
 let inventarioInforme = [];
@@ -244,8 +254,10 @@ let perfilInformeActual = null;
 
 initSignaturePads();
 initForm();
-requestPersistentDraftStorage();
-restoreDraftFromIndexedDb();
+requestPersistentDraftStorage().then(updateDraftStorageStatus);
+draftRestorePromise = restoreDraftFromIndexedDb().finally(() => {
+    draftRestoreComplete = true;
+});
 validarAccesoInforme();
 
 document.getElementById('btnLimpiar').addEventListener('click', confirmResetForm);
@@ -275,11 +287,16 @@ form.addEventListener('submit', (event) => {
     event.preventDefault();
     exportPdf();
 });
-window.addEventListener('pagehide', saveDraft);
+window.addEventListener('pagehide', () => saveDraft());
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
         saveDraft();
     }
+});
+window.addEventListener('beforeunload', (event) => {
+    if (!draftSaveInProgress && !pendingDraftSnapshot) return;
+    event.preventDefault();
+    event.returnValue = '';
 });
 
 Object.entries(fields).forEach(([name, field]) => {
@@ -361,12 +378,13 @@ taskList.addEventListener('change', async (event) => {
     }
 
     if (event.target.dataset.action === 'task-photos') {
-        const photos = await readImageFiles([...event.target.files]);
-        task.photos.push(...photos);
-        renderTasks();
-        updateProgress();
-        scheduleDraftSave();
-        setStatus(`${photos.length} foto${photos.length === 1 ? '' : 's'} agregada${photos.length === 1 ? '' : 's'}. Complete tipo y subtitulo.`);
+        const photos = await readImageFiles([...event.target.files], async (photo) => {
+            task.photos.push(photo);
+            renderTasks();
+            updateProgress();
+            await saveDraft();
+        });
+        setStatus(`${photos.length} foto${photos.length === 1 ? '' : 's'} agregada${photos.length === 1 ? '' : 's'} y protegida${photos.length === 1 ? '' : 's'}. Complete tipo y subtitulo.`);
     }
 
     if (event.target.dataset.action === 'photo-stage') {
@@ -1010,7 +1028,7 @@ function isTaskStarted(task) {
     return task.done || Boolean(task.description.trim()) || task.photos.length > 0;
 }
 
-async function readImageFiles(files) {
+async function readImageFiles(files, onPhotoReady = null) {
     const imageFiles = files.filter((file) => (
         ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)
     ));
@@ -1021,14 +1039,18 @@ async function readImageFiles(files) {
     const photos = [];
 
     for (const file of imageFiles) {
-        photos.push({
+        const photo = {
             id: Date.now() + Math.floor(Math.random() * 100000),
             name: file.name,
             caption: '',
             stage: '',
             capturedAt: new Date().toISOString(),
             dataUrl: await compressImage(file, options.maxSize, options.quality)
-        });
+        };
+        photos.push(photo);
+        if (onPhotoReady) {
+            await onPhotoReady(photo);
+        }
         await new Promise(resolve => window.setTimeout(resolve, 0));
     }
 
@@ -1645,54 +1667,123 @@ async function requestPersistentDraftStorage() {
 
     try {
         const alreadyPersistent = await navigator.storage.persisted?.();
-        return alreadyPersistent || await navigator.storage.persist();
+        persistentStorageGranted = Boolean(alreadyPersistent || await navigator.storage.persist());
+        return persistentStorageGranted;
     } catch (error) {
         console.warn('No se pudo solicitar almacenamiento persistente.', error);
         return false;
     }
 }
 
-function saveDraft() {
-    const draft = {
+function createDraftSnapshot() {
+    return {
         savedAt: new Date().toISOString(),
         reportSequence,
         reportNumber: fields.numeroInforme.value,
         reportSaved,
         fields: Object.fromEntries(Object.entries(fields).map(([name, field]) => [name, field.value])),
-        tasks,
-        repuestosUsados,
+        tasks: tasks.map(task => ({
+            ...task,
+            photos: task.photos.map(photo => ({ ...photo }))
+        })),
+        repuestosUsados: repuestosUsados.map(item => ({ ...item })),
         signatures: {
             firmaTecnico: signaturePads.firmaTecnico.isEmpty() ? '' : signaturePads.firmaTecnico.toDataUrl(),
             firmaSupervisor: signaturePads.firmaSupervisor.isEmpty() ? '' : signaturePads.firmaSupervisor.toDataUrl()
         }
     };
-    saveDraftToIndexedDb(draft).catch(error => {
-        console.warn('No se pudo guardar el borrador completo en el dispositivo.', error);
-        setStatus('No hay espacio suficiente para proteger todas las fotos. Libera espacio antes de cerrar la app.', true);
-    });
-    try {
-        let serialized = JSON.stringify(draft);
-        if (serialized.length > DRAFT_MAX_BYTES) {
-            const metadataOnlyDraft = {
-                ...draft,
-                tasks: tasks.map(task => ({
-                    ...task,
-                    photos: task.photos.map(photo => ({
-                        ...photo,
-                        dataUrl: ''
-                    }))
-                }))
-            };
-            serialized = JSON.stringify(metadataOnlyDraft);
-            localStorage.setItem(DRAFT_KEY, serialized);
-            setStatus('Borrador completo protegido en el almacenamiento del dispositivo.');
-        } else {
-            localStorage.setItem(DRAFT_KEY, serialized);
+}
+
+function createMetadataOnlyDraft(draft) {
+    return {
+        ...draft,
+        tasks: draft.tasks.map(task => ({
+            ...task,
+            photos: task.photos.map(photo => ({
+                ...photo,
+                storageKey: getPhotoStorageKey(task.id, photo.id),
+                dataUrl: ''
+            }))
+        }))
+    };
+}
+
+function saveDraft() {
+    if (!draftRestoreComplete) {
+        setDraftSaveState('saving', 'Verificando borrador...');
+        if (!draftSaveWorker) {
+            draftSaveWorker = draftRestorePromise.then(() => {
+                draftSaveWorker = null;
+                return saveDraft();
+            });
         }
+        return draftSaveWorker;
+    }
+    const draft = createDraftSnapshot();
+    pendingDraftSnapshot = draft;
+    setDraftSaveState('saving', `Guardando ${getTotalPhotoCount()} fotos...`);
+    try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(createMetadataOnlyDraft(draft)));
     } catch (error) {
-        setStatus('El informe se mantiene en el almacenamiento seguro del dispositivo.');
+        console.warn('No se pudo guardar la copia ligera del borrador.', error);
     }
     updateProgress();
+    if (!draftSaveWorker) {
+        draftSaveWorker = runDraftSaveWorker();
+    }
+    return draftSaveWorker;
+}
+
+async function runDraftSaveWorker() {
+    draftSaveInProgress = true;
+    try {
+        while (pendingDraftSnapshot) {
+            const snapshot = pendingDraftSnapshot;
+            pendingDraftSnapshot = null;
+            await saveDraftToIndexedDb(snapshot);
+        }
+        setDraftSaveState('saved', `Protegido: ${getTotalPhotoCount()} fotos`);
+        await updateDraftStorageStatus();
+    } catch (error) {
+        console.warn('No se pudo guardar el borrador completo en el dispositivo.', error);
+        setDraftSaveState('error', 'Guardado incompleto');
+        setStatus('No se pudieron proteger todas las fotos. Libera espacio del celular antes de cerrar la app.', true);
+    } finally {
+        draftSaveInProgress = false;
+        draftSaveWorker = null;
+        if (pendingDraftSnapshot) {
+            draftSaveWorker = runDraftSaveWorker();
+        }
+    }
+}
+
+function setDraftSaveState(state, message) {
+    if (!draftSaveIndicator) return;
+    draftSaveIndicator.dataset.state = state === 'saved' ? 'ready' : state;
+    draftSaveIndicator.textContent = message;
+}
+
+async function updateDraftStorageStatus() {
+    if (!draftStorageStatus) return;
+    const photoCount = getTotalPhotoCount();
+    let detail = `${photoCount} foto${photoCount === 1 ? '' : 's'} recuperable${photoCount === 1 ? '' : 's'}`;
+    try {
+        const estimate = await navigator.storage?.estimate?.();
+        if (estimate?.usage && estimate?.quota) {
+            const usedMb = estimate.usage / 1024 / 1024;
+            const quotaMb = estimate.quota / 1024 / 1024;
+            detail += ` | dispositivo: ${usedMb.toFixed(0)} de ${quotaMb.toFixed(0)} MB`;
+            const isLow = estimate.usage / estimate.quota > 0.85;
+            draftStorageStatus.dataset.state = isLow ? 'error' : 'ready';
+            if (isLow) detail += ' | poco espacio disponible';
+        }
+    } catch (error) {
+        console.warn('No se pudo consultar el espacio disponible.', error);
+    }
+    const title = persistentStorageGranted
+        ? 'Almacenamiento persistente activo'
+        : 'Guardado local reforzado activo';
+    draftStorageStatus.innerHTML = `<strong>${title}</strong><span>${detail}</span>`;
 }
 
 function getReportDurationMinutes(report) {
@@ -1906,11 +1997,15 @@ function openDraftDatabase() {
             return;
         }
 
-        const request = window.indexedDB.open(DRAFT_DB_NAME, 1);
+        const request = window.indexedDB.open(DRAFT_DB_NAME, DRAFT_DB_VERSION);
         request.onupgradeneeded = () => {
             const database = request.result;
             if (!database.objectStoreNames.contains(DRAFT_DB_STORE)) {
                 database.createObjectStore(DRAFT_DB_STORE);
+            }
+            if (!database.objectStoreNames.contains(DRAFT_DB_PHOTO_STORE)) {
+                const photoStore = database.createObjectStore(DRAFT_DB_PHOTO_STORE, { keyPath: 'key' });
+                photoStore.createIndex('draftKey', 'draftKey', { unique: false });
             }
         };
         request.onsuccess = () => resolve(request.result);
@@ -1920,23 +2015,71 @@ function openDraftDatabase() {
 
 async function saveDraftToIndexedDb(draft) {
     const database = await openDraftDatabase();
+    const metadataDraft = createMetadataOnlyDraft(draft);
+    const activePhotoKeys = new Set();
     await new Promise((resolve, reject) => {
-        const transaction = database.transaction(DRAFT_DB_STORE, 'readwrite');
-        transaction.objectStore(DRAFT_DB_STORE).put(draft, DRAFT_KEY);
+        const transaction = database.transaction([DRAFT_DB_STORE, DRAFT_DB_PHOTO_STORE], 'readwrite');
+        const draftStore = transaction.objectStore(DRAFT_DB_STORE);
+        const photoStore = transaction.objectStore(DRAFT_DB_PHOTO_STORE);
+        draft.tasks.forEach(task => {
+            task.photos.forEach(photo => {
+                const key = getPhotoStorageKey(task.id, photo.id);
+                activePhotoKeys.add(key);
+                if (!persistedPhotoKeys.has(key) && photo.dataUrl) {
+                    photoStore.put({
+                        key,
+                        draftKey: DRAFT_KEY,
+                        taskId: task.id,
+                        photoId: photo.id,
+                        dataUrl: photo.dataUrl
+                    });
+                }
+            });
+        });
+        const existingKeysRequest = photoStore.index('draftKey').getAllKeys(DRAFT_KEY);
+        existingKeysRequest.onsuccess = () => {
+            existingKeysRequest.result
+                .filter(key => !activePhotoKeys.has(key))
+                .forEach(key => photoStore.delete(key));
+        };
+        draftStore.put(metadataDraft, DRAFT_KEY);
         transaction.oncomplete = resolve;
         transaction.onerror = () => reject(transaction.error || new Error('No se pudo guardar el borrador'));
         transaction.onabort = () => reject(transaction.error || new Error('Se interrumpio el guardado'));
     });
+    persistedPhotoKeys = activePhotoKeys;
     database.close();
 }
 
 async function readDraftFromIndexedDb() {
     const database = await openDraftDatabase();
     const draft = await new Promise((resolve, reject) => {
-        const transaction = database.transaction(DRAFT_DB_STORE, 'readonly');
-        const request = transaction.objectStore(DRAFT_DB_STORE).get(DRAFT_KEY);
-        request.onsuccess = () => resolve(request.result || null);
-        request.onerror = () => reject(request.error || new Error('No se pudo leer el borrador'));
+        const transaction = database.transaction([DRAFT_DB_STORE, DRAFT_DB_PHOTO_STORE], 'readonly');
+        const draftRequest = transaction.objectStore(DRAFT_DB_STORE).get(DRAFT_KEY);
+        const photosRequest = transaction.objectStore(DRAFT_DB_PHOTO_STORE).index('draftKey').getAll(DRAFT_KEY);
+        transaction.oncomplete = () => {
+            const storedDraft = draftRequest.result || null;
+            if (!storedDraft) {
+                resolve(null);
+                return;
+            }
+            const photoRecords = photosRequest.result || [];
+            const photosByKey = new Map(photoRecords.map(record => [record.key, record]));
+            persistedPhotoKeys = new Set(photosByKey.keys());
+            const hydratedDraft = {
+                ...storedDraft,
+                tasks: (storedDraft.tasks || []).map(task => ({
+                    ...task,
+                    photos: (task.photos || []).map(photo => {
+                        if (photo.dataUrl) return photo;
+                        const key = photo.storageKey || getPhotoStorageKey(task.id, photo.id);
+                        return { ...photo, dataUrl: photosByKey.get(key)?.dataUrl || '' };
+                    }).filter(photo => photo.dataUrl)
+                }))
+            };
+            resolve(hydratedDraft);
+        };
+        transaction.onerror = () => reject(transaction.error || new Error('No se pudo leer el borrador'));
     });
     database.close();
     return draft;
@@ -1945,12 +2088,20 @@ async function readDraftFromIndexedDb() {
 async function deleteDraftFromIndexedDb() {
     const database = await openDraftDatabase();
     await new Promise((resolve, reject) => {
-        const transaction = database.transaction(DRAFT_DB_STORE, 'readwrite');
+        const transaction = database.transaction([DRAFT_DB_STORE, DRAFT_DB_PHOTO_STORE], 'readwrite');
         transaction.objectStore(DRAFT_DB_STORE).delete(DRAFT_KEY);
+        const photoStore = transaction.objectStore(DRAFT_DB_PHOTO_STORE);
+        const keysRequest = photoStore.index('draftKey').getAllKeys(DRAFT_KEY);
+        keysRequest.onsuccess = () => keysRequest.result.forEach(key => photoStore.delete(key));
         transaction.oncomplete = resolve;
         transaction.onerror = () => reject(transaction.error || new Error('No se pudo eliminar el borrador'));
     });
+    persistedPhotoKeys.clear();
     database.close();
+}
+
+function getPhotoStorageKey(taskId, photoId) {
+    return `${DRAFT_KEY}:${taskId}:${photoId}`;
 }
 
 async function restoreDraftFromIndexedDb() {
@@ -1966,7 +2117,7 @@ async function restoreDraftFromIndexedDb() {
         const storedPhotos = (storedDraft.tasks || []).reduce((total, task) => total + (task.photos || []).filter(photo => photo?.dataUrl).length, 0);
         const localPhotos = (localDraft?.tasks || []).reduce((total, task) => total + (task.photos || []).filter(photo => photo?.dataUrl).length, 0);
 
-        if (storedTime < localTime || (storedTime === localTime && storedPhotos <= localPhotos)) {
+        if (!storedPhotos && (storedTime < localTime || (storedTime === localTime && storedPhotos <= localPhotos))) {
             return;
         }
 
@@ -1977,6 +2128,8 @@ async function restoreDraftFromIndexedDb() {
         updateEstadoInicialOtroVisibility();
         syncSignatureNames();
         updateComputedFields();
+        setDraftSaveState('saved', `Recuperado: ${storedPhotos} fotos`);
+        updateDraftStorageStatus();
         setStatus(`Borrador recuperado: ${tasks.length} tareas y ${storedPhotos} fotos.`);
     } catch (error) {
         console.warn('No se pudo recuperar el borrador completo.', error);
@@ -1995,6 +2148,7 @@ function clearDraft() {
     window.clearTimeout(draftTimer);
     draftTimer = null;
     localStorage.removeItem(DRAFT_KEY);
+    pendingDraftSnapshot = null;
     deleteDraftFromIndexedDb().catch(error => {
         console.warn('No se pudo eliminar el borrador del dispositivo.', error);
     });
