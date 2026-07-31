@@ -22,6 +22,11 @@ let meyparPending = [];
 const byId = id => document.getElementById(id);
 const clear = element => { while (element?.firstChild) element.firstChild.remove(); };
 const siteName = id => id === 'general' ? 'Almacén general' : SEDES.find(item => item[0] === id)?.[1] || id;
+const compatibilityName = value => ({
+    universal: 'Modelos ADVENTA y EVO',
+    actual: 'Modelo EVO (versión actual)',
+    antiguo: 'Modelo ADVENTA (versión anterior)'
+}[value] || value || 'Sin compatibilidad');
 const isSuperior = () => profile?.rol === 'encargado_ti';
 const monthValue = () => byId('controlMonth').value || new Date().toISOString().slice(0, 7);
 const selectedSite = () => byId('controlSite').value;
@@ -431,7 +436,7 @@ function renderInventory() {
     rows.forEach(item => {
         const row = record(
             `${item.codigo} - ${item.nombre} - ${siteName(item.ubicacion_sede)}`,
-            `${item.stock} ${item.unidad} en esta ubicación - Total general ${item.stock_total} - Costo sin IGV ${formatMoney(item.costo_unitario_sin_igv, item.moneda)} c/u - Valorizado sin IGV ${formatMoney(Number(item.stock) * Number(item.costo_unitario_sin_igv), item.moneda)} - ${item.compatibilidad} - ${item.ubicacion_detalle || 'Sin detalle'}${item.proveedor ? ` - Proveedor: ${item.proveedor}` : ''}`,
+            `${item.stock} ${item.unidad} en esta ubicación - Total general ${item.stock_total} - Costo sin IGV ${formatMoney(item.costo_unitario_sin_igv, item.moneda)} c/u - Valorizado sin IGV ${formatMoney(Number(item.stock) * Number(item.costo_unitario_sin_igv), item.moneda)} - ${compatibilityName(item.compatibilidad)} - ${item.ubicacion_detalle || 'Sin detalle'}${item.proveedor ? ` - Proveedor: ${item.proveedor}` : ''}`,
             Number(item.stock) <= Number(item.stock_minimo) ? 'failure' : ''
         );
         const editor = document.createElement('div');
