@@ -194,6 +194,29 @@
             </form>
             <p id="inventoryFormStatus" class="status" role="status" aria-live="polite"></p>
             <div id="inventorySummary" class="metric-grid"></div>
+            <article class="data-panel meypar-panel">
+                <div class="section-row">
+                    <div>
+                        <h3>Pendientes de entrega MEYPAR</h3>
+                        <p class="section-help">Control de repuestos solicitados que aun no ingresan al inventario.</p>
+                    </div>
+                    <button id="toggleMeyparForm" type="button" aria-expanded="false" aria-controls="meyparForm">Registrar pendiente</button>
+                </div>
+                <form id="meyparForm" class="meypar-form" hidden>
+                    <label>Repuesto<select id="meyparPart" required><option value="">Selecciona un repuesto</option></select></label>
+                    <label>Cantidad<input id="meyparQuantity" type="number" min="0.01" step="0.01" required></label>
+                    <label>Fecha estimada<input id="meyparExpectedDate" type="date"></label>
+                    <label>Referencia / pedido<input id="meyparReference" type="text" maxlength="120" placeholder="Orden, cotizacion o guia"></label>
+                    <label class="meypar-note">Observacion<input id="meyparNote" type="text" maxlength="500"></label>
+                    <div class="meypar-form-actions">
+                        <button type="submit">Guardar pendiente</button>
+                        <button class="secondary-button" id="cancelMeyparForm" type="button">Cancelar</button>
+                    </div>
+                </form>
+                <p id="meyparStatus" class="status" role="status" aria-live="polite"></p>
+                <div id="meyparSummary" class="meypar-summary" aria-live="polite"></div>
+                <div id="meyparList" class="record-list"></div>
+            </article>
             <article class="data-panel inventory-pyg-panel">
                 <div class="section-row">
                     <div><h3>PyG mensual de repuestos</h3><p class="section-help">Detalle por fecha, componente, equipo y sede con valores sin IGV, IGV 18% y total. Las transferencias no generan gasto.</p></div>

@@ -17,6 +17,7 @@ let interventions = [];
 let inventory = [];
 let inventoryMovements = [];
 let inventoryPygRows = [];
+let meyparPending = [];
 
 const byId = id => document.getElementById(id);
 const clear = element => { while (element?.firstChild) element.firstChild.remove(); };
@@ -229,7 +230,7 @@ async function loadData() {
         .eq('sede', site).order('fecha_guardado', { ascending: false }).limit(500);
     if (!isSuperior()) reportsQuery = reportsQuery.eq('creado_por', session.user.id);
 
-    const [reportsResult, inventoryResult, movementsResult, pygResult] = await Promise.all([
+    const [reportsResult, inventoryResult, movementsResult, pygResult, meyparResult] = await Promise.all([
         reportsQuery,
         isSuperior()
             ? client.rpc('listar_inventario_consolidado')
@@ -239,10 +240,16 @@ async function loadData() {
             : Promise.resolve({ data: [], error: null }),
         isSuperior()
             ? client.rpc('listar_pyg_inventario_mes', { mes_arg: month })
+            : Promise.resolve({ data: [], error: null }),
+        isSuperior()
+            ? client.from('pendientes_entrega_meypar')
+                .select('id,repuesto_id,cantidad,fecha_estimada,referencia,observacion,estado,created_at,catalogo_repuestos(codigo,nombre,unidad)')
+                .neq('estado', 'recibido')
+                .order('created_at', { ascending: false })
             : Promise.resolve({ data: [], error: null })
     ]);
 
-    const error = reportsResult.error || inventoryResult.error || movementsResult.error || pygResult.error;
+    const error = reportsResult.error || inventoryResult.error || movementsResult.error || pygResult.error || meyparResult.error;
     if (error) {
         setStatus('No se pudo cargar toda la información. Actualiza e inténtalo nuevamente.', 'error');
         console.warn('Centro de control:', error);
@@ -252,6 +259,7 @@ async function loadData() {
     inventory = inventoryResult.data || [];
     inventoryMovements = movementsResult.data || [];
     inventoryPygRows = pygResult.data || [];
+    meyparPending = meyparResult.data || [];
     configureTechnicianFilter();
     syncManualEquipmentSuggestions();
     renderAll();
@@ -416,6 +424,7 @@ function renderInventory() {
         metric('Inventario en soles', formatMoney(inventoryValuePen, 'PEN'), 'Stock actual sin IGV'),
         metric('Inventario en dólares', formatMoney(inventoryValueUsd, 'USD'), 'Stock actual sin IGV')
     );
+    renderMeyparPending();
     const query = byId('inventoryFilter').value.trim().toLowerCase();
     const rows = inventory.filter(item => `${item.codigo} ${item.nombre} ${item.categoria} ${item.compatibilidad} ${item.ubicacion_sede}`.toLowerCase().includes(query));
     if (!rows.length) { list.appendChild(empty('No hay repuestos que coincidan con la búsqueda.')); return; }
@@ -443,6 +452,138 @@ function renderInventory() {
     });
     renderInventoryMovements();
     renderInventoryPyg();
+}
+
+function renderMeyparPending() {
+    const selector = byId('meyparPart');
+    const summary = byId('meyparSummary');
+    const list = byId('meyparList');
+    if (!selector || !summary || !list || !isSuperior()) return;
+    const previous = selector.value;
+    clear(selector); clear(list);
+    selector.appendChild(new Option('Selecciona un repuesto', ''));
+    const uniqueParts = new Map();
+    inventory.forEach(item => {
+        if (!uniqueParts.has(item.repuesto_id)) uniqueParts.set(item.repuesto_id, item);
+    });
+    [...uniqueParts.values()]
+        .sort((a, b) => `${a.codigo} ${a.nombre}`.localeCompare(`${b.codigo} ${b.nombre}`, 'es'))
+        .forEach(item => selector.appendChild(new Option(`${item.codigo} - ${item.nombre}`, item.repuesto_id)));
+    if ([...selector.options].some(option => option.value === previous)) selector.value = previous;
+
+    const units = meyparPending.reduce((total, item) => total + Number(item.cantidad || 0), 0);
+    summary.textContent = `${meyparPending.length} pedido${meyparPending.length === 1 ? '' : 's'} pendiente${meyparPending.length === 1 ? '' : 's'} - ${units} unidades por recibir`;
+    if (!meyparPending.length) {
+        list.appendChild(empty('No hay entregas pendientes de MEYPAR.'));
+        return;
+    }
+    meyparPending.forEach(item => {
+        const part = item.catalogo_repuestos || {};
+        const expected = item.fecha_estimada
+            ? new Date(`${item.fecha_estimada}T12:00:00`).toLocaleDateString('es-PE')
+            : 'Sin fecha estimada';
+        const row = record(
+            `${part.codigo || 'Sin codigo'} - ${part.nombre || 'Repuesto'}`,
+            `${item.cantidad} ${part.unidad || 'unidad'} - ${expected}${item.referencia ? ` - Ref. ${item.referencia}` : ''}${item.observacion ? ` - ${item.observacion}` : ''}`,
+            item.estado === 'en_transito' ? '' : 'failure'
+        );
+        const actions = document.createElement('div');
+        const transitButton = document.createElement('button');
+        const receivedButton = document.createElement('button');
+        const deleteButton = document.createElement('button');
+        actions.className = 'meypar-actions';
+        transitButton.type = 'button';
+        transitButton.className = 'secondary-button';
+        transitButton.textContent = item.estado === 'en_transito' ? 'En transito' : 'Marcar en transito';
+        transitButton.disabled = item.estado === 'en_transito';
+        transitButton.dataset.meyparTransit = item.id;
+        receivedButton.type = 'button';
+        receivedButton.textContent = 'Marcar recibido';
+        receivedButton.dataset.meyparReceived = item.id;
+        deleteButton.type = 'button';
+        deleteButton.className = 'secondary-button';
+        deleteButton.textContent = 'Eliminar';
+        deleteButton.dataset.meyparDelete = item.id;
+        actions.append(transitButton, receivedButton, deleteButton);
+        row.appendChild(actions);
+        list.appendChild(row);
+    });
+}
+
+function showMeyparForm(show) {
+    const form = byId('meyparForm');
+    const button = byId('toggleMeyparForm');
+    if (!form || !button || !isSuperior()) return;
+    form.hidden = !show;
+    button.setAttribute('aria-expanded', String(show));
+    button.textContent = show ? 'Ocultar formulario' : 'Registrar pendiente';
+    if (show) byId('meyparPart').focus();
+}
+
+function resetMeyparForm() {
+    byId('meyparForm').reset();
+    byId('meyparStatus').textContent = '';
+}
+
+async function saveMeyparPending(event) {
+    event.preventDefault();
+    if (!isSuperior()) return;
+    const status = byId('meyparStatus');
+    const submit = event.currentTarget.querySelector('button[type="submit"]');
+    const quantity = Number(byId('meyparQuantity').value);
+    const payload = {
+        repuesto_id: byId('meyparPart').value,
+        cantidad: quantity,
+        fecha_estimada: byId('meyparExpectedDate').value || null,
+        referencia: byId('meyparReference').value.trim() || null,
+        observacion: byId('meyparNote').value.trim() || null,
+        estado: 'pendiente',
+        creado_por: session.user.id
+    };
+    if (!payload.repuesto_id || !Number.isFinite(quantity) || quantity <= 0) {
+        status.textContent = 'Selecciona el repuesto e ingresa una cantidad valida.';
+        status.dataset.state = 'error';
+        return;
+    }
+    submit.disabled = true;
+    status.textContent = 'Guardando pendiente...';
+    const { error } = await client.from('pendientes_entrega_meypar').insert(payload);
+    submit.disabled = false;
+    if (error) {
+        console.warn('Pendiente MEYPAR:', error);
+        status.textContent = 'No se pudo guardar el pendiente.';
+        status.dataset.state = 'error';
+        return;
+    }
+    resetMeyparForm();
+    showMeyparForm(false);
+    await loadData();
+    byId('meyparStatus').textContent = 'Pendiente MEYPAR guardado.';
+    byId('meyparStatus').dataset.state = 'success';
+}
+
+async function updateMeyparStatus(id, state) {
+    if (!isSuperior()) return;
+    const changes = { estado: state };
+    if (state === 'recibido') changes.recibido_at = new Date().toISOString();
+    const { error } = await client.from('pendientes_entrega_meypar').update(changes).eq('id', id);
+    if (error) {
+        byId('meyparStatus').textContent = 'No se pudo actualizar la entrega.';
+        byId('meyparStatus').dataset.state = 'error';
+        return;
+    }
+    await loadData();
+}
+
+async function deleteMeyparPending(id) {
+    if (!isSuperior() || !window.confirm('Eliminar este pendiente de entrega MEYPAR?')) return;
+    const { error } = await client.from('pendientes_entrega_meypar').delete().eq('id', id);
+    if (error) {
+        byId('meyparStatus').textContent = 'No se pudo eliminar el pendiente.';
+        byId('meyparStatus').dataset.state = 'error';
+        return;
+    }
+    await loadData();
 }
 
 function renderInventoryPyg() {
@@ -774,6 +915,17 @@ function configureEvents() {
     byId('toggleInventoryForm').addEventListener('click', event => showInventoryForm(event.currentTarget.getAttribute('aria-expanded') !== 'true'));
     byId('cancelInventoryForm').addEventListener('click', () => { resetInventoryForm(); showInventoryForm(false); });
     byId('inventoryForm').addEventListener('submit', saveInventoryItem);
+    byId('toggleMeyparForm').addEventListener('click', event => showMeyparForm(event.currentTarget.getAttribute('aria-expanded') !== 'true'));
+    byId('cancelMeyparForm').addEventListener('click', () => { resetMeyparForm(); showMeyparForm(false); });
+    byId('meyparForm').addEventListener('submit', saveMeyparPending);
+    byId('meyparList').addEventListener('click', event => {
+        const transit = event.target.closest('button[data-meypar-transit]');
+        const received = event.target.closest('button[data-meypar-received]');
+        const remove = event.target.closest('button[data-meypar-delete]');
+        if (transit) updateMeyparStatus(transit.dataset.meyparTransit, 'en_transito');
+        if (received) updateMeyparStatus(received.dataset.meyparReceived, 'recibido');
+        if (remove) deleteMeyparPending(remove.dataset.meyparDelete);
+    });
     byId('inventoryMovementForm').addEventListener('submit', saveInventoryMovement);
     byId('movementType').addEventListener('change', event => updateMovementFields(event.target.value));
     byId('exportGeneralCsv').addEventListener('click', exportGeneralCsv);
