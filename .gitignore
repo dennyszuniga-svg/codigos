@@ -1,0 +1,21 @@
+# Estado local de la CLI de Supabase (incluye project-ref y pooler-url)
+supabase/.temp/
+
+# Adjuntos temporales de sesiones de agentes
+.codex-remote-attachments/
+
+# Secretos: nunca commitear claves VAPID, service role keys ni tokens
+.env
+.env.*
+!.env.example
+
+# Sistema operativo
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Editores
+.vscode/
+.idea/
+*.swp
