@@ -19,7 +19,7 @@ const SUPABASE_ESM_SOURCES = [
     'https://esm.sh/@supabase/supabase-js@2'
 ];
 
-const VAPID_PUBLIC_KEY = 'BPA1HvZlxREjSH6MTsm1lK150EAsO-rk6v_ANrYesBXgnCDfBpFQ5HrHnvvGUvvT7ObMR21kRIpD98uwXIBFbjE';
+const VAPID_PUBLIC_KEY = 'BG9moXgahVKNxX367YNu3NPS5GdD03nrtB3YikfldVYwq8YAsKZEmIPevWZaozevHeCgWXXDPNp3BKC652FoZHc';
 const GUIDE_IMAGE_BUCKET = 'guide-images';
 const GUIDE_IMAGE_URL_TTL = 60 * 60;
 const MAINTENANCE_ACCESS_SESSION_KEY = 'urbapark-maintenance-area-unlocked';
@@ -3165,6 +3165,23 @@ function convertirBase64UrlAUint8Array(base64Url) {
     return output;
 }
 
+function claveAplicacionCoincide(suscripcion, claveEsperada) {
+    const opciones = suscripcion?.options;
+
+    if (!opciones || !('applicationServerKey' in opciones)) {
+        return true;
+    }
+
+    if (!opciones.applicationServerKey) {
+        return false;
+    }
+
+    const actual = new Uint8Array(opciones.applicationServerKey);
+
+    return actual.length === claveEsperada.length
+        && actual.every((valor, indice) => valor === claveEsperada[indice]);
+}
+
 async function registrarSuscripcionPush() {
     if (!supabaseClient || !sesionActual?.user) {
         actualizarEstadoSincronizacion('Inicia sesion', 'warning');
@@ -3177,10 +3194,20 @@ async function registrarSuscripcionPush() {
     }
 
     const registro = await navigator.serviceWorker.ready;
-    const existente = await registro.pushManager.getSubscription();
+    const claveServidor = convertirBase64UrlAUint8Array(VAPID_PUBLIC_KEY);
+    let existente = await registro.pushManager.getSubscription();
+
+    if (existente && !claveAplicacionCoincide(existente, claveServidor)) {
+        const endpointObsoleto = existente.endpoint;
+
+        await existente.unsubscribe().catch(() => {});
+        await supabaseClient.from('push_subscriptions').delete().eq('endpoint', endpointObsoleto);
+        existente = null;
+    }
+
     const suscripcion = existente || await registro.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: convertirBase64UrlAUint8Array(VAPID_PUBLIC_KEY)
+        applicationServerKey: claveServidor
     });
     const json = suscripcion.toJSON();
 
