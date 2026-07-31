@@ -1014,7 +1014,16 @@
             <button class="modal-close" type="button" aria-label="Cerrar vista ampliada" data-close-modal>&times;</button>
             <h2 id="modalTitle">Lamina del codigo</h2>
             <p id="modalSubtitle" class="modal-subtitle"></p>
-            <img id="modalImage" src="" alt="" />
+            <div class="zoom-toolbar" role="group" aria-label="Controles de zoom">
+                <button class="clear-btn" type="button" id="zoomOut" aria-label="Alejar">&minus;</button>
+                <span id="zoomLevel" class="zoom-level" role="status" aria-live="polite">100%</span>
+                <button class="clear-btn" type="button" id="zoomIn" aria-label="Acercar">+</button>
+                <button class="clear-btn" type="button" id="zoomReset">Ajustar</button>
+                <span class="zoom-hint">Pellizca o doble toque para acercar</span>
+            </div>
+            <div class="zoom-viewport" id="zoomViewport">
+                <img id="modalImage" src="" alt="" draggable="false" />
+            </div>
         </div>
     </div>
 

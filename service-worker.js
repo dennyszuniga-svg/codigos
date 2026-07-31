@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codigos-urbapark-v100';
+const CACHE_NAME = 'codigos-urbapark-v101';
 const APP_SHELL = [
     './',
     './index.html',
@@ -19,15 +19,17 @@ const APP_SHELL = [
     './assets/urbapark-logo.png',
     './assets/icons/icon-192.png',
     './assets/icons/icon-512.png',
-    './assets/codigo-rojo.png',
-    './assets/codigo-naranja.png',
-    './assets/codigo-3d.png',
-    './assets/codigo-cat.png',
-    './assets/codigo-verde.png',
-    './assets/codigo-croc.png',
-    './assets/codigo-adam.png',
-    './assets/codigo-calma.png',
-    './assets/codigo-capta.png'
+    // Version liviana (1200px, ~334KB en total). Los PNG originales a 1586px
+    // se piden solo al abrir la vista ampliada y quedan en cache de runtime.
+    './assets/codigo-rojo.webp',
+    './assets/codigo-naranja.webp',
+    './assets/codigo-3d.webp',
+    './assets/codigo-cat.webp',
+    './assets/codigo-verde.webp',
+    './assets/codigo-croc.webp',
+    './assets/codigo-adam.webp',
+    './assets/codigo-calma.webp',
+    './assets/codigo-capta.webp'
 ];
 
 self.addEventListener('install', event => {

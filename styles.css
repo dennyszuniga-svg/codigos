@@ -3601,6 +3601,91 @@ body.dark-theme .modal-dialog {
     object-fit: contain;
 }
 
+.zoom-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+/* Anula el `width: 100%` que `.clear-btn` toma en el breakpoint movil: aqui
+   los controles tienen que convivir en una sola fila. */
+.zoom-toolbar .clear-btn {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 14px;
+}
+
+.zoom-level {
+    min-width: 56px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    text-align: center;
+}
+
+.zoom-hint {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.zoom-viewport {
+    position: relative;
+    /* Las laminas son apaisadas (~3:2). Atar el visor a esa proporcion evita
+       las franjas muertas que deja un alto fijo en pantallas verticales.
+       El ancho va fijo: con `aspect-ratio` suelto, `min-height` lo estira
+       hasta 1.5x y desborda el dialogo. */
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 3 / 2;
+    min-height: 240px;
+    max-height: min(70vh, 620px);
+    margin-top: 12px;
+    overflow: hidden;
+    border: 1px solid #eaecf0;
+    border-radius: 8px;
+    background: #f8fafc;
+    cursor: grab;
+    touch-action: none;
+    overscroll-behavior: contain;
+}
+
+.zoom-viewport.is-dragging {
+    cursor: grabbing;
+}
+
+/* Gana por especificidad de id sobre `.modal-dialog img`, que topaba la
+   lamina al ancho del dialogo e impedia ampliarla. */
+#modalImage {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    transform-origin: 0 0;
+    object-fit: fill;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+@media (max-width: 720px) {
+    .zoom-hint {
+        width: 100%;
+    }
+
+    .zoom-viewport {
+        max-height: min(64vh, 520px);
+    }
+}
+
 .modal-close {
     position: sticky;
     top: 0;

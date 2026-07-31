@@ -166,7 +166,8 @@ const codigosEmergencia = {
         resumen: 'Activa respuesta contra incendio y comunica la ubicacion.',
         color: '#d92d20',
         icono: 'R',
-        image: 'assets/codigo-rojo.png',
+        image: 'assets/codigo-rojo.webp',
+        imagenAmpliada: 'assets/codigo-rojo.png',
         concepto: {
             titulo: 'Fuego / Incendio',
             foco: 'Control inicial, comunicacion y evacuacion preventiva',
@@ -194,7 +195,8 @@ const codigosEmergencia = {
         resumen: 'Responde ante atrapamiento y coordina el servicio de emergencias.',
         color: '#b54708',
         icono: 'N',
-        image: 'assets/codigo-naranja.png',
+        image: 'assets/codigo-naranja.webp',
+        imagenAmpliada: 'assets/codigo-naranja.png',
         concepto: {
             titulo: 'Persona atrapada',
             foco: 'Contencion, comunicacion y rescate asistido',
@@ -214,7 +216,8 @@ const codigosEmergencia = {
         resumen: 'Controla gases o derrames con apoyo de mantenimiento y seguridad.',
         color: '#027a48',
         icono: '3D',
-        image: 'assets/codigo-3d.png',
+        image: 'assets/codigo-3d.webp',
+        imagenAmpliada: 'assets/codigo-3d.png',
         concepto: {
             titulo: 'Derrame / fuga',
             foco: 'Diluye, dispersa y dirige el control de la zona',
@@ -252,7 +255,8 @@ const codigosEmergencia = {
         resumen: 'Orienta la atencion medica y el traslado del paciente.',
         color: '#175cd3',
         icono: 'CAT',
-        image: 'assets/codigo-cat.png',
+        image: 'assets/codigo-cat.webp',
+        imagenAmpliada: 'assets/codigo-cat.png',
         concepto: {
             titulo: 'Atencion medica',
             foco: 'Primeros auxilios, estabilizacion y traslado',
@@ -273,7 +277,8 @@ const codigosEmergencia = {
         resumen: 'Gestiona el sismo con evacuacion y control de la operacion.',
         color: '#039855',
         icono: 'V',
-        image: 'assets/codigo-verde.png',
+        image: 'assets/codigo-verde.webp',
+        imagenAmpliada: 'assets/codigo-verde.png',
         concepto: {
             titulo: 'Sismo / evacuacion',
             foco: 'Verifica, restringe accesos y evacua con control',
@@ -296,7 +301,8 @@ const codigosEmergencia = {
         resumen: 'Coordina con seguridad y control para contener la situacion.',
         color: '#3b4cc0',
         icono: 'CROC',
-        image: 'assets/codigo-croc.png',
+        image: 'assets/codigo-croc.webp',
+        imagenAmpliada: 'assets/codigo-croc.png',
         concepto: {
             titulo: 'Riesgo de seguridad',
             foco: 'Rastreo, observacion y contencion del incidente',
@@ -317,7 +323,8 @@ const codigosEmergencia = {
         resumen: 'Activa la busqueda y el seguimiento del familiar o la persona.',
         color: '#111827',
         icono: 'ADAM',
-        image: 'assets/codigo-adam.png',
+        image: 'assets/codigo-adam.webp',
+        imagenAmpliada: 'assets/codigo-adam.png',
         concepto: {
             titulo: 'Persona extraviada',
             foco: 'Busqueda coordinada con datos, recorrido y reporte',
@@ -338,7 +345,8 @@ const codigosEmergencia = {
         resumen: 'Desescala el conflicto y aisla el punto para proteger a todos.',
         color: '#a855f7',
         icono: 'CLM',
-        image: 'assets/codigo-calma.png',
+        image: 'assets/codigo-calma.webp',
+        imagenAmpliada: 'assets/codigo-calma.png',
         concepto: {
             titulo: 'Alteracion del orden',
             foco: 'Desescalamiento, separacion y control sin agresion',
@@ -359,7 +367,8 @@ const codigosEmergencia = {
         resumen: 'Acompana y protege a la persona mientras se activa el protocolo.',
         color: '#7c6f64',
         icono: 'CAP',
-        image: 'assets/codigo-capta.png',
+        image: 'assets/codigo-capta.webp',
+        imagenAmpliada: 'assets/codigo-capta.png',
         concepto: {
             titulo: 'Alto riesgo / amenaza',
             foco: 'Acompanar, proteger, tranquilizar y activar apoyo',
@@ -7787,6 +7796,197 @@ function anunciarCodigo(codigo) {
     }
 }
 
+const visorLamina = {
+    escala: 1,
+    escalaAjuste: 1,
+    x: 0,
+    y: 0,
+    ancho: 0,
+    alto: 0,
+    punteros: new Map(),
+    distanciaInicial: 0,
+    escalaInicial: 1
+};
+
+function aplicarTransformacionLamina() {
+    const imagen = obtenerElemento('modalImage');
+
+    imagen.style.transform = `translate(${visorLamina.x}px, ${visorLamina.y}px) scale(${visorLamina.escala})`;
+
+    if (visorLamina.escalaAjuste > 0) {
+        obtenerElemento('zoomLevel').textContent = `${Math.round((visorLamina.escala / visorLamina.escalaAjuste) * 100)}%`;
+    }
+}
+
+function limitarEncuadreLamina() {
+    const viewport = obtenerElemento('zoomViewport');
+    const anchoVisible = viewport.clientWidth;
+    const altoVisible = viewport.clientHeight;
+    const anchoEscalado = visorLamina.ancho * visorLamina.escala;
+    const altoEscalado = visorLamina.alto * visorLamina.escala;
+
+    visorLamina.x = anchoEscalado <= anchoVisible
+        ? (anchoVisible - anchoEscalado) / 2
+        : Math.min(0, Math.max(anchoVisible - anchoEscalado, visorLamina.x));
+
+    visorLamina.y = altoEscalado <= altoVisible
+        ? (altoVisible - altoEscalado) / 2
+        : Math.min(0, Math.max(altoVisible - altoEscalado, visorLamina.y));
+}
+
+function escalaMaximaLamina() {
+    // Escala 1 = pixeles originales de la lamina. El tope permite pasar de ahi
+    // para que el texto del protocolo siga siendo legible en pantallas chicas.
+    return Math.max(1, visorLamina.escalaAjuste) * 4;
+}
+
+function escalarLamina(objetivo, focoX, focoY) {
+    const limitada = Math.min(escalaMaximaLamina(), Math.max(visorLamina.escalaAjuste, objetivo));
+    const factor = limitada / visorLamina.escala;
+
+    visorLamina.x = focoX - (focoX - visorLamina.x) * factor;
+    visorLamina.y = focoY - (focoY - visorLamina.y) * factor;
+    visorLamina.escala = limitada;
+
+    limitarEncuadreLamina();
+    aplicarTransformacionLamina();
+}
+
+function ajustarLaminaAlVisor() {
+    const viewport = obtenerElemento('zoomViewport');
+    const imagen = obtenerElemento('modalImage');
+
+    if (!imagen.naturalWidth || !imagen.naturalHeight || !viewport.clientWidth) {
+        return;
+    }
+
+    visorLamina.ancho = imagen.naturalWidth;
+    visorLamina.alto = imagen.naturalHeight;
+    imagen.style.width = `${visorLamina.ancho}px`;
+    imagen.style.height = `${visorLamina.alto}px`;
+
+    visorLamina.escalaAjuste = Math.min(
+        viewport.clientWidth / visorLamina.ancho,
+        viewport.clientHeight / visorLamina.alto
+    );
+    visorLamina.escala = visorLamina.escalaAjuste;
+
+    limitarEncuadreLamina();
+    aplicarTransformacionLamina();
+}
+
+function prepararVisorLamina() {
+    const viewport = obtenerElemento('zoomViewport');
+    const imagen = obtenerElemento('modalImage');
+    const centro = () => [viewport.clientWidth / 2, viewport.clientHeight / 2];
+
+    imagen.addEventListener('load', ajustarLaminaAlVisor);
+
+    obtenerElemento('zoomIn').addEventListener('click', () => escalarLamina(visorLamina.escala * 1.4, ...centro()));
+    obtenerElemento('zoomOut').addEventListener('click', () => escalarLamina(visorLamina.escala / 1.4, ...centro()));
+    obtenerElemento('zoomReset').addEventListener('click', ajustarLaminaAlVisor);
+
+    viewport.addEventListener('wheel', evento => {
+        evento.preventDefault();
+
+        const rect = viewport.getBoundingClientRect();
+        escalarLamina(
+            visorLamina.escala * (evento.deltaY < 0 ? 1.18 : 1 / 1.18),
+            evento.clientX - rect.left,
+            evento.clientY - rect.top
+        );
+    }, { passive: false });
+
+    viewport.addEventListener('dblclick', evento => {
+        const rect = viewport.getBoundingClientRect();
+        const ampliada = visorLamina.escala > visorLamina.escalaAjuste * 1.05;
+
+        escalarLamina(
+            ampliada ? visorLamina.escalaAjuste : Math.max(1, visorLamina.escalaAjuste * 3),
+            evento.clientX - rect.left,
+            evento.clientY - rect.top
+        );
+    });
+
+    viewport.addEventListener('pointerdown', evento => {
+        viewport.setPointerCapture(evento.pointerId);
+        visorLamina.punteros.set(evento.pointerId, { x: evento.clientX, y: evento.clientY });
+
+        if (visorLamina.punteros.size === 2) {
+            const [a, b] = [...visorLamina.punteros.values()];
+            visorLamina.distanciaInicial = Math.hypot(a.x - b.x, a.y - b.y);
+            visorLamina.escalaInicial = visorLamina.escala;
+        }
+
+        viewport.classList.add('is-dragging');
+    });
+
+    viewport.addEventListener('pointermove', evento => {
+        if (!visorLamina.punteros.has(evento.pointerId)) {
+            return;
+        }
+
+        const anterior = visorLamina.punteros.get(evento.pointerId);
+        visorLamina.punteros.set(evento.pointerId, { x: evento.clientX, y: evento.clientY });
+
+        if (visorLamina.punteros.size >= 2) {
+            const [a, b] = [...visorLamina.punteros.values()];
+            const distancia = Math.hypot(a.x - b.x, a.y - b.y);
+
+            if (visorLamina.distanciaInicial > 0) {
+                const rect = viewport.getBoundingClientRect();
+                escalarLamina(
+                    visorLamina.escalaInicial * (distancia / visorLamina.distanciaInicial),
+                    (a.x + b.x) / 2 - rect.left,
+                    (a.y + b.y) / 2 - rect.top
+                );
+            }
+
+            return;
+        }
+
+        visorLamina.x += evento.clientX - anterior.x;
+        visorLamina.y += evento.clientY - anterior.y;
+        limitarEncuadreLamina();
+        aplicarTransformacionLamina();
+    });
+
+    ['pointerup', 'pointercancel'].forEach(tipo => {
+        viewport.addEventListener(tipo, evento => {
+            visorLamina.punteros.delete(evento.pointerId);
+
+            if (visorLamina.punteros.size < 2) {
+                visorLamina.distanciaInicial = 0;
+            }
+
+            if (!visorLamina.punteros.size) {
+                viewport.classList.remove('is-dragging');
+            }
+        });
+    });
+
+    window.addEventListener('resize', () => {
+        if (obtenerElemento('codeModal').classList.contains('open')) {
+            ajustarLaminaAlVisor();
+        }
+    });
+}
+
+function mostrarLaminaEnModal(fuente, respaldo, textoAlternativo) {
+    const imagen = obtenerElemento('modalImage');
+
+    // Si la version a resolucion completa no esta disponible (sin red y sin
+    // cache), cae a la version liviana que si viene precargada.
+    imagen.onerror = respaldo && respaldo !== fuente
+        ? () => {
+            imagen.onerror = null;
+            imagen.src = respaldo;
+        }
+        : null;
+    imagen.alt = textoAlternativo;
+    imagen.src = fuente;
+}
+
 function abrirModalCodigo(codigo) {
     const info = codigosEmergencia[codigo];
     if (!info) {
@@ -7799,12 +7999,16 @@ function abrirModalCodigo(codigo) {
     const modalSubtitle = obtenerElemento('modalSubtitle');
 
     modalTitle.textContent = 'Lamina del codigo';
-    modalImage.src = info.image;
-    modalImage.alt = `${info.nombre} - lamina ampliada`;
+    mostrarLaminaEnModal(info.imagenAmpliada || info.image, info.image, `${info.nombre} - lamina ampliada`);
     modalSubtitle.textContent = `${info.nombre}. ${info.guia}.`;
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
+
+    // Reabrir la misma lamina no dispara `load`, asi que reencuadra a mano.
+    if (modalImage.complete && modalImage.naturalWidth) {
+        ajustarLaminaAlVisor();
+    }
 }
 
 function abrirPreviewFoto(dataUrl, titulo = 'Foto') {
@@ -7818,12 +8022,15 @@ function abrirPreviewFoto(dataUrl, titulo = 'Foto') {
     const modalSubtitle = obtenerElemento('modalSubtitle');
 
     modalTitle.textContent = titulo;
-    modalImage.src = dataUrl;
-    modalImage.alt = titulo;
+    mostrarLaminaEnModal(dataUrl, '', titulo);
     modalSubtitle.textContent = 'Foto referencial de la guia operativa.';
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
+
+    if (modalImage.complete && modalImage.naturalWidth) {
+        ajustarLaminaAlVisor();
+    }
 }
 
 function cerrarModal() {
@@ -8229,6 +8436,8 @@ function configurarEventos() {
             abrirModalCodigo(codigoActivo);
         }
     });
+
+    prepararVisorLamina();
 
     obtenerElemento('codeImage').addEventListener('click', () => {
         if (codigoActivo) {
