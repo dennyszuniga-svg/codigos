@@ -34,7 +34,7 @@ const MODULOS_POR_SEDE = new Set(['mantenimiento', 'caja', 'ronda']);
 const ROL_SUPERIOR = 'encargado_ti';
 const ROLES_OPERACION_GLOBAL = ['jefe_operaciones', 'coordinador_operaciones', 'gdh'];
 const ROLES_GLOBALES = [ROL_SUPERIOR, 'comercial_abonados', ...ROLES_OPERACION_GLOBAL];
-const ROLES_CREABLES_POR_ADMIN = ['supervisor', 'eco', 'charly', 'anfitrion'];
+const ROLES_CREABLES_POR_ADMIN = ['supervisor', 'fortaleza', 'eco', 'charly', 'anfitrion'];
 const ROLES_USUARIO = [
     ROL_SUPERIOR,
     'admin',
@@ -44,6 +44,7 @@ const ROLES_USUARIO = [
     'gdh',
     'tecnico',
     'supervisor',
+    'fortaleza',
     'eco',
     'charly',
     'anfitrion'
@@ -57,6 +58,7 @@ const ETIQUETAS_ROL = {
     gdh: 'GDH',
     tecnico: 'Tecnico de mantenimiento',
     supervisor: 'Supervisor',
+    fortaleza: 'Fortaleza',
     eco: 'ECO',
     charly: 'Charly',
     anfitrion: 'Anfitrion'
@@ -3105,7 +3107,7 @@ function configurarFormularioCreacionUsuario() {
     if (ayuda) {
         ayuda.textContent = esSuperior
             ? 'Los roles globales trabajan con todas las sedes. Para los demas roles, la sede define sus alertas y operacion.'
-            : 'Puedes crear anfitriones, Charly, ECO y supervisores para tu misma sede.';
+            : 'Puedes crear anfitriones, Charly, ECO, Fortaleza y supervisores para tu misma sede.';
     }
     if (actualizar) actualizar.hidden = !esSuperior;
     if (estadoUsuarios) estadoUsuarios.hidden = !esSuperior;
@@ -3703,7 +3705,7 @@ function usuarioPuedeVerGuia(guia) {
         return true;
     }
 
-    return [ROL_SUPERIOR, 'admin', 'supervisor', ...ROLES_OPERACION_GLOBAL].includes(perfilActual?.rol);
+    return [ROL_SUPERIOR, 'admin', 'supervisor', 'fortaleza', ...ROLES_OPERACION_GLOBAL].includes(perfilActual?.rol);
 }
 
 function obtenerFuenteFotoGuia(foto) {
