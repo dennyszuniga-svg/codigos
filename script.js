@@ -494,6 +494,7 @@ let solicitudesAbonados = [];
 let canalSolicitudesAbonados = null;
 let activosOperaciones = [];
 let canalActivosOperaciones = null;
+let canalChecklistOperaciones = null;
 let checklistOperacionesActual = null;
 let historialChecklistsOperaciones = [];
 let ultimoChecklistOperacionesFinalizado = null;
@@ -2526,6 +2527,19 @@ function usuarioPuedeVerInformeGeneralOperaciones() {
         && [ROL_SUPERIOR, 'jefe_operaciones', 'coordinador_operaciones', 'gdh'].includes(perfilActual?.rol);
 }
 
+function usuarioPuedeGestionarChecklistOperaciones() {
+    return perfilActual?.activo !== false
+        && [ROL_SUPERIOR, 'admin', 'supervisor', 'fortaleza'].includes(perfilActual?.rol);
+}
+
+function usuarioPuedeAportarFotosChecklistOperaciones() {
+    return perfilActual?.activo !== false && perfilActual?.rol === 'anfitrion';
+}
+
+function usuarioPuedeVerChecklistOperaciones() {
+    return perfilActual?.activo !== false && Boolean(sesionActual?.user);
+}
+
 async function limpiarEvidenciasOperacionesVencidas() {
     if (!supabaseClient || !sesionActual?.user) return;
     const clave = `urbapark-operations-image-cleanup-${fechaLocalISO()}`;
@@ -2618,6 +2632,9 @@ function obtenerVentanaChecklistOperaciones(fecha = new Date()) {
 function obtenerEstadoHorarioRegistroOperaciones(registro, fecha = new Date()) {
     const ventana = obtenerVentanaChecklistOperaciones(fecha);
     if (!registro?.turno) return ventana;
+    if (registro.estado === 'finalizado') {
+        return { ...ventana, habilitado: false, estado: 'cerrado', mensaje: 'Checklist finalizado. El resultado permanece disponible para consulta.' };
+    }
     const corresponde = ventana.habilitado
         && registro.turno === ventana.turno
         && registro.fecha === ventana.fechaOperativa;
@@ -2677,6 +2694,13 @@ function configurarSelectSedesOperaciones() {
     }
     const botonInforme = obtenerElemento('openOperationsGeneralReport');
     if (botonInforme) botonInforme.hidden = !usuarioPuedeVerInformeGeneralOperaciones();
+    const botonChecklist = obtenerElemento('openOperationsChecklist');
+    if (botonChecklist) {
+        botonChecklist.hidden = !usuarioPuedeVerChecklistOperaciones();
+        botonChecklist.textContent = usuarioPuedeGestionarChecklistOperaciones()
+            ? 'Iniciar o continuar checklist'
+            : 'Ver checklist activo';
+    }
 }
 
 function actualizarEstadoChecklistOperaciones(mensaje = '', estado = 'info') {
@@ -2700,12 +2724,10 @@ async function cargarBorradorChecklistOperaciones(sede) {
         const { data, error } = await supabaseClient
             .from('operaciones_checklists')
             .select('*')
-            .eq('responsable_id', sesionActual.user.id)
             .eq('sede', sede)
             .eq('fecha', ventana.fechaOperativa)
             .eq('turno', ventana.turno)
-            .eq('estado', 'borrador')
-            .order('updated_at', { ascending: false })
+            .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
         if (error && error.code !== 'PGRST116') {
@@ -2714,10 +2736,70 @@ async function cargarBorradorChecklistOperaciones(sede) {
         } else if (data) {
             checklistOperacionesActual = data;
             checklistOperacionesActual.estado_horario = obtenerPuntualidadChecklistOperaciones(data);
-            actualizarBannerBorradorOperaciones('Borrador recuperado automaticamente.', 'success');
+            await hidratarEvidenciasChecklistOperaciones(checklistOperacionesActual);
+            actualizarBannerBorradorOperaciones(
+                data.estado === 'finalizado' ? 'Checklist finalizado para este turno.' : 'Checklist activo recuperado automaticamente.',
+                'success'
+            );
+        } else if (usuarioPuedeGestionarChecklistOperaciones() && ventana.habilitado) {
+            try {
+                await asegurarRegistroChecklistOperaciones();
+                actualizarBannerBorradorOperaciones('Checklist iniciado. El equipo de la sede ya puede ver el avance y aportar fotos.', 'success');
+            } catch (inicioError) {
+                console.warn('No se pudo iniciar el checklist operativo:', inicioError);
+                actualizarBannerBorradorOperaciones('No se pudo iniciar el checklist. Revisa la conexion.', 'error');
+            }
+        } else if (!ventana.habilitado) {
+            actualizarBannerBorradorOperaciones(ventana.mensaje, 'info');
+        } else {
+            actualizarBannerBorradorOperaciones('Todavia no hay un checklist iniciado para este turno.', 'info');
         }
     }
     renderizarChecklistOperaciones();
+    suscribirChecklistOperaciones(sede);
+}
+
+function firmaSincronizacionChecklistOperaciones(registro) {
+    const evidencias = {};
+    Object.entries(registro?.evidencias || {}).forEach(([seccion, fotos]) => {
+        evidencias[seccion] = Array.isArray(fotos) ? fotos.map(foto => foto?.path || '') : [];
+    });
+    return JSON.stringify({
+        estado: registro?.estado,
+        respuestas: registro?.respuestas || {},
+        observaciones: registro?.observaciones || {},
+        evidencias
+    });
+}
+
+function suscribirChecklistOperaciones(sede) {
+    if (!supabaseClient || !sesionActual?.user || !sede) return;
+    if (canalChecklistOperaciones) supabaseClient.removeChannel(canalChecklistOperaciones);
+    canalChecklistOperaciones = supabaseClient
+        .channel(`operaciones-checklist-${sede}`)
+        .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'operaciones_checklists', filter: `sede=eq.${sede}` },
+            async payload => {
+                const remoto = payload.new;
+                if (!remoto || remoto.sede !== sede) return;
+                const ventana = obtenerVentanaChecklistOperaciones();
+                const esTurnoActual = remoto.fecha === ventana.fechaOperativa && remoto.turno === ventana.turno;
+                const esRegistroActual = checklistOperacionesActual?.id && remoto.id === checklistOperacionesActual.id;
+                if (!esTurnoActual && !esRegistroActual) return;
+                if (esRegistroActual && firmaSincronizacionChecklistOperaciones(remoto) === firmaSincronizacionChecklistOperaciones(checklistOperacionesActual)) return;
+                checklistOperacionesActual = remoto;
+                checklistOperacionesActual.estado_horario = obtenerPuntualidadChecklistOperaciones(remoto);
+                await hidratarEvidenciasChecklistOperaciones(checklistOperacionesActual);
+                const panel = obtenerElemento('operationsChecklistPanel');
+                const posicion = panel?.scrollTop || 0;
+                renderizarChecklistOperaciones();
+                if (panel) panel.scrollTop = posicion;
+                if (remoto.estado === 'finalizado') actualizarBannerBorradorOperaciones('Checklist finalizado. Puedes consultar el resultado en Historial y KPI.', 'success');
+                else actualizarBannerBorradorOperaciones('Avance actualizado por el equipo de la sede.', 'success');
+            }
+        )
+        .subscribe();
 }
 
 function crearTextoElemento(etiqueta, texto, clase = '') {
@@ -2741,6 +2823,82 @@ function crearOpcionEstadoOperaciones(seccionId, itemId, valor, etiqueta) {
     texto.textContent = etiqueta;
     label.append(input, texto);
     return label;
+}
+
+function obtenerEvidenciasSeccionOperaciones(registro, seccionId) {
+    const evidencias = registro?.evidencias?.[seccionId];
+    return Array.isArray(evidencias) ? evidencias : [];
+}
+
+async function hidratarEvidenciasChecklistOperaciones(registro) {
+    if (!supabaseClient || !registro?.evidencias) return registro;
+    const fotos = Object.values(registro.evidencias).flat().filter(foto => foto?.path);
+    await Promise.all(fotos.map(async foto => {
+        if (foto.url) return;
+        const { data, error } = await supabaseClient.storage
+            .from(OPERATIONS_CHECKLIST_BUCKET)
+            .createSignedUrl(foto.path, 60 * 60);
+        if (!error && data?.signedUrl) foto.url = data.signedUrl;
+    }));
+    return registro;
+}
+
+function crearPanelEvidenciasChecklistOperaciones(seccion) {
+    const panel = document.createElement('section');
+    const cabecera = document.createElement('div');
+    const acciones = document.createElement('div');
+    const galeria = document.createElement('div');
+    const fotos = obtenerEvidenciasSeccionOperaciones(checklistOperacionesActual, seccion.id);
+    const puedeAdjuntar = usuarioPuedeGestionarChecklistOperaciones() || usuarioPuedeAportarFotosChecklistOperaciones();
+    panel.className = 'operations-evidence-panel';
+    panel.dataset.operationsEvidencePanel = seccion.id;
+    cabecera.className = 'operations-evidence-heading';
+    cabecera.append(
+        crearTextoElemento('strong', 'Evidencias del bloque'),
+        crearTextoElemento('span', `${fotos.length} de 5 fotos · minimo 3`)
+    );
+    acciones.className = 'operations-evidence-actions';
+    galeria.className = 'operations-evidence-gallery';
+
+    if (puedeAdjuntar) {
+        const crearEntrada = (captura, multiple, etiqueta) => {
+            const label = document.createElement('label');
+            const input = document.createElement('input');
+            label.className = 'clear-btn operations-photo-action';
+            label.textContent = etiqueta;
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.multiple = multiple;
+            input.hidden = true;
+            input.dataset.operationsEvidenceInput = seccion.id;
+            if (captura) input.setAttribute('capture', 'environment');
+            label.appendChild(input);
+            return label;
+        };
+        acciones.append(
+            crearEntrada(true, false, 'Tomar foto'),
+            crearEntrada(false, true, 'Elegir fotos')
+        );
+    }
+
+    fotos.forEach((foto, indice) => {
+        const figura = document.createElement('figure');
+        const imagen = document.createElement('img');
+        const pie = document.createElement('figcaption');
+        figura.className = 'operations-evidence-item';
+        imagen.src = foto.url || '';
+        imagen.alt = `Evidencia ${indice + 1} de ${seccion.nombre}`;
+        imagen.loading = 'lazy';
+        pie.textContent = `${foto.autor_nombre || 'Personal de sede'} · ${foto.creado_at ? formatearFechaHoraReporte(foto.creado_at) : 'sin hora'}`;
+        figura.append(imagen, pie);
+        galeria.appendChild(figura);
+    });
+
+    if (!fotos.length) galeria.appendChild(crearMensajeVacio('Aun no se adjuntaron fotos en este bloque.', 'operations-evidence-empty'));
+    const estado = crearTextoElemento('p', '', 'auth-status operations-evidence-status');
+    estado.dataset.operationsPhotoStatus = seccion.id;
+    panel.append(cabecera, acciones, galeria, estado);
+    return panel;
 }
 
 function renderizarChecklistOperaciones() {
@@ -2806,7 +2964,7 @@ function renderizarChecklistOperaciones() {
         observacion.dataset.operationsObservation = seccion.id;
         observacion.value = registro.observaciones?.[seccion.id] || '';
         observacionLabel.appendChild(observacion);
-        tarjeta.append(cabecera, lista, observacionLabel);
+        tarjeta.append(cabecera, lista, observacionLabel, crearPanelEvidenciasChecklistOperaciones(seccion));
         contenedor.appendChild(tarjeta);
     });
     actualizarProgresoChecklistOperaciones();
@@ -2816,12 +2974,25 @@ function renderizarChecklistOperaciones() {
 function establecerBloqueoHorarioChecklistOperaciones(bloqueado) {
     const formulario = obtenerElemento('operationsChecklistForm');
     if (!formulario) return;
-    formulario.querySelectorAll('#operationsChecklistSections input, #operationsChecklistSections textarea').forEach(control => {
-        control.disabled = bloqueado;
+    const puedeGestionar = usuarioPuedeGestionarChecklistOperaciones();
+    const puedeAdjuntar = puedeGestionar || usuarioPuedeAportarFotosChecklistOperaciones();
+    formulario.querySelectorAll('#operationsChecklistSections input[type="radio"], #operationsChecklistSections textarea').forEach(control => {
+        control.disabled = bloqueado || !puedeGestionar;
+    });
+    formulario.querySelectorAll('input[data-operations-evidence-input]').forEach(control => {
+        const cantidad = obtenerEvidenciasSeccionOperaciones(checklistOperacionesActual, control.dataset.operationsEvidenceInput).length;
+        control.disabled = bloqueado || !puedeAdjuntar || !checklistOperacionesActual?.id || cantidad >= 5;
+        control.closest('label')?.classList.toggle('is-disabled', control.disabled);
     });
     const finalizar = obtenerElemento('finishOperationsChecklist');
-    if (finalizar) finalizar.disabled = bloqueado;
+    if (finalizar) {
+        finalizar.hidden = !puedeGestionar;
+        finalizar.disabled = bloqueado || !puedeGestionar || !checklistOperacionesActual?.id;
+    }
+    const descartar = obtenerElemento('discardOperationsChecklist');
+    if (descartar) descartar.hidden = !puedeGestionar;
     formulario.classList.toggle('is-time-locked', bloqueado);
+    formulario.classList.toggle('is-photo-contributor', !puedeGestionar && puedeAdjuntar);
 }
 
 function actualizarControlHorarioChecklistOperaciones() {
@@ -2946,12 +3117,74 @@ function validarChecklistOperaciones() {
     if (!registro?.turno) return 'Selecciona el turno de la revision.';
     if (resumen.revisados !== resumen.total) return `Faltan ${resumen.total - resumen.revisados} puntos por revisar.`;
     for (const seccion of obtenerSeccionesChecklistOperaciones(registro.sede)) {
+        const cantidadFotos = obtenerEvidenciasSeccionOperaciones(registro, seccion.id).length;
+        if (cantidadFotos < 3) return `Adjunta al menos 3 fotos en ${seccion.nombre}.`;
         const tieneNoCumple = seccion.items.some(item => registro.respuestas?.[`${seccion.id}:${item[0]}`] === 'no_cumple');
         if (tieneNoCumple && !String(registro.observaciones?.[seccion.id] || '').trim()) {
             return `Describe la novedad y solucion en ${seccion.nombre}.`;
         }
     }
     return '';
+}
+
+async function adjuntarFotosChecklistOperaciones(seccionId, archivos) {
+    const estado = document.querySelector(`[data-operations-photo-status="${seccionId}"]`);
+    if (!checklistOperacionesActual?.id || !supabaseClient || !sesionActual?.user) {
+        if (estado) estado.textContent = 'El checklist debe estar iniciado antes de adjuntar fotos.';
+        return;
+    }
+    if (!(usuarioPuedeGestionarChecklistOperaciones() || usuarioPuedeAportarFotosChecklistOperaciones())) return;
+    const actuales = obtenerEvidenciasSeccionOperaciones(checklistOperacionesActual, seccionId);
+    const disponibles = Math.max(0, 5 - actuales.length);
+    const seleccionados = Array.from(archivos || []).slice(0, disponibles);
+    if (!seleccionados.length) {
+        if (estado) estado.textContent = actuales.length >= 5 ? 'Este bloque ya tiene el maximo de 5 fotos.' : 'Selecciona una foto.';
+        return;
+    }
+    if (estado) estado.textContent = `Subiendo ${seleccionados.length} foto(s)...`;
+    let agregadas = 0;
+    for (const archivo of seleccionados) {
+        let ruta = '';
+        try {
+            const dataUrl = await comprimirFoto(archivo, 1280, 0.74);
+            const blob = await fetch(dataUrl).then(respuesta => respuesta.blob());
+            ruta = `${checklistOperacionesActual.sede}/${sesionActual.user.id}/${checklistOperacionesActual.id}/${seccionId}/${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`;
+            const { error: uploadError } = await supabaseClient.storage
+                .from(OPERATIONS_CHECKLIST_BUCKET)
+                .upload(ruta, blob, { contentType: 'image/jpeg', upsert: false });
+            if (uploadError) throw uploadError;
+            const evidencia = {
+                path: ruta,
+                nombre: archivo.name || 'evidencia.jpg',
+                autor_id: sesionActual.user.id,
+                autor_nombre: obtenerNombreUsuarioActivo(),
+                creado_at: new Date().toISOString()
+            };
+            const { data: evidenciasActualizadas, error: rpcError } = await supabaseClient.rpc('agregar_evidencia_checklist_operaciones', {
+                checklist_id_arg: checklistOperacionesActual.id,
+                seccion_arg: seccionId,
+                evidencia_arg: evidencia
+            });
+            if (rpcError) throw rpcError;
+            checklistOperacionesActual.evidencias = evidenciasActualizadas || checklistOperacionesActual.evidencias || {};
+            await hidratarEvidenciasChecklistOperaciones(checklistOperacionesActual);
+            agregadas += 1;
+        } catch (error) {
+            console.warn('No se pudo adjuntar evidencia operativa:', error);
+            if (ruta) await supabaseClient.storage.from(OPERATIONS_CHECKLIST_BUCKET).remove([ruta]);
+        }
+    }
+    const panel = obtenerElemento('operationsChecklistPanel');
+    const posicion = panel?.scrollTop || 0;
+    renderizarChecklistOperaciones();
+    if (panel) panel.scrollTop = posicion;
+    const estadoActual = document.querySelector(`[data-operations-photo-status="${seccionId}"]`);
+    if (estadoActual) {
+        estadoActual.textContent = agregadas
+            ? `${agregadas} foto(s) agregada(s) por ${obtenerNombreUsuarioActivo()}.`
+            : 'No se pudo subir la evidencia. Revisa la conexion.';
+        estadoActual.dataset.status = agregadas ? 'success' : 'error';
+    }
 }
 
 async function finalizarChecklistOperaciones(event) {
@@ -2994,9 +3227,8 @@ async function finalizarChecklistOperaciones(event) {
         ultimoChecklistOperacionesFinalizado = structuredClone(checklistOperacionesActual);
         obtenerElemento('shareLastOperationsChecklist').hidden = false;
         actualizarEstadoChecklistOperaciones(`Checklist finalizado con ${resumen.cumplimiento}% de cumplimiento.`, 'success');
-        checklistOperacionesActual = crearEstadoNuevoChecklistOperaciones(obtenerSedeChecklistOperaciones());
         renderizarChecklistOperaciones();
-        actualizarBannerBorradorOperaciones('Listo para iniciar una nueva revision.', 'success');
+        actualizarBannerBorradorOperaciones('Checklist finalizado. El resultado ya esta disponible para todo el equipo.', 'success');
     } catch (error) {
         console.warn('No se pudo finalizar el checklist:', error);
         actualizarEstadoChecklistOperaciones('No se pudo finalizar. El borrador permanece guardado.', 'error');
@@ -6643,6 +6875,10 @@ async function aplicarSesion(session) {
             supabaseClient.removeChannel(canalActivosOperaciones);
             canalActivosOperaciones = null;
         }
+        if (canalChecklistOperaciones && supabaseClient) {
+            supabaseClient.removeChannel(canalChecklistOperaciones);
+            canalChecklistOperaciones = null;
+        }
         activosOperaciones = [];
         solicitudesAbonados = [];
         mostrarAppAutenticada(false);
@@ -9332,7 +9568,13 @@ function configurarEventos() {
     obtenerElemento('operationsChecklistForm')?.addEventListener('submit', finalizarChecklistOperaciones);
     obtenerElemento('discardOperationsChecklist')?.addEventListener('click', descartarBorradorChecklistOperaciones);
     obtenerElemento('operationsChecklistSite')?.addEventListener('change', event => cargarBorradorChecklistOperaciones(event.target.value));
-    obtenerElemento('operationsChecklistSections')?.addEventListener('change', event => {
+    obtenerElemento('operationsChecklistSections')?.addEventListener('change', async event => {
+        const fotos = event.target.closest('input[type="file"][data-operations-evidence-input]');
+        if (fotos) {
+            await adjuntarFotosChecklistOperaciones(fotos.dataset.operationsEvidenceInput, fotos.files);
+            fotos.value = '';
+            return;
+        }
         const resultado = event.target.closest('input[type="radio"][data-operations-item]');
         if (resultado && checklistOperacionesActual) {
             checklistOperacionesActual.respuestas[`${resultado.dataset.operationsSection}:${resultado.dataset.operationsItem}`] = resultado.value;
