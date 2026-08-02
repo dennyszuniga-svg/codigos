@@ -801,9 +801,76 @@
             <section id="module-operaciones" class="module-content" aria-labelledby="moduleOperacionesTitle" hidden>
                 <div class="module-placeholder">
                     <h2 id="moduleOperacionesTitle">Operaciones</h2>
-                    <p>Consulta procedimientos operativos y el registro valorizado de activos.</p>
-                    <button class="clear-btn operations-assets-open" id="openOperationsAssets" type="button" aria-expanded="false" aria-controls="operationsAssetsPanel">Activos de operaciones</button>
+                    <p>Ejecuta controles operativos, consulta sus resultados y administra los activos de cada sede.</p>
+                    <div class="operations-main-actions">
+                        <button class="finish-btn" id="openOperationsChecklist" type="button" aria-expanded="false" aria-controls="operationsChecklistPanel">Nuevo checklist operativo</button>
+                        <button class="clear-btn" id="openOperationsDashboard" type="button" aria-expanded="false" aria-controls="operationsDashboardPanel">Historial y KPI</button>
+                        <button class="clear-btn operations-assets-open" id="openOperationsAssets" type="button" aria-expanded="false" aria-controls="operationsAssetsPanel">Activos de operaciones</button>
+                    </div>
                 </div>
+                <section class="operations-checklist-panel" id="operationsChecklistPanel" aria-labelledby="operationsChecklistTitle" hidden>
+                    <div class="section-heading operations-checklist-heading">
+                        <div>
+                            <p class="eyebrow">Control por turno</p>
+                            <h2 id="operationsChecklistTitle">Checklist operativo de sede</h2>
+                            <p>Registra el estado de los puntos criticos y adjunta evidencia fotografica.</p>
+                        </div>
+                        <button class="modal-close" id="closeOperationsChecklist" type="button" aria-label="Cerrar checklist" title="Cerrar">&times;</button>
+                    </div>
+                    <form id="operationsChecklistForm" class="operations-checklist-form">
+                        <div class="operations-checklist-meta">
+                            <label>Sede<select id="operationsChecklistSite" required></select></label>
+                            <label>Fecha<input id="operationsChecklistDate" type="date" readonly></label>
+                            <label>Hora de inicio<input id="operationsChecklistStartTime" type="time" readonly></label>
+                            <label>Responsable<input id="operationsChecklistResponsible" type="text" readonly></label>
+                            <label>Cargo<input id="operationsChecklistRole" type="text" readonly></label>
+                            <label>Turno
+                                <select id="operationsChecklistShift" required>
+                                    <option value="">Seleccionar</option>
+                                    <option value="apertura">Apertura</option>
+                                    <option value="intermedio">Intermedio</option>
+                                    <option value="cierre">Cierre</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="operations-draft-banner" id="operationsDraftBanner" role="status" aria-live="polite">El avance se guarda automaticamente.</div>
+                        <div id="operationsChecklistSections" class="operations-checklist-sections"></div>
+                        <div class="operations-checklist-footer">
+                            <div>
+                                <strong id="operationsChecklistProgress">0 de 0 puntos revisados</strong>
+                                <span id="operationsChecklistEvidenceProgress">0 evidencias</span>
+                            </div>
+                            <button class="finish-btn" id="finishOperationsChecklist" type="submit">Finalizar checklist</button>
+                            <button class="clear-btn danger-action" id="discardOperationsChecklist" type="button">Descartar borrador</button>
+                        </div>
+                        <p class="auth-status" id="operationsChecklistStatus" role="status" aria-live="polite"></p>
+                    </form>
+                </section>
+                <section class="operations-dashboard-panel" id="operationsDashboardPanel" aria-labelledby="operationsDashboardTitle" hidden>
+                    <div class="section-heading operations-checklist-heading">
+                        <div>
+                            <p class="eyebrow">Control de cumplimiento</p>
+                            <h2 id="operationsDashboardTitle">Historial y KPI operativos</h2>
+                            <p>Indicadores listos para seguimiento y exportacion mensual.</p>
+                        </div>
+                        <button class="modal-close" id="closeOperationsDashboard" type="button" aria-label="Cerrar historial y KPI" title="Cerrar">&times;</button>
+                    </div>
+                    <div class="operations-dashboard-filters">
+                        <label>Mes<input id="operationsDashboardMonth" type="month"></label>
+                        <label>Sede<select id="operationsDashboardSite"></select></label>
+                        <button class="clear-btn" id="refreshOperationsDashboard" type="button">Actualizar</button>
+                        <button class="clear-btn" id="exportOperationsChecklistExcel" type="button">Exportar Excel</button>
+                    </div>
+                    <div class="operations-kpi-grid" aria-label="Indicadores operativos">
+                        <article><span>Checklists</span><strong id="operationsKpiTotal">0</strong></article>
+                        <article><span>Cumplimiento</span><strong id="operationsKpiCompliance">0%</strong></article>
+                        <article><span>No conformidades</span><strong id="operationsKpiFailures">0</strong></article>
+                        <article class="critical"><span>Criticos pendientes</span><strong id="operationsKpiCritical">0</strong></article>
+                    </div>
+                    <div id="operationsSectionKpis" class="operations-section-kpis"></div>
+                    <div id="operationsChecklistHistory" class="operations-checklist-history" aria-live="polite"></div>
+                    <p class="auth-status" id="operationsDashboardStatus" role="status" aria-live="polite"></p>
+                </section>
                 <section class="operations-assets-panel" id="operationsAssetsPanel" aria-labelledby="operationsAssetsTitle" hidden>
                     <div class="section-heading operations-assets-heading">
                         <div>

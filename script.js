@@ -387,6 +387,74 @@ const codigosEmergencia = {
 
 const ordenCodigos = ['rojo', 'naranja', 'verde-oscuro', 'azul', 'verde', 'croc', 'adam', 'calma', 'capta'];
 
+const OPERATIONS_CHECKLIST_BUCKET = 'operations-checklist-images';
+const OPERATIONS_CHECKLIST_SECTIONS = [
+    {
+        id: 'vehiculos',
+        nombre: 'Ingresos y salidas vehiculares',
+        descripcion: 'Validacion de carriles, accesos y equipos asociados.',
+        criticidad: 'critica',
+        items: [
+            ['equipos-operativos', 'Equipos de ingreso y salida operativos.', 'critica'],
+            ['lpr-operativo', 'LPR operativo y con lectura correcta de placas.', 'critica'],
+            ['camaras-acceso', 'Camaras de ingreso y salida operativas y enfocadas.', 'critica'],
+            ['barreras', 'Barreras operativas y alineadas.', 'critica'],
+            ['ticketera', 'Ticketera operativa y con rollo termico.', 'critica'],
+            ['interfonia-acceso', 'Interfonia operativa en ingresos y salidas.', 'critica'],
+            ['tiempo-barrera', 'Tiempo de apertura de barrera menor a 7 segundos.', 'critica'],
+            ['carriles-limpios', 'Carriles limpios y libres de obstaculos.', 'critica']
+        ]
+    },
+    {
+        id: 'pagos',
+        nombre: 'Modulos de pago (TPA / TPM)',
+        descripcion: 'No se muestra en Puruchuco porque la sede no realiza cobros.',
+        criticidad: 'critica',
+        excluidaEn: ['puruchuco'],
+        items: [
+            ['modulos-operativos', 'Modulos limpios y operativos.', 'critica'],
+            ['pantallas-pago', 'Pantallas operativas y visibles.', 'critica'],
+            ['medios-pago', 'Monedero, billetero y devolvedor operativos.', 'critica'],
+            ['impresora-pago', 'Impresora operativa y con rollo termico.', 'critica'],
+            ['interfonia-pago', 'Interfonia operativa.', 'critica'],
+            ['recaudo', 'Recaudo realizado y fondo cuadrado.', 'critica'],
+            ['area-pago', 'Area limpia y ordenada.', 'critica']
+        ]
+    },
+    {
+        id: 'fortaleza',
+        nombre: 'Fortaleza',
+        descripcion: 'Control de monitoreo, comunicaciones y soporte operativo.',
+        criticidad: 'media',
+        items: [
+            ['camaras-fortaleza', 'Camaras operativas y con enfoque correcto.', 'media'],
+            ['pantallas-fortaleza', 'Pantallas limpias y operativas.', 'media'],
+            ['radios', 'Radios de comunicacion cargados y operativos.', 'media'],
+            ['grupos-camaras', 'Grupos de camaras organizados correctamente.', 'media'],
+            ['incidencias', 'Registro y seguimiento de incidencias actualizado.', 'media'],
+            ['area-fortaleza', 'Area limpia y ordenada.', 'media'],
+            ['scooters', 'Scooters con carga suficiente para la operacion.', 'media']
+        ]
+    },
+    {
+        id: 'generales',
+        nombre: 'Validaciones generales',
+        descripcion: 'Seguridad, respuesta y condiciones generales de operacion.',
+        criticidad: 'mixta',
+        items: [
+            ['extintores', 'Extintores verificados y operativos.', 'critica'],
+            ['luces-emergencia', 'Luces de emergencia operativas.', 'critica'],
+            ['rutas-evacuacion', 'Rutas de evacuacion despejadas.', 'critica'],
+            ['senaleticas', 'Senaleticas de seguridad limpias y en buen estado.', 'critica'],
+            ['botiquin', 'Botiquin implementado y vigente.', 'critica'],
+            ['radio-epp', 'Personal con radio y EPP completo.', 'media'],
+            ['libro-reclamaciones', 'Libro de reclamaciones disponible.', 'baja'],
+            ['sin-incidencias', 'Operacion sin incidencias criticas.', 'media'],
+            ['auxilio-mecanico', 'Herramientas de auxilio mecanico disponibles.', 'baja']
+        ]
+    }
+];
+
 let historial = [];
 let checklistEstado = {};
 let codigoActivo = null;
@@ -426,6 +494,9 @@ let solicitudesAbonados = [];
 let canalSolicitudesAbonados = null;
 let activosOperaciones = [];
 let canalActivosOperaciones = null;
+let checklistOperacionesActual = null;
+let historialChecklistsOperaciones = [];
+let temporizadorChecklistOperaciones = null;
 let sedeActivaPorModulo = {
     mantenimiento: 'puruchuco',
     caja: 'gama',
@@ -2331,6 +2402,12 @@ function establecerPanelActivosOperaciones(abierto) {
     panel.hidden = !abierto;
     boton.setAttribute('aria-expanded', String(abierto));
     if (abierto) {
+        const checklistPanel = obtenerElemento('operationsChecklistPanel');
+        const dashboardPanel = obtenerElemento('operationsDashboardPanel');
+        if (checklistPanel) checklistPanel.hidden = true;
+        if (dashboardPanel) dashboardPanel.hidden = true;
+        obtenerElemento('openOperationsChecklist')?.setAttribute('aria-expanded', 'false');
+        obtenerElemento('openOperationsDashboard')?.setAttribute('aria-expanded', 'false');
         configurarSedeActivosOperaciones();
         cargarActivosOperaciones();
         panel.scrollIntoView({ block: 'start' });
@@ -2421,6 +2498,628 @@ function suscribirActivosOperaciones() {
             cargarActivosOperaciones
         )
         .subscribe();
+}
+
+function obtenerSeccionesChecklistOperaciones(sede = obtenerSedeChecklistOperaciones()) {
+    return OPERATIONS_CHECKLIST_SECTIONS.filter(seccion => !seccion.excluidaEn?.includes(sede));
+}
+
+function obtenerSedeChecklistOperaciones() {
+    const sede = obtenerElemento('operationsChecklistSite')?.value || perfilActual?.sede;
+    return SEDES_OPERACION.some(item => item.id === sede) ? sede : SEDES_OPERACION[0].id;
+}
+
+function usuarioPuedeElegirSedeChecklistOperaciones() {
+    return usuarioEsRolGlobal() || perfilActual?.sede === 'general';
+}
+
+function fechaLocalISO(fecha = new Date()) {
+    const anio = fecha.getFullYear();
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    return `${anio}-${mes}-${dia}`;
+}
+
+function horaLocal(fecha = new Date()) {
+    return `${String(fecha.getHours()).padStart(2, '0')}:${String(fecha.getMinutes()).padStart(2, '0')}`;
+}
+
+function crearEstadoNuevoChecklistOperaciones(sede) {
+    const ahora = new Date();
+    return {
+        id: null,
+        sede,
+        fecha: fechaLocalISO(ahora),
+        inicio_at: ahora.toISOString(),
+        responsable_id: sesionActual?.user?.id || '',
+        responsable_nombre: obtenerNombreUsuarioActivo(),
+        responsable_rol: perfilActual?.rol || '',
+        turno: '',
+        estado: 'borrador',
+        respuestas: {},
+        observaciones: {},
+        evidencias: {}
+    };
+}
+
+function configurarSelectSedesOperaciones() {
+    const formulario = obtenerElemento('operationsChecklistSite');
+    const dashboard = obtenerElemento('operationsDashboardSite');
+    [formulario, dashboard].forEach(selector => {
+        if (!selector || selector.options.length) return;
+        SEDES_OPERACION.forEach(sede => selector.add(new Option(sede.nombre, sede.id)));
+    });
+    if (formulario) {
+        formulario.value = SEDES_OPERACION.some(item => item.id === perfilActual?.sede)
+            ? perfilActual.sede
+            : SEDES_OPERACION[0].id;
+        formulario.disabled = !usuarioPuedeElegirSedeChecklistOperaciones();
+    }
+    if (dashboard) {
+        dashboard.value = SEDES_OPERACION.some(item => item.id === perfilActual?.sede)
+            ? perfilActual.sede
+            : SEDES_OPERACION[0].id;
+        dashboard.disabled = !usuarioPuedeElegirSedeChecklistOperaciones();
+    }
+}
+
+function actualizarEstadoChecklistOperaciones(mensaje = '', estado = 'info') {
+    const salida = obtenerElemento('operationsChecklistStatus');
+    if (!salida) return;
+    salida.textContent = mensaje;
+    salida.dataset.status = estado;
+}
+
+function actualizarBannerBorradorOperaciones(mensaje = 'El avance se guarda automaticamente.', estado = 'info') {
+    const banner = obtenerElemento('operationsDraftBanner');
+    if (!banner) return;
+    banner.textContent = mensaje;
+    banner.dataset.status = estado;
+}
+
+async function firmarEvidenciasChecklistOperaciones(registro) {
+    if (!supabaseClient || !registro?.evidencias) return registro;
+    const evidencias = {};
+    for (const [seccion, fotos] of Object.entries(registro.evidencias)) {
+        evidencias[seccion] = [];
+        for (const foto of Array.isArray(fotos) ? fotos : []) {
+            if (!foto.path) continue;
+            const { data } = await supabaseClient.storage
+                .from(OPERATIONS_CHECKLIST_BUCKET)
+                .createSignedUrl(foto.path, 60 * 60);
+            evidencias[seccion].push({ ...foto, url: data?.signedUrl || '' });
+        }
+    }
+    return { ...registro, evidencias };
+}
+
+async function cargarBorradorChecklistOperaciones(sede) {
+    checklistOperacionesActual = crearEstadoNuevoChecklistOperaciones(sede);
+    if (supabaseClient && sesionActual?.user) {
+        const { data, error } = await supabaseClient
+            .from('operaciones_checklists')
+            .select('*')
+            .eq('responsable_id', sesionActual.user.id)
+            .eq('sede', sede)
+            .eq('estado', 'borrador')
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (error && error.code !== 'PGRST116') {
+            console.warn('No se pudo recuperar el checklist operativo:', error);
+            actualizarBannerBorradorOperaciones('No se pudo consultar el borrador remoto.', 'error');
+        } else if (data) {
+            checklistOperacionesActual = await firmarEvidenciasChecklistOperaciones(data);
+            actualizarBannerBorradorOperaciones('Borrador recuperado automaticamente.', 'success');
+        }
+    }
+    renderizarChecklistOperaciones();
+}
+
+function crearTextoElemento(etiqueta, texto, clase = '') {
+    const elemento = document.createElement(etiqueta);
+    elemento.textContent = texto;
+    if (clase) elemento.className = clase;
+    return elemento;
+}
+
+function crearOpcionEstadoOperaciones(seccionId, itemId, valor, etiqueta) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    const texto = document.createElement('span');
+    label.className = `operations-status-option is-${valor}`;
+    input.type = 'radio';
+    input.name = `operations-${seccionId}-${itemId}`;
+    input.value = valor;
+    input.dataset.operationsSection = seccionId;
+    input.dataset.operationsItem = itemId;
+    input.checked = checklistOperacionesActual?.respuestas?.[`${seccionId}:${itemId}`] === valor;
+    texto.textContent = etiqueta;
+    label.append(input, texto);
+    return label;
+}
+
+function renderizarEvidenciasSeccionOperaciones(seccion, contenedor) {
+    const fotos = checklistOperacionesActual?.evidencias?.[seccion.id] || [];
+    const bloque = document.createElement('div');
+    const encabezado = document.createElement('div');
+    const galeria = document.createElement('div');
+    const controles = document.createElement('div');
+    bloque.className = 'operations-evidence-block';
+    encabezado.className = 'operations-evidence-heading';
+    encabezado.append(
+        crearTextoElemento('strong', 'Evidencia fotografica'),
+        crearTextoElemento('span', `${fotos.length}/5 fotos (minimo 3)`, fotos.length >= 3 ? 'is-complete' : '')
+    );
+    galeria.className = 'operations-evidence-gallery';
+    fotos.forEach((foto, indice) => {
+        const figura = document.createElement('figure');
+        const imagen = document.createElement('img');
+        const quitar = document.createElement('button');
+        imagen.src = foto.url || foto.preview || '';
+        imagen.alt = `Evidencia ${indice + 1} de ${seccion.nombre}`;
+        quitar.type = 'button';
+        quitar.className = 'operations-photo-remove';
+        quitar.dataset.removeOperationsPhoto = seccion.id;
+        quitar.dataset.photoPath = foto.path;
+        quitar.setAttribute('aria-label', `Eliminar evidencia ${indice + 1}`);
+        quitar.textContent = '\u00d7';
+        figura.append(imagen, quitar);
+        galeria.appendChild(figura);
+    });
+    controles.className = 'operations-evidence-actions';
+    const camara = document.createElement('button');
+    const galeriaBoton = document.createElement('button');
+    const inputCamara = document.createElement('input');
+    const inputGaleria = document.createElement('input');
+    camara.type = galeriaBoton.type = 'button';
+    camara.className = galeriaBoton.className = 'clear-btn';
+    camara.textContent = 'Tomar foto';
+    galeriaBoton.textContent = 'Elegir imagenes';
+    camara.dataset.openOperationsCamera = seccion.id;
+    galeriaBoton.dataset.openOperationsGallery = seccion.id;
+    [inputCamara, inputGaleria].forEach(input => {
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.hidden = true;
+        input.dataset.operationsPhotoInput = seccion.id;
+    });
+    inputCamara.setAttribute('capture', 'environment');
+    inputGaleria.multiple = true;
+    inputCamara.dataset.photoSource = 'camera';
+    inputGaleria.dataset.photoSource = 'gallery';
+    const deshabilitado = fotos.length >= 5;
+    camara.disabled = galeriaBoton.disabled = deshabilitado;
+    controles.append(camara, galeriaBoton, inputCamara, inputGaleria);
+    bloque.append(encabezado, galeria, controles);
+    contenedor.appendChild(bloque);
+}
+
+function renderizarChecklistOperaciones() {
+    const registro = checklistOperacionesActual;
+    const contenedor = obtenerElemento('operationsChecklistSections');
+    if (!registro || !contenedor) return;
+    limpiarElemento(contenedor);
+    obtenerElemento('operationsChecklistSite').value = registro.sede;
+    obtenerElemento('operationsChecklistDate').value = registro.fecha;
+    obtenerElemento('operationsChecklistStartTime').value = horaLocal(new Date(registro.inicio_at));
+    obtenerElemento('operationsChecklistResponsible').value = registro.responsable_nombre;
+    obtenerElemento('operationsChecklistRole').value = obtenerEtiquetaRol(registro.responsable_rol);
+    obtenerElemento('operationsChecklistShift').value = registro.turno || '';
+
+    obtenerSeccionesChecklistOperaciones(registro.sede).forEach(seccion => {
+        const tarjeta = document.createElement('section');
+        const cabecera = document.createElement('div');
+        const tituloGrupo = document.createElement('div');
+        const insignia = crearTextoElemento('span', seccion.criticidad === 'mixta' ? 'Criticidad mixta' : `Criticidad ${seccion.criticidad}`, `operations-criticality is-${seccion.criticidad}`);
+        const lista = document.createElement('div');
+        tarjeta.className = 'operations-checklist-section';
+        tarjeta.dataset.operationsSectionCard = seccion.id;
+        cabecera.className = 'operations-checklist-section-heading';
+        tituloGrupo.append(crearTextoElemento('h3', seccion.nombre), crearTextoElemento('p', seccion.descripcion));
+        cabecera.append(tituloGrupo, insignia);
+        lista.className = 'operations-checklist-items';
+        seccion.items.forEach(([id, texto, criticidad]) => {
+            const fila = document.createElement('article');
+            const detalle = document.createElement('div');
+            const opciones = document.createElement('fieldset');
+            const leyenda = document.createElement('legend');
+            fila.className = 'operations-checklist-item';
+            fila.dataset.operationsItemRow = `${seccion.id}:${id}`;
+            detalle.append(
+                crearTextoElemento('p', texto),
+                crearTextoElemento('span', criticidad === 'critica' ? 'Punto critico' : criticidad === 'media' ? 'Prioridad media' : 'Prioridad baja', `operations-item-priority is-${criticidad}`)
+            );
+            leyenda.className = 'sr-only';
+            leyenda.textContent = `Resultado para ${texto}`;
+            opciones.className = 'operations-status-options';
+            opciones.append(
+                leyenda,
+                crearOpcionEstadoOperaciones(seccion.id, id, 'cumple', 'Si cumple'),
+                crearOpcionEstadoOperaciones(seccion.id, id, 'no_cumple', 'No cumple'),
+                crearOpcionEstadoOperaciones(seccion.id, id, 'na', 'N.A.')
+            );
+            fila.append(detalle, opciones);
+            lista.appendChild(fila);
+        });
+        const observacionLabel = document.createElement('label');
+        const observacion = document.createElement('textarea');
+        observacionLabel.className = 'operations-observation';
+        observacionLabel.appendChild(crearTextoElemento('span', 'Novedad y solucion aplicada'));
+        observacion.rows = 3;
+        observacion.maxLength = 1200;
+        observacion.placeholder = 'Obligatorio cuando exista un punto que no cumple.';
+        observacion.dataset.operationsObservation = seccion.id;
+        observacion.value = registro.observaciones?.[seccion.id] || '';
+        observacionLabel.appendChild(observacion);
+        tarjeta.append(cabecera, lista, observacionLabel);
+        renderizarEvidenciasSeccionOperaciones(seccion, tarjeta);
+        contenedor.appendChild(tarjeta);
+    });
+    actualizarProgresoChecklistOperaciones();
+}
+
+function calcularResumenChecklistOperaciones(registro = checklistOperacionesActual) {
+    const secciones = obtenerSeccionesChecklistOperaciones(registro?.sede);
+    const items = secciones.flatMap(seccion => seccion.items.map(item => ({ seccion: seccion.id, id: item[0], criticidad: item[2] })));
+    const valores = items.map(item => ({ ...item, valor: registro?.respuestas?.[`${item.seccion}:${item.id}`] || '' }));
+    const cumple = valores.filter(item => item.valor === 'cumple').length;
+    const noCumple = valores.filter(item => item.valor === 'no_cumple').length;
+    const noAplica = valores.filter(item => item.valor === 'na').length;
+    const revisados = cumple + noCumple + noAplica;
+    const evaluados = cumple + noCumple;
+    return {
+        total: items.length,
+        revisados,
+        cumple,
+        noCumple,
+        noAplica,
+        cumplimiento: evaluados ? Number(((cumple / evaluados) * 100).toFixed(2)) : 0,
+        criticos: valores.filter(item => item.valor === 'no_cumple' && item.criticidad === 'critica').length,
+        evidencias: secciones.reduce((total, seccion) => total + (registro?.evidencias?.[seccion.id]?.length || 0), 0)
+    };
+}
+
+function actualizarProgresoChecklistOperaciones() {
+    if (!checklistOperacionesActual) return;
+    const resumen = calcularResumenChecklistOperaciones();
+    obtenerElemento('operationsChecklistProgress').textContent = `${resumen.revisados} de ${resumen.total} puntos revisados`;
+    obtenerElemento('operationsChecklistEvidenceProgress').textContent = `${resumen.evidencias} evidencias adjuntas`;
+    document.querySelectorAll('[data-operations-item-row]').forEach(fila => {
+        const valor = checklistOperacionesActual.respuestas?.[fila.dataset.operationsItemRow];
+        fila.dataset.result = valor || '';
+    });
+}
+
+async function asegurarRegistroChecklistOperaciones() {
+    if (checklistOperacionesActual?.id) return checklistOperacionesActual.id;
+    if (!supabaseClient || !sesionActual?.user || !checklistOperacionesActual) throw new Error('No hay conexion con Supabase.');
+    const registro = checklistOperacionesActual;
+    const { data, error } = await supabaseClient.from('operaciones_checklists').insert({
+        sede: registro.sede,
+        fecha: registro.fecha,
+        inicio_at: registro.inicio_at,
+        responsable_id: sesionActual.user.id,
+        responsable_nombre: registro.responsable_nombre,
+        responsable_rol: registro.responsable_rol,
+        turno: registro.turno || null,
+        respuestas: registro.respuestas,
+        observaciones: registro.observaciones,
+        evidencias: registro.evidencias
+    }).select('id').single();
+    if (error) throw error;
+    registro.id = data.id;
+    return data.id;
+}
+
+function programarGuardadoChecklistOperaciones() {
+    window.clearTimeout(temporizadorChecklistOperaciones);
+    actualizarBannerBorradorOperaciones('Guardando avance...', 'info');
+    temporizadorChecklistOperaciones = window.setTimeout(guardarBorradorChecklistOperaciones, 500);
+}
+
+async function guardarBorradorChecklistOperaciones() {
+    if (!checklistOperacionesActual || checklistOperacionesActual.estado !== 'borrador') return;
+    try {
+        await asegurarRegistroChecklistOperaciones();
+        const resumen = calcularResumenChecklistOperaciones();
+        const { error } = await supabaseClient.from('operaciones_checklists').update({
+            turno: checklistOperacionesActual.turno || null,
+            respuestas: checklistOperacionesActual.respuestas,
+            observaciones: checklistOperacionesActual.observaciones,
+            evidencias: checklistOperacionesActual.evidencias,
+            total_items: resumen.total,
+            cumple_items: resumen.cumple,
+            no_cumple_items: resumen.noCumple,
+            no_aplica_items: resumen.noAplica,
+            cumplimiento: resumen.cumplimiento,
+            criticos_no_cumple: resumen.criticos
+        }).eq('id', checklistOperacionesActual.id);
+        if (error) throw error;
+        actualizarBannerBorradorOperaciones(`Avance guardado a las ${horaLocal()}.`, 'success');
+    } catch (error) {
+        console.warn('No se pudo guardar el checklist operativo:', error);
+        actualizarBannerBorradorOperaciones('No se pudo guardar. Revisa la conexion antes de cerrar.', 'error');
+    }
+}
+
+async function procesarFotosChecklistOperaciones(seccionId, archivos) {
+    const existentes = checklistOperacionesActual?.evidencias?.[seccionId] || [];
+    const disponibles = Math.max(0, 5 - existentes.length);
+    const seleccionados = Array.from(archivos || []).slice(0, disponibles);
+    if (!seleccionados.length) {
+        actualizarEstadoChecklistOperaciones('Cada bloque admite un maximo de 5 fotos.', 'error');
+        return;
+    }
+    actualizarEstadoChecklistOperaciones('Subiendo evidencia...', 'info');
+    try {
+        const registroId = await asegurarRegistroChecklistOperaciones();
+        for (const archivo of seleccionados) {
+            const dataUrl = await comprimirFoto(archivo, 1280, 0.76);
+            const blob = await (await fetch(dataUrl)).blob();
+            const ruta = `${checklistOperacionesActual.sede}/${sesionActual.user.id}/${registroId}/${seccionId}/${crypto.randomUUID()}.jpg`;
+            const { error } = await supabaseClient.storage
+                .from(OPERATIONS_CHECKLIST_BUCKET)
+                .upload(ruta, blob, { contentType: 'image/jpeg', upsert: false });
+            if (error) throw error;
+            const { data: firma } = await supabaseClient.storage
+                .from(OPERATIONS_CHECKLIST_BUCKET)
+                .createSignedUrl(ruta, 60 * 60);
+            checklistOperacionesActual.evidencias[seccionId] ||= [];
+            checklistOperacionesActual.evidencias[seccionId].push({
+                path: ruta,
+                nombre: archivo.name || 'evidencia.jpg',
+                tomada_en: new Date().toISOString(),
+                url: firma?.signedUrl || dataUrl
+            });
+        }
+        await guardarBorradorChecklistOperaciones();
+        renderizarChecklistOperaciones();
+        actualizarEstadoChecklistOperaciones('Evidencia guardada correctamente.', 'success');
+    } catch (error) {
+        console.warn('No se pudo subir la evidencia operativa:', error);
+        actualizarEstadoChecklistOperaciones('No se pudo guardar la foto. Intenta nuevamente.', 'error');
+    }
+}
+
+async function eliminarFotoChecklistOperaciones(seccionId, ruta) {
+    if (!checklistOperacionesActual || !ruta) return;
+    const { error } = await supabaseClient.storage.from(OPERATIONS_CHECKLIST_BUCKET).remove([ruta]);
+    if (error) {
+        actualizarEstadoChecklistOperaciones('No se pudo eliminar la evidencia.', 'error');
+        return;
+    }
+    checklistOperacionesActual.evidencias[seccionId] = (checklistOperacionesActual.evidencias[seccionId] || [])
+        .filter(foto => foto.path !== ruta);
+    await guardarBorradorChecklistOperaciones();
+    renderizarChecklistOperaciones();
+}
+
+function validarChecklistOperaciones() {
+    const registro = checklistOperacionesActual;
+    const resumen = calcularResumenChecklistOperaciones(registro);
+    if (!registro?.turno) return 'Selecciona el turno de la revision.';
+    if (resumen.revisados !== resumen.total) return `Faltan ${resumen.total - resumen.revisados} puntos por revisar.`;
+    for (const seccion of obtenerSeccionesChecklistOperaciones(registro.sede)) {
+        const tieneNoCumple = seccion.items.some(item => registro.respuestas?.[`${seccion.id}:${item[0]}`] === 'no_cumple');
+        if (tieneNoCumple && !String(registro.observaciones?.[seccion.id] || '').trim()) {
+            return `Describe la novedad y solucion en ${seccion.nombre}.`;
+        }
+        const fotos = registro.evidencias?.[seccion.id]?.length || 0;
+        if (fotos < 3) return `Adjunta al menos 3 fotos en ${seccion.nombre}.`;
+    }
+    return '';
+}
+
+async function finalizarChecklistOperaciones(event) {
+    event.preventDefault();
+    const validacion = validarChecklistOperaciones();
+    if (validacion) {
+        actualizarEstadoChecklistOperaciones(validacion, 'error');
+        return;
+    }
+    actualizarEstadoChecklistOperaciones('Finalizando checklist...', 'info');
+    try {
+        await asegurarRegistroChecklistOperaciones();
+        const resumen = calcularResumenChecklistOperaciones();
+        const { error } = await supabaseClient.from('operaciones_checklists').update({
+            turno: checklistOperacionesActual.turno,
+            estado: 'finalizado',
+            fin_at: new Date().toISOString(),
+            respuestas: checklistOperacionesActual.respuestas,
+            observaciones: checklistOperacionesActual.observaciones,
+            evidencias: checklistOperacionesActual.evidencias,
+            total_items: resumen.total,
+            cumple_items: resumen.cumple,
+            no_cumple_items: resumen.noCumple,
+            no_aplica_items: resumen.noAplica,
+            cumplimiento: resumen.cumplimiento,
+            criticos_no_cumple: resumen.criticos
+        }).eq('id', checklistOperacionesActual.id);
+        if (error) throw error;
+        checklistOperacionesActual.estado = 'finalizado';
+        actualizarEstadoChecklistOperaciones(`Checklist finalizado con ${resumen.cumplimiento}% de cumplimiento.`, 'success');
+        checklistOperacionesActual = crearEstadoNuevoChecklistOperaciones(obtenerSedeChecklistOperaciones());
+        renderizarChecklistOperaciones();
+        actualizarBannerBorradorOperaciones('Listo para iniciar una nueva revision.', 'success');
+    } catch (error) {
+        console.warn('No se pudo finalizar el checklist:', error);
+        actualizarEstadoChecklistOperaciones('No se pudo finalizar. El borrador permanece guardado.', 'error');
+    }
+}
+
+async function descartarBorradorChecklistOperaciones() {
+    if (!checklistOperacionesActual || !window.confirm('Seguro que deseas descartar este checklist y todas sus fotos?')) return;
+    const rutas = Object.values(checklistOperacionesActual.evidencias || {}).flat().map(foto => foto.path).filter(Boolean);
+    if (rutas.length) await supabaseClient.storage.from(OPERATIONS_CHECKLIST_BUCKET).remove(rutas);
+    if (checklistOperacionesActual.id) {
+        const { error } = await supabaseClient.from('operaciones_checklists').delete().eq('id', checklistOperacionesActual.id);
+        if (error) {
+            actualizarEstadoChecklistOperaciones('No se pudo descartar el borrador.', 'error');
+            return;
+        }
+    }
+    checklistOperacionesActual = crearEstadoNuevoChecklistOperaciones(obtenerSedeChecklistOperaciones());
+    renderizarChecklistOperaciones();
+    actualizarBannerBorradorOperaciones('Borrador descartado. Puedes iniciar una nueva revision.', 'success');
+}
+
+async function establecerPanelChecklistOperaciones(abierto) {
+    const panel = obtenerElemento('operationsChecklistPanel');
+    const boton = obtenerElemento('openOperationsChecklist');
+    if (!panel || !boton) return;
+    panel.hidden = !abierto;
+    boton.setAttribute('aria-expanded', String(abierto));
+    if (abierto) {
+        establecerPanelActivosOperaciones(false);
+        establecerPanelDashboardOperaciones(false);
+        configurarSelectSedesOperaciones();
+        await cargarBorradorChecklistOperaciones(obtenerSedeChecklistOperaciones());
+        panel.scrollIntoView({ block: 'start' });
+    } else {
+        boton.focus({ preventScroll: true });
+    }
+}
+
+function obtenerRangoMesOperaciones() {
+    const mes = obtenerElemento('operationsDashboardMonth')?.value || fechaLocalISO().slice(0, 7);
+    const [anio, numeroMes] = mes.split('-').map(Number);
+    const ultimoDia = new Date(anio, numeroMes, 0).getDate();
+    return { mes, inicio: `${mes}-01`, fin: `${mes}-${String(ultimoDia).padStart(2, '0')}` };
+}
+
+async function cargarDashboardOperaciones() {
+    if (!supabaseClient || !sesionActual?.user) return;
+    const sede = obtenerElemento('operationsDashboardSite').value;
+    const rango = obtenerRangoMesOperaciones();
+    const estado = obtenerElemento('operationsDashboardStatus');
+    estado.textContent = 'Cargando resultados...';
+    const { data, error } = await supabaseClient.from('operaciones_checklists')
+        .select('*')
+        .eq('estado', 'finalizado')
+        .eq('sede', sede)
+        .gte('fecha', rango.inicio)
+        .lte('fecha', rango.fin)
+        .order('inicio_at', { ascending: false });
+    if (error) {
+        estado.textContent = 'No se pudo cargar el historial operativo.';
+        estado.dataset.status = 'error';
+        return;
+    }
+    historialChecklistsOperaciones = Array.isArray(data) ? data : [];
+    renderizarDashboardOperaciones();
+    estado.textContent = `${historialChecklistsOperaciones.length} checklists finalizados.`;
+    estado.dataset.status = 'success';
+}
+
+function renderizarDashboardOperaciones() {
+    const registros = historialChecklistsOperaciones;
+    const totalNoCumple = registros.reduce((suma, item) => suma + Number(item.no_cumple_items || 0), 0);
+    const totalCriticos = registros.reduce((suma, item) => suma + Number(item.criticos_no_cumple || 0), 0);
+    const promedio = registros.length
+        ? registros.reduce((suma, item) => suma + Number(item.cumplimiento || 0), 0) / registros.length
+        : 0;
+    obtenerElemento('operationsKpiTotal').textContent = String(registros.length);
+    obtenerElemento('operationsKpiCompliance').textContent = `${promedio.toFixed(1)}%`;
+    obtenerElemento('operationsKpiFailures').textContent = String(totalNoCumple);
+    obtenerElemento('operationsKpiCritical').textContent = String(totalCriticos);
+
+    const resumenSecciones = obtenerElemento('operationsSectionKpis');
+    limpiarElemento(resumenSecciones);
+    obtenerSeccionesChecklistOperaciones(obtenerElemento('operationsDashboardSite').value).forEach(seccion => {
+        let cumple = 0;
+        let evaluados = 0;
+        registros.forEach(registro => seccion.items.forEach(item => {
+            const valor = registro.respuestas?.[`${seccion.id}:${item[0]}`];
+            if (valor === 'cumple') { cumple += 1; evaluados += 1; }
+            if (valor === 'no_cumple') evaluados += 1;
+        }));
+        const tarjeta = document.createElement('article');
+        tarjeta.append(crearTextoElemento('span', seccion.nombre), crearTextoElemento('strong', `${evaluados ? ((cumple / evaluados) * 100).toFixed(1) : '0.0'}%`));
+        resumenSecciones.appendChild(tarjeta);
+    });
+
+    const historialContenedor = obtenerElemento('operationsChecklistHistory');
+    limpiarElemento(historialContenedor);
+    if (!registros.length) {
+        historialContenedor.appendChild(crearMensajeVacio('No hay checklists finalizados en este periodo.', 'operations-history-empty'));
+        return;
+    }
+    registros.forEach(registro => {
+        const tarjeta = document.createElement('article');
+        const cabecera = document.createElement('div');
+        const datos = document.createElement('p');
+        const resultado = document.createElement('strong');
+        tarjeta.className = 'operations-history-item';
+        cabecera.append(crearTextoElemento('h3', registro.responsable_nombre), crearTextoElemento('span', obtenerEtiquetaRol(registro.responsable_rol)));
+        datos.textContent = `${registro.fecha} - ${String(registro.turno || '').toUpperCase()} - ${registro.no_cumple_items || 0} no conformidades`;
+        resultado.textContent = `${Number(registro.cumplimiento || 0).toFixed(1)}%`;
+        resultado.className = Number(registro.criticos_no_cumple || 0) ? 'has-critical' : '';
+        tarjeta.append(cabecera, datos, resultado);
+        historialContenedor.appendChild(tarjeta);
+    });
+}
+
+function exportarChecklistOperacionesExcel() {
+    if (!historialChecklistsOperaciones.length) {
+        obtenerElemento('operationsDashboardStatus').textContent = 'No hay resultados para exportar.';
+        return;
+    }
+    if (!window.XLSX) {
+        obtenerElemento('operationsDashboardStatus').textContent = 'No se pudo cargar el generador de Excel.';
+        return;
+    }
+    const resumen = historialChecklistsOperaciones.map(registro => ({
+        Fecha: registro.fecha,
+        Sede: obtenerNombreSede(registro.sede),
+        Responsable: registro.responsable_nombre,
+        Cargo: obtenerEtiquetaRol(registro.responsable_rol),
+        Turno: registro.turno,
+        'Cumplimiento (%)': Number(registro.cumplimiento || 0),
+        'No conformidades': Number(registro.no_cumple_items || 0),
+        'Criticos no conformes': Number(registro.criticos_no_cumple || 0)
+    }));
+    const detalle = [];
+    historialChecklistsOperaciones.forEach(registro => {
+        obtenerSeccionesChecklistOperaciones(registro.sede).forEach(seccion => seccion.items.forEach(item => {
+            detalle.push({
+                Fecha: registro.fecha,
+                Sede: obtenerNombreSede(registro.sede),
+                Responsable: registro.responsable_nombre,
+                Seccion: seccion.nombre,
+                Verificacion: item[1],
+                Criticidad: item[2],
+                Resultado: registro.respuestas?.[`${seccion.id}:${item[0]}`] || '',
+                Observacion: registro.observaciones?.[seccion.id] || '',
+                Evidencias: registro.evidencias?.[seccion.id]?.length || 0
+            });
+        }));
+    });
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(resumen), 'Resumen');
+    XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(detalle), 'Detalle');
+    const { mes } = obtenerRangoMesOperaciones();
+    XLSX.writeFile(libro, `Checklist-Operaciones-${obtenerElemento('operationsDashboardSite').value}-${mes}.xlsx`, { compression: true });
+}
+
+function establecerPanelDashboardOperaciones(abierto) {
+    const panel = obtenerElemento('operationsDashboardPanel');
+    const boton = obtenerElemento('openOperationsDashboard');
+    if (!panel || !boton) return;
+    panel.hidden = !abierto;
+    boton.setAttribute('aria-expanded', String(abierto));
+    if (abierto) {
+        establecerPanelActivosOperaciones(false);
+        const checklistPanel = obtenerElemento('operationsChecklistPanel');
+        if (checklistPanel) checklistPanel.hidden = true;
+        obtenerElemento('openOperationsChecklist')?.setAttribute('aria-expanded', 'false');
+        configurarSelectSedesOperaciones();
+        obtenerElemento('operationsDashboardMonth').value ||= fechaLocalISO().slice(0, 7);
+        cargarDashboardOperaciones();
+        panel.scrollIntoView({ block: 'start' });
+    } else {
+        boton.focus({ preventScroll: true });
+    }
 }
 
 function obtenerEtiquetaRol(rol) {
@@ -8136,6 +8835,60 @@ function configurarEventos() {
     obtenerElemento('refreshSystemHealth')?.addEventListener('click', cargarSaludSupabase);
     obtenerElemento('createUserForm')?.addEventListener('submit', crearUsuarioDesdeAdmin);
     obtenerElemento('subscriberForm')?.addEventListener('submit', guardarSolicitudAbonado);
+    obtenerElemento('openOperationsChecklist')?.addEventListener('click', () => establecerPanelChecklistOperaciones(true));
+    obtenerElemento('closeOperationsChecklist')?.addEventListener('click', () => establecerPanelChecklistOperaciones(false));
+    obtenerElemento('operationsChecklistForm')?.addEventListener('submit', finalizarChecklistOperaciones);
+    obtenerElemento('discardOperationsChecklist')?.addEventListener('click', descartarBorradorChecklistOperaciones);
+    obtenerElemento('operationsChecklistSite')?.addEventListener('change', event => cargarBorradorChecklistOperaciones(event.target.value));
+    obtenerElemento('operationsChecklistShift')?.addEventListener('change', event => {
+        if (!checklistOperacionesActual) return;
+        checklistOperacionesActual.turno = event.target.value;
+        programarGuardadoChecklistOperaciones();
+    });
+    obtenerElemento('operationsChecklistSections')?.addEventListener('change', event => {
+        const resultado = event.target.closest('input[type="radio"][data-operations-item]');
+        if (resultado && checklistOperacionesActual) {
+            checklistOperacionesActual.respuestas[`${resultado.dataset.operationsSection}:${resultado.dataset.operationsItem}`] = resultado.value;
+            actualizarProgresoChecklistOperaciones();
+            programarGuardadoChecklistOperaciones();
+            return;
+        }
+        const fotos = event.target.closest('input[type="file"][data-operations-photo-input]');
+        if (fotos?.files?.length) {
+            procesarFotosChecklistOperaciones(fotos.dataset.operationsPhotoInput, fotos.files);
+            fotos.value = '';
+        }
+    });
+    obtenerElemento('operationsChecklistSections')?.addEventListener('input', event => {
+        const observacion = event.target.closest('textarea[data-operations-observation]');
+        if (!observacion || !checklistOperacionesActual) return;
+        checklistOperacionesActual.observaciones[observacion.dataset.operationsObservation] = observacion.value;
+        programarGuardadoChecklistOperaciones();
+    });
+    obtenerElemento('operationsChecklistSections')?.addEventListener('click', event => {
+        const camara = event.target.closest('button[data-open-operations-camera]');
+        if (camara) {
+            obtenerElemento('operationsChecklistSections').querySelector(
+                `input[data-operations-photo-input="${CSS.escape(camara.dataset.openOperationsCamera)}"][data-photo-source="camera"]`
+            )?.click();
+            return;
+        }
+        const galeria = event.target.closest('button[data-open-operations-gallery]');
+        if (galeria) {
+            obtenerElemento('operationsChecklistSections').querySelector(
+                `input[data-operations-photo-input="${CSS.escape(galeria.dataset.openOperationsGallery)}"][data-photo-source="gallery"]`
+            )?.click();
+            return;
+        }
+        const quitar = event.target.closest('button[data-remove-operations-photo]');
+        if (quitar) eliminarFotoChecklistOperaciones(quitar.dataset.removeOperationsPhoto, quitar.dataset.photoPath);
+    });
+    obtenerElemento('openOperationsDashboard')?.addEventListener('click', () => establecerPanelDashboardOperaciones(true));
+    obtenerElemento('closeOperationsDashboard')?.addEventListener('click', () => establecerPanelDashboardOperaciones(false));
+    obtenerElemento('refreshOperationsDashboard')?.addEventListener('click', cargarDashboardOperaciones);
+    obtenerElemento('operationsDashboardMonth')?.addEventListener('change', cargarDashboardOperaciones);
+    obtenerElemento('operationsDashboardSite')?.addEventListener('change', cargarDashboardOperaciones);
+    obtenerElemento('exportOperationsChecklistExcel')?.addEventListener('click', exportarChecklistOperacionesExcel);
     obtenerElemento('openOperationsAssets')?.addEventListener('click', () => establecerPanelActivosOperaciones(true));
     obtenerElemento('closeOperationsAssets')?.addEventListener('click', () => establecerPanelActivosOperaciones(false));
     obtenerElemento('addOperationsAsset')?.addEventListener('click', () => establecerFormularioActivoOperaciones(true));
