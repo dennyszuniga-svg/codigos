@@ -805,15 +805,16 @@
                     <div class="operations-main-actions">
                         <button class="finish-btn" id="openOperationsChecklist" type="button" aria-expanded="false" aria-controls="operationsChecklistPanel">Nuevo checklist operativo</button>
                         <button class="clear-btn" id="openOperationsDashboard" type="button" aria-expanded="false" aria-controls="operationsDashboardPanel">Historial y KPI</button>
+                        <button class="clear-btn" id="openOperationsGeneralReport" type="button" aria-expanded="false" aria-controls="operationsGeneralReportPanel" hidden>Informe gerencial multisede</button>
                         <button class="clear-btn operations-assets-open" id="openOperationsAssets" type="button" aria-expanded="false" aria-controls="operationsAssetsPanel">Activos de operaciones</button>
                     </div>
                 </div>
-                <section class="operations-checklist-panel" id="operationsChecklistPanel" aria-labelledby="operationsChecklistTitle" hidden>
+                <section class="operations-checklist-panel" id="operationsChecklistPanel" aria-labelledby="operationsChecklistTitle" tabindex="-1" hidden>
                     <div class="section-heading operations-checklist-heading">
                         <div>
                             <p class="eyebrow">Control por turno</p>
                             <h2 id="operationsChecklistTitle">Checklist operativo de sede</h2>
-                            <p>Registra el estado de los puntos criticos y adjunta evidencia fotografica.</p>
+                            <p>Registra el estado de los puntos criticos. El avance se guarda automaticamente.</p>
                         </div>
                         <button class="modal-close" id="closeOperationsChecklist" type="button" aria-label="Cerrar checklist" title="Cerrar">&times;</button>
                     </div>
@@ -838,13 +839,35 @@
                         <div class="operations-checklist-footer">
                             <div>
                                 <strong id="operationsChecklistProgress">0 de 0 puntos revisados</strong>
-                                <span id="operationsChecklistEvidenceProgress">0 evidencias</span>
+                                <span>Las novedades requieren una observacion.</span>
                             </div>
                             <button class="finish-btn" id="finishOperationsChecklist" type="submit">Finalizar checklist</button>
+                            <button class="clear-btn" id="shareLastOperationsChecklist" type="button" hidden>PDF / WhatsApp</button>
                             <button class="clear-btn danger-action" id="discardOperationsChecklist" type="button">Descartar borrador</button>
                         </div>
                         <p class="auth-status" id="operationsChecklistStatus" role="status" aria-live="polite"></p>
                     </form>
+                </section>
+                <section class="operations-dashboard-panel" id="operationsGeneralReportPanel" aria-labelledby="operationsGeneralReportTitle" tabindex="-1" hidden>
+                    <div class="section-heading operations-checklist-heading">
+                        <div>
+                            <p class="eyebrow">Vista gerencial multisede</p>
+                            <h2 id="operationsGeneralReportTitle">Informe general de operaciones</h2>
+                            <p>Benchmark mensual, puntos con menor cumplimiento y revisiones que requieren validacion.</p>
+                        </div>
+                        <button class="modal-close" id="closeOperationsGeneralReport" type="button" aria-label="Cerrar informe gerencial" title="Cerrar">&times;</button>
+                    </div>
+                    <div class="operations-general-toolbar">
+                        <label>Mes<input id="operationsGeneralMonth" type="month"></label>
+                        <button class="clear-btn" id="refreshOperationsGeneralReport" type="button">Actualizar analisis</button>
+                        <button class="finish-btn" id="exportOperationsGeneralPptx" type="button">Generar PowerPoint</button>
+                        <button class="clear-btn" id="exportOperationsGeneralPdf" type="button">Generar PDF</button>
+                    </div>
+                    <div id="operationsExecutiveSummary" class="operations-executive-summary"></div>
+                    <div id="operationsBenchmark" class="operations-benchmark"></div>
+                    <div id="operationsLeastCompliant" class="operations-analysis-list"></div>
+                    <div id="operationsFastReviews" class="operations-analysis-list"></div>
+                    <p class="auth-status" id="operationsGeneralStatus" role="status" aria-live="polite"></p>
                 </section>
                 <section class="operations-dashboard-panel" id="operationsDashboardPanel" aria-labelledby="operationsDashboardTitle" hidden>
                     <div class="section-heading operations-checklist-heading">
@@ -1097,6 +1120,9 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="assets/xlsx.full.min.js"></script>
+    <script src="assets/pdf-lib.min.js"></script>
+    <script src="assets/jszip.min.js"></script>
+    <script src="assets/pptxgen.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

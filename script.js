@@ -496,6 +496,8 @@ let activosOperaciones = [];
 let canalActivosOperaciones = null;
 let checklistOperacionesActual = null;
 let historialChecklistsOperaciones = [];
+let ultimoChecklistOperacionesFinalizado = null;
+let informeGeneralOperaciones = [];
 let temporizadorChecklistOperaciones = null;
 let sedeActivaPorModulo = {
     mantenimiento: 'puruchuco',
@@ -2404,8 +2406,13 @@ function establecerPanelActivosOperaciones(abierto) {
     if (abierto) {
         const checklistPanel = obtenerElemento('operationsChecklistPanel');
         const dashboardPanel = obtenerElemento('operationsDashboardPanel');
-        if (checklistPanel) checklistPanel.hidden = true;
+        if (checklistPanel) {
+            checklistPanel.hidden = true;
+            checklistPanel.classList.remove('operations-subwindow-active');
+        }
         if (dashboardPanel) dashboardPanel.hidden = true;
+        establecerPanelInformeGeneralOperaciones(false, false);
+        document.body.classList.remove('operations-subwindow-open');
         obtenerElemento('openOperationsChecklist')?.setAttribute('aria-expanded', 'false');
         obtenerElemento('openOperationsDashboard')?.setAttribute('aria-expanded', 'false');
         configurarSedeActivosOperaciones();
@@ -2513,6 +2520,39 @@ function usuarioPuedeElegirSedeChecklistOperaciones() {
     return usuarioEsRolGlobal() || perfilActual?.sede === 'general';
 }
 
+function usuarioPuedeVerInformeGeneralOperaciones() {
+    return perfilActual?.activo !== false
+        && [ROL_SUPERIOR, 'jefe_operaciones', 'coordinador_operaciones', 'gdh'].includes(perfilActual?.rol);
+}
+
+async function limpiarEvidenciasOperacionesVencidas() {
+    if (!supabaseClient || !sesionActual?.user) return;
+    const clave = `urbapark-operations-image-cleanup-${fechaLocalISO()}`;
+    try {
+        if (localStorage.getItem(clave)) return;
+        const limite = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString();
+        let consulta = supabaseClient.from('operaciones_checklists')
+            .select('id,evidencias')
+            .lt('updated_at', limite);
+        if (!usuarioEsSuperior()) consulta = consulta.eq('responsable_id', sesionActual.user.id);
+        const { data: registros, error } = await consulta;
+        if (error) throw error;
+        for (const registro of registros || []) {
+            const rutas = Object.values(registro.evidencias || {}).flat()
+                .map(foto => foto?.path).filter(Boolean);
+            if (!rutas.length) continue;
+            const { error: storageError } = await supabaseClient.storage.from(OPERATIONS_CHECKLIST_BUCKET).remove(rutas);
+            if (storageError) throw storageError;
+            const { error: updateError } = await supabaseClient.from('operaciones_checklists')
+                .update({ evidencias: {} }).eq('id', registro.id);
+            if (updateError) throw updateError;
+        }
+        localStorage.setItem(clave, 'ok');
+    } catch (error) {
+        console.warn('La limpieza de evidencias operativas quedo pendiente:', error);
+    }
+}
+
 function fechaLocalISO(fecha = new Date()) {
     const anio = fecha.getFullYear();
     const mes = String(fecha.getMonth() + 1).padStart(2, '0');
@@ -2561,6 +2601,8 @@ function configurarSelectSedesOperaciones() {
             : SEDES_OPERACION[0].id;
         dashboard.disabled = !usuarioPuedeElegirSedeChecklistOperaciones();
     }
+    const botonInforme = obtenerElemento('openOperationsGeneralReport');
+    if (botonInforme) botonInforme.hidden = !usuarioPuedeVerInformeGeneralOperaciones();
 }
 
 function actualizarEstadoChecklistOperaciones(mensaje = '', estado = 'info') {
@@ -2575,22 +2617,6 @@ function actualizarBannerBorradorOperaciones(mensaje = 'El avance se guarda auto
     if (!banner) return;
     banner.textContent = mensaje;
     banner.dataset.status = estado;
-}
-
-async function firmarEvidenciasChecklistOperaciones(registro) {
-    if (!supabaseClient || !registro?.evidencias) return registro;
-    const evidencias = {};
-    for (const [seccion, fotos] of Object.entries(registro.evidencias)) {
-        evidencias[seccion] = [];
-        for (const foto of Array.isArray(fotos) ? fotos : []) {
-            if (!foto.path) continue;
-            const { data } = await supabaseClient.storage
-                .from(OPERATIONS_CHECKLIST_BUCKET)
-                .createSignedUrl(foto.path, 60 * 60);
-            evidencias[seccion].push({ ...foto, url: data?.signedUrl || '' });
-        }
-    }
-    return { ...registro, evidencias };
 }
 
 async function cargarBorradorChecklistOperaciones(sede) {
@@ -2609,7 +2635,7 @@ async function cargarBorradorChecklistOperaciones(sede) {
             console.warn('No se pudo recuperar el checklist operativo:', error);
             actualizarBannerBorradorOperaciones('No se pudo consultar el borrador remoto.', 'error');
         } else if (data) {
-            checklistOperacionesActual = await firmarEvidenciasChecklistOperaciones(data);
+            checklistOperacionesActual = data;
             actualizarBannerBorradorOperaciones('Borrador recuperado automaticamente.', 'success');
         }
     }
@@ -2637,62 +2663,6 @@ function crearOpcionEstadoOperaciones(seccionId, itemId, valor, etiqueta) {
     texto.textContent = etiqueta;
     label.append(input, texto);
     return label;
-}
-
-function renderizarEvidenciasSeccionOperaciones(seccion, contenedor) {
-    const fotos = checklistOperacionesActual?.evidencias?.[seccion.id] || [];
-    const bloque = document.createElement('div');
-    const encabezado = document.createElement('div');
-    const galeria = document.createElement('div');
-    const controles = document.createElement('div');
-    bloque.className = 'operations-evidence-block';
-    encabezado.className = 'operations-evidence-heading';
-    encabezado.append(
-        crearTextoElemento('strong', 'Evidencia fotografica'),
-        crearTextoElemento('span', `${fotos.length}/5 fotos (minimo 3)`, fotos.length >= 3 ? 'is-complete' : '')
-    );
-    galeria.className = 'operations-evidence-gallery';
-    fotos.forEach((foto, indice) => {
-        const figura = document.createElement('figure');
-        const imagen = document.createElement('img');
-        const quitar = document.createElement('button');
-        imagen.src = foto.url || foto.preview || '';
-        imagen.alt = `Evidencia ${indice + 1} de ${seccion.nombre}`;
-        quitar.type = 'button';
-        quitar.className = 'operations-photo-remove';
-        quitar.dataset.removeOperationsPhoto = seccion.id;
-        quitar.dataset.photoPath = foto.path;
-        quitar.setAttribute('aria-label', `Eliminar evidencia ${indice + 1}`);
-        quitar.textContent = '\u00d7';
-        figura.append(imagen, quitar);
-        galeria.appendChild(figura);
-    });
-    controles.className = 'operations-evidence-actions';
-    const camara = document.createElement('button');
-    const galeriaBoton = document.createElement('button');
-    const inputCamara = document.createElement('input');
-    const inputGaleria = document.createElement('input');
-    camara.type = galeriaBoton.type = 'button';
-    camara.className = galeriaBoton.className = 'clear-btn';
-    camara.textContent = 'Tomar foto';
-    galeriaBoton.textContent = 'Elegir imagenes';
-    camara.dataset.openOperationsCamera = seccion.id;
-    galeriaBoton.dataset.openOperationsGallery = seccion.id;
-    [inputCamara, inputGaleria].forEach(input => {
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.hidden = true;
-        input.dataset.operationsPhotoInput = seccion.id;
-    });
-    inputCamara.setAttribute('capture', 'environment');
-    inputGaleria.multiple = true;
-    inputCamara.dataset.photoSource = 'camera';
-    inputGaleria.dataset.photoSource = 'gallery';
-    const deshabilitado = fotos.length >= 5;
-    camara.disabled = galeriaBoton.disabled = deshabilitado;
-    controles.append(camara, galeriaBoton, inputCamara, inputGaleria);
-    bloque.append(encabezado, galeria, controles);
-    contenedor.appendChild(bloque);
 }
 
 function renderizarChecklistOperaciones() {
@@ -2753,7 +2723,6 @@ function renderizarChecklistOperaciones() {
         observacion.value = registro.observaciones?.[seccion.id] || '';
         observacionLabel.appendChild(observacion);
         tarjeta.append(cabecera, lista, observacionLabel);
-        renderizarEvidenciasSeccionOperaciones(seccion, tarjeta);
         contenedor.appendChild(tarjeta);
     });
     actualizarProgresoChecklistOperaciones();
@@ -2775,8 +2744,7 @@ function calcularResumenChecklistOperaciones(registro = checklistOperacionesActu
         noCumple,
         noAplica,
         cumplimiento: evaluados ? Number(((cumple / evaluados) * 100).toFixed(2)) : 0,
-        criticos: valores.filter(item => item.valor === 'no_cumple' && item.criticidad === 'critica').length,
-        evidencias: secciones.reduce((total, seccion) => total + (registro?.evidencias?.[seccion.id]?.length || 0), 0)
+        criticos: valores.filter(item => item.valor === 'no_cumple' && item.criticidad === 'critica').length
     };
 }
 
@@ -2784,7 +2752,6 @@ function actualizarProgresoChecklistOperaciones() {
     if (!checklistOperacionesActual) return;
     const resumen = calcularResumenChecklistOperaciones();
     obtenerElemento('operationsChecklistProgress').textContent = `${resumen.revisados} de ${resumen.total} puntos revisados`;
-    obtenerElemento('operationsChecklistEvidenceProgress').textContent = `${resumen.evidencias} evidencias adjuntas`;
     document.querySelectorAll('[data-operations-item-row]').forEach(fila => {
         const valor = checklistOperacionesActual.respuestas?.[fila.dataset.operationsItemRow];
         fila.dataset.result = valor || '';
@@ -2843,58 +2810,6 @@ async function guardarBorradorChecklistOperaciones() {
     }
 }
 
-async function procesarFotosChecklistOperaciones(seccionId, archivos) {
-    const existentes = checklistOperacionesActual?.evidencias?.[seccionId] || [];
-    const disponibles = Math.max(0, 5 - existentes.length);
-    const seleccionados = Array.from(archivos || []).slice(0, disponibles);
-    if (!seleccionados.length) {
-        actualizarEstadoChecklistOperaciones('Cada bloque admite un maximo de 5 fotos.', 'error');
-        return;
-    }
-    actualizarEstadoChecklistOperaciones('Subiendo evidencia...', 'info');
-    try {
-        const registroId = await asegurarRegistroChecklistOperaciones();
-        for (const archivo of seleccionados) {
-            const dataUrl = await comprimirFoto(archivo, 1280, 0.76);
-            const blob = await (await fetch(dataUrl)).blob();
-            const ruta = `${checklistOperacionesActual.sede}/${sesionActual.user.id}/${registroId}/${seccionId}/${crypto.randomUUID()}.jpg`;
-            const { error } = await supabaseClient.storage
-                .from(OPERATIONS_CHECKLIST_BUCKET)
-                .upload(ruta, blob, { contentType: 'image/jpeg', upsert: false });
-            if (error) throw error;
-            const { data: firma } = await supabaseClient.storage
-                .from(OPERATIONS_CHECKLIST_BUCKET)
-                .createSignedUrl(ruta, 60 * 60);
-            checklistOperacionesActual.evidencias[seccionId] ||= [];
-            checklistOperacionesActual.evidencias[seccionId].push({
-                path: ruta,
-                nombre: archivo.name || 'evidencia.jpg',
-                tomada_en: new Date().toISOString(),
-                url: firma?.signedUrl || dataUrl
-            });
-        }
-        await guardarBorradorChecklistOperaciones();
-        renderizarChecklistOperaciones();
-        actualizarEstadoChecklistOperaciones('Evidencia guardada correctamente.', 'success');
-    } catch (error) {
-        console.warn('No se pudo subir la evidencia operativa:', error);
-        actualizarEstadoChecklistOperaciones('No se pudo guardar la foto. Intenta nuevamente.', 'error');
-    }
-}
-
-async function eliminarFotoChecklistOperaciones(seccionId, ruta) {
-    if (!checklistOperacionesActual || !ruta) return;
-    const { error } = await supabaseClient.storage.from(OPERATIONS_CHECKLIST_BUCKET).remove([ruta]);
-    if (error) {
-        actualizarEstadoChecklistOperaciones('No se pudo eliminar la evidencia.', 'error');
-        return;
-    }
-    checklistOperacionesActual.evidencias[seccionId] = (checklistOperacionesActual.evidencias[seccionId] || [])
-        .filter(foto => foto.path !== ruta);
-    await guardarBorradorChecklistOperaciones();
-    renderizarChecklistOperaciones();
-}
-
 function validarChecklistOperaciones() {
     const registro = checklistOperacionesActual;
     const resumen = calcularResumenChecklistOperaciones(registro);
@@ -2905,8 +2820,6 @@ function validarChecklistOperaciones() {
         if (tieneNoCumple && !String(registro.observaciones?.[seccion.id] || '').trim()) {
             return `Describe la novedad y solucion en ${seccion.nombre}.`;
         }
-        const fotos = registro.evidencias?.[seccion.id]?.length || 0;
-        if (fotos < 3) return `Adjunta al menos 3 fotos en ${seccion.nombre}.`;
     }
     return '';
 }
@@ -2922,10 +2835,11 @@ async function finalizarChecklistOperaciones(event) {
     try {
         await asegurarRegistroChecklistOperaciones();
         const resumen = calcularResumenChecklistOperaciones();
+        const finAt = new Date().toISOString();
         const { error } = await supabaseClient.from('operaciones_checklists').update({
             turno: checklistOperacionesActual.turno,
             estado: 'finalizado',
-            fin_at: new Date().toISOString(),
+            fin_at: finAt,
             respuestas: checklistOperacionesActual.respuestas,
             observaciones: checklistOperacionesActual.observaciones,
             evidencias: checklistOperacionesActual.evidencias,
@@ -2938,6 +2852,17 @@ async function finalizarChecklistOperaciones(event) {
         }).eq('id', checklistOperacionesActual.id);
         if (error) throw error;
         checklistOperacionesActual.estado = 'finalizado';
+        checklistOperacionesActual.fin_at = finAt;
+        Object.assign(checklistOperacionesActual, {
+            total_items: resumen.total,
+            cumple_items: resumen.cumple,
+            no_cumple_items: resumen.noCumple,
+            no_aplica_items: resumen.noAplica,
+            cumplimiento: resumen.cumplimiento,
+            criticos_no_cumple: resumen.criticos
+        });
+        ultimoChecklistOperacionesFinalizado = structuredClone(checklistOperacionesActual);
+        obtenerElemento('shareLastOperationsChecklist').hidden = false;
         actualizarEstadoChecklistOperaciones(`Checklist finalizado con ${resumen.cumplimiento}% de cumplimiento.`, 'success');
         checklistOperacionesActual = crearEstadoNuevoChecklistOperaciones(obtenerSedeChecklistOperaciones());
         renderizarChecklistOperaciones();
@@ -2949,9 +2874,7 @@ async function finalizarChecklistOperaciones(event) {
 }
 
 async function descartarBorradorChecklistOperaciones() {
-    if (!checklistOperacionesActual || !window.confirm('Seguro que deseas descartar este checklist y todas sus fotos?')) return;
-    const rutas = Object.values(checklistOperacionesActual.evidencias || {}).flat().map(foto => foto.path).filter(Boolean);
-    if (rutas.length) await supabaseClient.storage.from(OPERATIONS_CHECKLIST_BUCKET).remove(rutas);
+    if (!checklistOperacionesActual || !window.confirm('Seguro que deseas descartar este checklist? El avance guardado se eliminara.')) return;
     if (checklistOperacionesActual.id) {
         const { error } = await supabaseClient.from('operaciones_checklists').delete().eq('id', checklistOperacionesActual.id);
         if (error) {
@@ -2969,16 +2892,30 @@ async function establecerPanelChecklistOperaciones(abierto) {
     const boton = obtenerElemento('openOperationsChecklist');
     if (!panel || !boton) return;
     panel.hidden = !abierto;
+    panel.classList.toggle('operations-subwindow-active', abierto);
+    document.body.classList.toggle('operations-subwindow-open', abierto);
     boton.setAttribute('aria-expanded', String(abierto));
     if (abierto) {
         establecerPanelActivosOperaciones(false);
         establecerPanelDashboardOperaciones(false);
+        establecerPanelInformeGeneralOperaciones(false, false);
         configurarSelectSedesOperaciones();
         await cargarBorradorChecklistOperaciones(obtenerSedeChecklistOperaciones());
-        panel.scrollIntoView({ block: 'start' });
+        panel.scrollTop = 0;
+        if (window.history.state?.urbaparkOperationsPanel !== 'checklist') {
+            window.history.pushState({ ...(window.history.state || {}), urbaparkOperationsPanel: 'checklist' }, '', `${window.location.pathname}${window.location.search}#operaciones-checklist`);
+        }
+        panel.focus({ preventScroll: true });
     } else {
+        panel.classList.remove('operations-subwindow-active');
+        if (!document.querySelector('.operations-subwindow-active')) document.body.classList.remove('operations-subwindow-open');
         boton.focus({ preventScroll: true });
     }
+}
+
+function cerrarPanelChecklistOperaciones() {
+    if (window.history.state?.urbaparkOperationsPanel === 'checklist') window.history.back();
+    else establecerPanelChecklistOperaciones(false);
 }
 
 function obtenerRangoMesOperaciones() {
@@ -3050,12 +2987,17 @@ function renderizarDashboardOperaciones() {
         const cabecera = document.createElement('div');
         const datos = document.createElement('p');
         const resultado = document.createElement('strong');
+        const compartir = document.createElement('button');
         tarjeta.className = 'operations-history-item';
         cabecera.append(crearTextoElemento('h3', registro.responsable_nombre), crearTextoElemento('span', obtenerEtiquetaRol(registro.responsable_rol)));
         datos.textContent = `${registro.fecha} - ${String(registro.turno || '').toUpperCase()} - ${registro.no_cumple_items || 0} no conformidades`;
         resultado.textContent = `${Number(registro.cumplimiento || 0).toFixed(1)}%`;
         resultado.className = Number(registro.criticos_no_cumple || 0) ? 'has-critical' : '';
-        tarjeta.append(cabecera, datos, resultado);
+        compartir.type = 'button';
+        compartir.className = 'clear-btn operations-report-share';
+        compartir.dataset.shareOperationsChecklist = registro.id;
+        compartir.textContent = 'PDF / WhatsApp';
+        tarjeta.append(cabecera, datos, resultado, compartir);
         historialContenedor.appendChild(tarjeta);
     });
 }
@@ -3090,8 +3032,7 @@ function exportarChecklistOperacionesExcel() {
                 Verificacion: item[1],
                 Criticidad: item[2],
                 Resultado: registro.respuestas?.[`${seccion.id}:${item[0]}`] || '',
-                Observacion: registro.observaciones?.[seccion.id] || '',
-                Evidencias: registro.evidencias?.[seccion.id]?.length || 0
+                Observacion: registro.observaciones?.[seccion.id] || ''
             });
         }));
     });
@@ -3100,6 +3041,407 @@ function exportarChecklistOperacionesExcel() {
     XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(detalle), 'Detalle');
     const { mes } = obtenerRangoMesOperaciones();
     XLSX.writeFile(libro, `Checklist-Operaciones-${obtenerElemento('operationsDashboardSite').value}-${mes}.xlsx`, { compression: true });
+}
+
+function limpiarTextoReporte(valor = '') {
+    return String(valor).replace(/[\u2013\u2014]/g, '-').replace(/\u2022/g, '-').trim();
+}
+
+function nombreArchivoSeguro(valor = '') {
+    return limpiarTextoReporte(valor).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+async function crearDocumentoPdfOperaciones(titulo, subtitulo = '') {
+    if (!window.PDFLib) throw new Error('El generador de PDF no esta disponible.');
+    const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
+    const pdf = await PDFDocument.create();
+    const normal = await pdf.embedFont(StandardFonts.Helvetica);
+    const negrita = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const estado = { pdf, normal, negrita, rgb, pagina: null, y: 0, ancho: 0, alto: 0 };
+
+    const nuevaPagina = () => {
+        estado.pagina = pdf.addPage([595.28, 841.89]);
+        estado.ancho = estado.pagina.getWidth();
+        estado.alto = estado.pagina.getHeight();
+        estado.y = estado.alto - 54;
+        estado.pagina.drawRectangle({ x: 0, y: estado.alto - 18, width: estado.ancho, height: 18, color: rgb(0.94, 0.29, 0.11) });
+        estado.pagina.drawText('URBAPARK', { x: 40, y: estado.y, size: 17, font: negrita, color: rgb(0.08, 0.48, 0.67) });
+        estado.y -= 28;
+    };
+    nuevaPagina();
+
+    const escribir = (texto, opciones = {}) => {
+        const size = opciones.size || 10;
+        const font = opciones.bold ? negrita : normal;
+        const color = opciones.color || rgb(0.12, 0.18, 0.24);
+        const margen = opciones.indent || 0;
+        const maxWidth = opciones.maxWidth || estado.ancho - 80 - margen;
+        const parrafos = limpiarTextoReporte(texto).split(/\n/);
+        parrafos.forEach(parrafo => {
+            const palabras = parrafo.split(/\s+/).filter(Boolean);
+            const lineas = [];
+            let linea = '';
+            palabras.forEach(palabra => {
+                const candidata = linea ? `${linea} ${palabra}` : palabra;
+                if (font.widthOfTextAtSize(candidata, size) > maxWidth && linea) {
+                    lineas.push(linea);
+                    linea = palabra;
+                } else linea = candidata;
+            });
+            lineas.push(linea || ' ');
+            lineas.forEach(item => {
+                if (estado.y < 52) nuevaPagina();
+                estado.pagina.drawText(item, { x: 40 + margen, y: estado.y, size, font, color });
+                estado.y -= opciones.lineHeight || size + 4;
+            });
+        });
+        estado.y -= opciones.after || 2;
+    };
+
+    escribir(titulo, { size: 18, bold: true, color: rgb(0.08, 0.28, 0.40), after: 4 });
+    if (subtitulo) escribir(subtitulo, { size: 10, color: rgb(0.34, 0.42, 0.48), after: 8 });
+    return { ...estado, escribir, bytes: () => pdf.save() };
+}
+
+async function crearPdfChecklistOperaciones(registro) {
+    const reporte = await crearDocumentoPdfOperaciones(
+        'CHECKLIST OPERATIVO',
+        `${obtenerNombreSede(registro.sede)} | ${registro.fecha} | ${String(registro.turno || '').toUpperCase()}`
+    );
+    const duracion = calcularDuracionChecklistOperaciones(registro);
+    reporte.escribir(`Responsable: ${registro.responsable_nombre}`, { bold: true });
+    reporte.escribir(`Cargo: ${obtenerEtiquetaRol(registro.responsable_rol)} | Inicio: ${formatearFechaHoraReporte(registro.inicio_at)} | Fin: ${formatearFechaHoraReporte(registro.fin_at)} | Duracion: ${duracion} min`);
+    reporte.escribir(`Cumplimiento: ${Number(registro.cumplimiento || calcularResumenChecklistOperaciones(registro).cumplimiento).toFixed(1)}%`, { size: 13, bold: true, color: reporte.rgb(0.05, 0.48, 0.29), after: 8 });
+    obtenerSeccionesChecklistOperaciones(registro.sede).forEach(seccion => {
+        reporte.escribir(seccion.nombre.toUpperCase(), { size: 12, bold: true, color: reporte.rgb(0.94, 0.29, 0.11), after: 4 });
+        seccion.items.forEach(item => {
+            const valor = registro.respuestas?.[`${seccion.id}:${item[0]}`] || 'sin_respuesta';
+            const etiqueta = valor === 'cumple' ? 'SI CUMPLE' : valor === 'no_cumple' ? 'NO CUMPLE' : valor === 'na' ? 'N.A.' : 'SIN RESPUESTA';
+            reporte.escribir(`[${etiqueta}] ${item[1]} (${item[2]})`, { indent: 8, size: 9 });
+        });
+        const observacion = String(registro.observaciones?.[seccion.id] || '').trim();
+        if (observacion) reporte.escribir(`Novedad / solucion: ${observacion}`, { indent: 8, size: 9, bold: true, after: 6 });
+    });
+    return reporte.bytes();
+}
+
+function formatearFechaHoraReporte(valor) {
+    if (!valor) return '-';
+    return new Intl.DateTimeFormat('es-PE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(valor));
+}
+
+function calcularDuracionChecklistOperaciones(registro) {
+    const inicio = new Date(registro?.inicio_at).getTime();
+    const fin = new Date(registro?.fin_at).getTime();
+    return Number.isFinite(inicio) && Number.isFinite(fin) ? Math.max(0, Math.round((fin - inicio) / 60000)) : 0;
+}
+
+async function compartirPdfChecklistOperaciones(registro) {
+    if (!registro) return;
+    const estado = obtenerElemento('operationsChecklistStatus') || obtenerElemento('operationsDashboardStatus');
+    try {
+        if (estado) estado.textContent = 'Generando PDF...';
+        const bytes = await crearPdfChecklistOperaciones(registro);
+        const nombre = `Checklist-${nombreArchivoSeguro(obtenerNombreSede(registro.sede))}-${registro.fecha}.pdf`;
+        const archivo = new File([bytes], nombre, { type: 'application/pdf' });
+        if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [archivo] }))) {
+            await navigator.share({ title: 'Checklist operativo UrbaPark', text: `${obtenerNombreSede(registro.sede)} - ${registro.fecha}`, files: [archivo] });
+            if (estado) estado.textContent = 'PDF listo para compartir por WhatsApp.';
+            return;
+        }
+        descargarBlob(new Blob([bytes], { type: 'application/pdf' }), nombre);
+        if (estado) estado.textContent = 'PDF descargado. Puedes adjuntarlo en WhatsApp.';
+    } catch (error) {
+        if (error?.name === 'AbortError') return;
+        console.warn('No se pudo generar el PDF operativo:', error);
+        if (estado) estado.textContent = 'No se pudo generar el PDF.';
+    }
+}
+
+function descargarBlob(blob, nombre) {
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    enlace.href = url;
+    enlace.download = nombre;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function obtenerRangoMesGeneralOperaciones() {
+    const mes = obtenerElemento('operationsGeneralMonth')?.value || fechaLocalISO().slice(0, 7);
+    const [anio, numeroMes] = mes.split('-').map(Number);
+    return { mes, inicio: `${mes}-01`, fin: `${mes}-${String(new Date(anio, numeroMes, 0).getDate()).padStart(2, '0')}` };
+}
+
+function calcularAnalisisGeneralOperaciones(registros) {
+    const sedes = SEDES_OPERACION.map(sede => {
+        const items = registros.filter(registro => registro.sede === sede.id);
+        const cumple = items.reduce((suma, item) => suma + Number(item.cumple_items || 0), 0);
+        const noCumple = items.reduce((suma, item) => suma + Number(item.no_cumple_items || 0), 0);
+        const evaluados = cumple + noCumple;
+        const duraciones = items.map(calcularDuracionChecklistOperaciones).filter(valor => valor > 0);
+        return {
+            id: sede.id,
+            nombre: sede.nombre,
+            total: items.length,
+            cumplimiento: evaluados ? (cumple / evaluados) * 100 : 0,
+            noCumple,
+            criticos: items.reduce((suma, item) => suma + Number(item.criticos_no_cumple || 0), 0),
+            duracionPromedio: duraciones.length ? duraciones.reduce((a, b) => a + b, 0) / duraciones.length : 0,
+            rapidos: items.filter(item => calcularDuracionChecklistOperaciones(item) > 0 && calcularDuracionChecklistOperaciones(item) < 10).length
+        };
+    }).sort((a, b) => b.cumplimiento - a.cumplimiento || b.total - a.total);
+
+    const puntos = new Map();
+    registros.forEach(registro => obtenerSeccionesChecklistOperaciones(registro.sede).forEach(seccion => seccion.items.forEach(item => {
+        const clave = `${seccion.id}:${item[0]}`;
+        const valor = registro.respuestas?.[clave];
+        if (!['cumple', 'no_cumple'].includes(valor)) return;
+        const actual = puntos.get(clave) || { seccion: seccion.nombre, punto: item[1], criticidad: item[2], cumple: 0, noCumple: 0 };
+        actual[valor === 'cumple' ? 'cumple' : 'noCumple'] += 1;
+        puntos.set(clave, actual);
+    })));
+    const menosCumplidos = Array.from(puntos.values()).map(item => ({
+        ...item,
+        evaluados: item.cumple + item.noCumple,
+        incumplimiento: ((item.noCumple / (item.cumple + item.noCumple)) * 100)
+    })).filter(item => item.noCumple > 0).sort((a, b) => b.incumplimiento - a.incumplimiento || b.noCumple - a.noCumple).slice(0, 10);
+    const rapidos = registros.filter(item => {
+        const minutos = calcularDuracionChecklistOperaciones(item);
+        return minutos > 0 && minutos < 10;
+    }).sort((a, b) => calcularDuracionChecklistOperaciones(a) - calcularDuracionChecklistOperaciones(b));
+    const totalCumple = registros.reduce((suma, item) => suma + Number(item.cumple_items || 0), 0);
+    const totalNoCumple = registros.reduce((suma, item) => suma + Number(item.no_cumple_items || 0), 0);
+    return {
+        registros,
+        sedes,
+        menosCumplidos,
+        rapidos,
+        total: registros.length,
+        cumplimiento: totalCumple + totalNoCumple ? (totalCumple / (totalCumple + totalNoCumple)) * 100 : 0,
+        criticos: registros.reduce((suma, item) => suma + Number(item.criticos_no_cumple || 0), 0)
+    };
+}
+
+async function cargarInformeGeneralOperaciones() {
+    if (!usuarioPuedeVerInformeGeneralOperaciones() || !supabaseClient) return;
+    const rango = obtenerRangoMesGeneralOperaciones();
+    const estado = obtenerElemento('operationsGeneralStatus');
+    estado.textContent = 'Analizando todas las sedes...';
+    const { data, error } = await supabaseClient.from('operaciones_checklists')
+        .select('*').eq('estado', 'finalizado')
+        .gte('fecha', rango.inicio).lte('fecha', rango.fin)
+        .order('inicio_at', { ascending: false });
+    if (error) {
+        estado.textContent = 'No se pudo cargar el informe multisede.';
+        estado.dataset.status = 'error';
+        return;
+    }
+    informeGeneralOperaciones = Array.isArray(data) ? data : [];
+    renderizarInformeGeneralOperaciones();
+    estado.textContent = `${informeGeneralOperaciones.length} checklists incluidos en el analisis.`;
+    estado.dataset.status = 'success';
+}
+
+function renderizarInformeGeneralOperaciones() {
+    const analisis = calcularAnalisisGeneralOperaciones(informeGeneralOperaciones);
+    const resumen = obtenerElemento('operationsExecutiveSummary');
+    const benchmark = obtenerElemento('operationsBenchmark');
+    const puntos = obtenerElemento('operationsLeastCompliant');
+    const rapidos = obtenerElemento('operationsFastReviews');
+    [resumen, benchmark, puntos, rapidos].forEach(limpiarElemento);
+
+    const mejor = analisis.sedes.find(sede => sede.total > 0);
+    const tarjetas = [
+        ['Checklists del mes', analisis.total],
+        ['Cumplimiento general', `${analisis.cumplimiento.toFixed(1)}%`],
+        ['Mejor sede', mejor?.nombre || 'Sin datos'],
+        ['Criticos no conformes', analisis.criticos],
+        ['Revisiones < 10 min', analisis.rapidos.length]
+    ];
+    tarjetas.forEach(([etiqueta, valor]) => {
+        const tarjeta = document.createElement('article');
+        tarjeta.append(crearTextoElemento('span', etiqueta), crearTextoElemento('strong', String(valor)));
+        resumen.appendChild(tarjeta);
+    });
+
+    benchmark.appendChild(crearTextoElemento('h3', 'Benchmark de sedes'));
+    analisis.sedes.forEach((sede, indice) => {
+        const fila = document.createElement('article');
+        const barra = document.createElement('div');
+        fila.append(
+            crearTextoElemento('b', `${indice + 1}. ${sede.nombre}`),
+            crearTextoElemento('span', `${sede.total} checklists | ${sede.cumplimiento.toFixed(1)}% | ${sede.rapidos} rapidos`)
+        );
+        barra.className = 'operations-benchmark-bar';
+        barra.style.setProperty('--benchmark-width', `${Math.max(2, sede.cumplimiento)}%`);
+        fila.appendChild(barra);
+        benchmark.appendChild(fila);
+    });
+
+    puntos.appendChild(crearTextoElemento('h3', 'Puntos con menor cumplimiento'));
+    if (!analisis.menosCumplidos.length) puntos.appendChild(crearMensajeVacio('No hay incumplimientos registrados en el mes.'));
+    analisis.menosCumplidos.slice(0, 6).forEach(item => {
+        const fila = document.createElement('article');
+        fila.append(
+            crearTextoElemento('b', item.punto),
+            crearTextoElemento('span', `${item.seccion} | ${item.noCumple} no cumple de ${item.evaluados} | ${item.incumplimiento.toFixed(1)}%`)
+        );
+        puntos.appendChild(fila);
+    });
+
+    rapidos.appendChild(crearTextoElemento('h3', 'Revisiones inusualmente rapidas'));
+    rapidos.appendChild(crearTextoElemento('p', 'Se muestran para validacion las revisiones terminadas en menos de 10 minutos.'));
+    if (!analisis.rapidos.length) rapidos.appendChild(crearMensajeVacio('No se detectaron revisiones por debajo del umbral.'));
+    analisis.rapidos.slice(0, 12).forEach(item => {
+        const fila = document.createElement('article');
+        fila.append(
+            crearTextoElemento('b', `${obtenerNombreSede(item.sede)} - ${item.responsable_nombre}`),
+            crearTextoElemento('span', `${item.fecha} | ${calcularDuracionChecklistOperaciones(item)} min | ${Number(item.cumplimiento || 0).toFixed(1)}%`)
+        );
+        rapidos.appendChild(fila);
+    });
+}
+
+function textoResumenEjecutivoOperaciones(analisis) {
+    const conDatos = analisis.sedes.filter(sede => sede.total > 0);
+    const mejor = conDatos[0];
+    const menor = conDatos[conDatos.length - 1];
+    const principal = analisis.menosCumplidos[0];
+    return [
+        `Durante el periodo se completaron ${analisis.total} checklists, con un cumplimiento general de ${analisis.cumplimiento.toFixed(1)}%.`,
+        mejor ? `${mejor.nombre} lidera el benchmark con ${mejor.cumplimiento.toFixed(1)}% de cumplimiento.` : 'No existen datos suficientes para comparar sedes.',
+        menor && menor.id !== mejor?.id ? `${menor.nombre} presenta el menor cumplimiento (${menor.cumplimiento.toFixed(1)}%) y requiere seguimiento.` : '',
+        principal ? `El punto con mayor tasa de incumplimiento es "${principal.punto}" (${principal.incumplimiento.toFixed(1)}%).` : 'No se registraron puntos incumplidos.',
+        analisis.rapidos.length ? `${analisis.rapidos.length} revisiones terminaron en menos de 10 minutos y deben validarse con sus responsables.` : 'No se detectaron revisiones inusualmente rapidas.'
+    ].filter(Boolean);
+}
+
+async function exportarInformeGeneralOperacionesPdf() {
+    if (!informeGeneralOperaciones.length) return mostrarToast('No hay datos del mes para generar el informe.');
+    try {
+        const rango = obtenerRangoMesGeneralOperaciones();
+        const analisis = calcularAnalisisGeneralOperaciones(informeGeneralOperaciones);
+        const reporte = await crearDocumentoPdfOperaciones('INFORME GERENCIAL DE OPERACIONES', `Benchmark multisede | Periodo ${rango.mes}`);
+        reporte.escribir('RESUMEN EJECUTIVO', { size: 13, bold: true, color: reporte.rgb(0.94, 0.29, 0.11) });
+        textoResumenEjecutivoOperaciones(analisis).forEach(texto => reporte.escribir(`- ${texto}`, { indent: 8 }));
+        reporte.escribir('BENCHMARK DE SEDES', { size: 13, bold: true, color: reporte.rgb(0.08, 0.48, 0.67), after: 5 });
+        analisis.sedes.forEach((sede, indice) => reporte.escribir(`${indice + 1}. ${sede.nombre}: ${sede.cumplimiento.toFixed(1)}% | ${sede.total} checklists | ${sede.rapidos} rapidos`));
+        reporte.escribir('PUNTOS CON MENOR CUMPLIMIENTO', { size: 13, bold: true, color: reporte.rgb(0.94, 0.29, 0.11), after: 5 });
+        analisis.menosCumplidos.forEach(item => reporte.escribir(`- ${item.punto}: ${item.incumplimiento.toFixed(1)}% de incumplimiento (${item.noCumple}/${item.evaluados})`));
+        reporte.escribir('REVISIONES PARA VALIDAR (< 10 MIN)', { size: 13, bold: true, color: reporte.rgb(0.08, 0.48, 0.67), after: 5 });
+        analisis.rapidos.forEach(item => reporte.escribir(`- ${item.fecha} | ${obtenerNombreSede(item.sede)} | ${item.responsable_nombre} | ${calcularDuracionChecklistOperaciones(item)} min`));
+        descargarBlob(new Blob([await reporte.bytes()], { type: 'application/pdf' }), `Informe-Operaciones-${rango.mes}.pdf`);
+    } catch (error) {
+        console.warn('No se pudo generar el informe PDF:', error);
+        mostrarToast('No se pudo generar el PDF gerencial.');
+    }
+}
+
+async function exportarInformeGeneralOperacionesPptx() {
+    if (!informeGeneralOperaciones.length) return mostrarToast('No hay datos del mes para generar el informe.');
+    if (!window.PptxGenJS) return mostrarToast('No se pudo cargar el generador de PowerPoint.');
+    const rango = obtenerRangoMesGeneralOperaciones();
+    const analisis = calcularAnalisisGeneralOperaciones(informeGeneralOperaciones);
+    const pptx = new window.PptxGenJS();
+    pptx.layout = 'LAYOUT_WIDE';
+    pptx.author = 'UrbaPark';
+    pptx.subject = 'KPI de checklist operativo multisede';
+    pptx.title = `Informe de operaciones ${rango.mes}`;
+    pptx.company = 'UrbaPark';
+    pptx.lang = 'es-PE';
+    pptx.theme = { headFontFace: 'Aptos Display', bodyFontFace: 'Aptos', lang: 'es-PE' };
+    pptx.defineSlideMaster({
+        title: 'URBAPARK',
+        background: { color: 'F7FAFC' },
+        objects: [
+            { rect: { x: 0, y: 0, w: 13.333, h: 0.16, fill: { color: 'EF4B1B' }, line: { color: 'EF4B1B' } } },
+            { text: { text: 'URBAPARK | OPERACIONES', options: { x: 0.45, y: 0.2, w: 4.5, h: 0.3, fontFace: 'Aptos', fontSize: 10, bold: true, color: '167AA8', margin: 0 } } },
+            { text: { text: `Periodo ${rango.mes}`, options: { x: 10.4, y: 0.2, w: 2.4, h: 0.3, fontSize: 9, color: '627482', align: 'right', margin: 0 } } }
+        ],
+        slideNumber: { x: 12.75, y: 7.1, color: '7B8791', fontSize: 8 }
+    });
+    const agregarTitulo = (slide, titulo, subtitulo = '') => {
+        slide.addText(titulo, { x: 0.55, y: 0.7, w: 12.2, h: 0.45, fontSize: 24, bold: true, color: '153B50', margin: 0 });
+        if (subtitulo) slide.addText(subtitulo, { x: 0.55, y: 1.18, w: 12.1, h: 0.35, fontSize: 11, color: '607483', margin: 0 });
+    };
+    let slide = pptx.addSlide('URBAPARK');
+    slide.background = { color: '12394E' };
+    slide.addText('INFORME GERENCIAL\nDE OPERACIONES', { x: 0.8, y: 1.55, w: 8.6, h: 1.7, fontSize: 32, bold: true, color: 'FFFFFF', breakLine: false, margin: 0 });
+    slide.addText(`Checklist operativo multisede | ${rango.mes}`, { x: 0.82, y: 3.45, w: 7.2, h: 0.45, fontSize: 16, color: '8ED8F2', margin: 0 });
+    slide.addText(`${analisis.total} checklists  |  ${analisis.cumplimiento.toFixed(1)}% cumplimiento`, { x: 0.82, y: 4.25, w: 8.5, h: 0.55, fontSize: 20, bold: true, color: 'FFB39A', margin: 0 });
+
+    slide = pptx.addSlide('URBAPARK');
+    agregarTitulo(slide, 'Resumen ejecutivo', 'Lectura gerencial del periodo seleccionado');
+    slide.addText(textoResumenEjecutivoOperaciones(analisis).map(texto => ({ text: texto, options: { bullet: { indent: 18 }, hanging: 4, breakLine: true } })), { x: 0.75, y: 1.7, w: 11.8, h: 4.6, fontSize: 18, color: '243746', breakLine: false, paraSpaceAfterPt: 16, margin: 0.08 });
+
+    slide = pptx.addSlide('URBAPARK');
+    agregarTitulo(slide, 'Benchmark de sedes', 'Ordenado por porcentaje de cumplimiento');
+    slide.addTable([
+        [{ text: 'Posicion' }, { text: 'Sede' }, { text: 'Checklists' }, { text: 'Cumplimiento' }, { text: 'Criticos' }, { text: '< 10 min' }],
+        ...analisis.sedes.map((sede, indice) => [String(indice + 1), sede.nombre, String(sede.total), `${sede.cumplimiento.toFixed(1)}%`, String(sede.criticos), String(sede.rapidos)])
+    ], { x: 0.65, y: 1.65, w: 12, h: 4.5, border: { type: 'solid', color: 'CAD6DE', pt: 1 }, fill: 'FFFFFF', color: '233746', fontSize: 14, margin: 0.08, rowH: 0.58, bold: false, autoFit: false, colW: [1, 3.8, 1.5, 2, 1.3, 1.4] });
+
+    slide = pptx.addSlide('URBAPARK');
+    agregarTitulo(slide, 'Puntos con menor cumplimiento', 'Prioridades para el plan de accion');
+    slide.addTable([
+        [{ text: 'Punto de control' }, { text: 'Seccion' }, { text: 'Criticidad' }, { text: 'No cumple' }, { text: 'Tasa' }],
+        ...analisis.menosCumplidos.slice(0, 8).map(item => [item.punto, item.seccion, item.criticidad, `${item.noCumple}/${item.evaluados}`, `${item.incumplimiento.toFixed(1)}%`])
+    ], { x: 0.55, y: 1.55, w: 12.2, h: 5.2, border: { type: 'solid', color: 'D5DEE5', pt: 1 }, fill: 'FFFFFF', color: '233746', fontSize: 11, margin: 0.07, rowH: 0.54, colW: [5.1, 2.5, 1.4, 1.5, 1.3] });
+
+    slide = pptx.addSlide('URBAPARK');
+    agregarTitulo(slide, 'Revisiones para validar', 'Checklists terminados en menos de 10 minutos');
+    const filasRapidas = analisis.rapidos.slice(0, 12).map(item => [item.fecha, obtenerNombreSede(item.sede), item.responsable_nombre, `${calcularDuracionChecklistOperaciones(item)} min`, `${Number(item.cumplimiento || 0).toFixed(1)}%`]);
+    slide.addTable([
+        [{ text: 'Fecha' }, { text: 'Sede' }, { text: 'Responsable' }, { text: 'Duracion' }, { text: 'Resultado' }],
+        ...(filasRapidas.length ? filasRapidas : [['-', 'Sin revisiones bajo el umbral', '-', '-', '-']])
+    ], { x: 0.6, y: 1.6, w: 12.1, h: 4.9, border: { type: 'solid', color: 'D5DEE5', pt: 1 }, fill: 'FFFFFF', color: '233746', fontSize: 12, margin: 0.08, rowH: 0.46, colW: [1.5, 3, 3.6, 1.5, 1.5] });
+
+    slide = pptx.addSlide('URBAPARK');
+    agregarTitulo(slide, 'Conclusiones y foco del siguiente mes');
+    const acciones = analisis.menosCumplidos.slice(0, 3).map((item, indice) => `${indice + 1}. Corregir ${item.punto.toLowerCase()} y verificar el cierre en cada sede.`);
+    if (analisis.rapidos.length) acciones.push('Validar con los responsables las revisiones inferiores a 10 minutos.');
+    acciones.push('Mantener seguimiento semanal del benchmark y de no conformidades criticas.');
+    slide.addText(acciones.map(texto => ({ text: texto, options: { breakLine: true, bullet: { indent: 18 } } })), { x: 0.8, y: 1.8, w: 11.6, h: 3.8, fontSize: 20, color: '243746', breakLine: false, paraSpaceAfterPt: 18, margin: 0.08 });
+    await pptx.writeFile({ fileName: `Informe-Operaciones-${rango.mes}.pptx` });
+}
+
+async function establecerPanelInformeGeneralOperaciones(abierto, registrarHistorial = true) {
+    const panel = obtenerElemento('operationsGeneralReportPanel');
+    const boton = obtenerElemento('openOperationsGeneralReport');
+    if (!panel || !boton || (abierto && !usuarioPuedeVerInformeGeneralOperaciones())) return;
+    panel.hidden = !abierto;
+    panel.classList.toggle('operations-subwindow-active', abierto);
+    document.body.classList.toggle('operations-subwindow-open', abierto);
+    boton.setAttribute('aria-expanded', String(abierto));
+    if (abierto) {
+        establecerPanelActivosOperaciones(false);
+        establecerPanelDashboardOperaciones(false);
+        const checklist = obtenerElemento('operationsChecklistPanel');
+        if (checklist) {
+            checklist.hidden = true;
+            checklist.classList.remove('operations-subwindow-active');
+        }
+        obtenerElemento('openOperationsChecklist')?.setAttribute('aria-expanded', 'false');
+        obtenerElemento('operationsGeneralMonth').value ||= fechaLocalISO().slice(0, 7);
+        await cargarInformeGeneralOperaciones();
+        if (registrarHistorial && window.history.state?.urbaparkOperationsPanel !== 'general') {
+            window.history.pushState({ ...(window.history.state || {}), urbaparkOperationsPanel: 'general' }, '', `${window.location.pathname}${window.location.search}#operaciones-informe`);
+        }
+        panel.scrollTop = 0;
+        panel.focus({ preventScroll: true });
+    } else {
+        panel.classList.remove('operations-subwindow-active');
+        if (!document.querySelector('.operations-subwindow-active')) document.body.classList.remove('operations-subwindow-open');
+    }
+}
+
+function cerrarPanelInformeGeneralOperaciones() {
+    if (window.history.state?.urbaparkOperationsPanel === 'general') window.history.back();
+    else establecerPanelInformeGeneralOperaciones(false, false);
 }
 
 function establecerPanelDashboardOperaciones(abierto) {
@@ -3111,7 +3453,12 @@ function establecerPanelDashboardOperaciones(abierto) {
     if (abierto) {
         establecerPanelActivosOperaciones(false);
         const checklistPanel = obtenerElemento('operationsChecklistPanel');
-        if (checklistPanel) checklistPanel.hidden = true;
+        if (checklistPanel) {
+            checklistPanel.hidden = true;
+            checklistPanel.classList.remove('operations-subwindow-active');
+        }
+        establecerPanelInformeGeneralOperaciones(false, false);
+        document.body.classList.remove('operations-subwindow-open');
         obtenerElemento('openOperationsChecklist')?.setAttribute('aria-expanded', 'false');
         configurarSelectSedesOperaciones();
         obtenerElemento('operationsDashboardMonth').value ||= fechaLocalISO().slice(0, 7);
@@ -6167,6 +6514,8 @@ async function aplicarSesion(session) {
     actualizarSesionUI();
     actualizarBotonAlertas();
     await cargarPerfilActual();
+    limpiarEvidenciasOperacionesVencidas();
+    configurarSelectSedesOperaciones();
     configurarSedeActivosOperaciones();
     await cargarActivosOperaciones();
     suscribirActivosOperaciones();
@@ -8836,7 +9185,7 @@ function configurarEventos() {
     obtenerElemento('createUserForm')?.addEventListener('submit', crearUsuarioDesdeAdmin);
     obtenerElemento('subscriberForm')?.addEventListener('submit', guardarSolicitudAbonado);
     obtenerElemento('openOperationsChecklist')?.addEventListener('click', () => establecerPanelChecklistOperaciones(true));
-    obtenerElemento('closeOperationsChecklist')?.addEventListener('click', () => establecerPanelChecklistOperaciones(false));
+    obtenerElemento('closeOperationsChecklist')?.addEventListener('click', cerrarPanelChecklistOperaciones);
     obtenerElemento('operationsChecklistForm')?.addEventListener('submit', finalizarChecklistOperaciones);
     obtenerElemento('discardOperationsChecklist')?.addEventListener('click', descartarBorradorChecklistOperaciones);
     obtenerElemento('operationsChecklistSite')?.addEventListener('change', event => cargarBorradorChecklistOperaciones(event.target.value));
@@ -8853,11 +9202,6 @@ function configurarEventos() {
             programarGuardadoChecklistOperaciones();
             return;
         }
-        const fotos = event.target.closest('input[type="file"][data-operations-photo-input]');
-        if (fotos?.files?.length) {
-            procesarFotosChecklistOperaciones(fotos.dataset.operationsPhotoInput, fotos.files);
-            fotos.value = '';
-        }
     });
     obtenerElemento('operationsChecklistSections')?.addEventListener('input', event => {
         const observacion = event.target.closest('textarea[data-operations-observation]');
@@ -8865,30 +9209,24 @@ function configurarEventos() {
         checklistOperacionesActual.observaciones[observacion.dataset.operationsObservation] = observacion.value;
         programarGuardadoChecklistOperaciones();
     });
-    obtenerElemento('operationsChecklistSections')?.addEventListener('click', event => {
-        const camara = event.target.closest('button[data-open-operations-camera]');
-        if (camara) {
-            obtenerElemento('operationsChecklistSections').querySelector(
-                `input[data-operations-photo-input="${CSS.escape(camara.dataset.openOperationsCamera)}"][data-photo-source="camera"]`
-            )?.click();
-            return;
-        }
-        const galeria = event.target.closest('button[data-open-operations-gallery]');
-        if (galeria) {
-            obtenerElemento('operationsChecklistSections').querySelector(
-                `input[data-operations-photo-input="${CSS.escape(galeria.dataset.openOperationsGallery)}"][data-photo-source="gallery"]`
-            )?.click();
-            return;
-        }
-        const quitar = event.target.closest('button[data-remove-operations-photo]');
-        if (quitar) eliminarFotoChecklistOperaciones(quitar.dataset.removeOperationsPhoto, quitar.dataset.photoPath);
-    });
+    obtenerElemento('shareLastOperationsChecklist')?.addEventListener('click', () => compartirPdfChecklistOperaciones(ultimoChecklistOperacionesFinalizado));
     obtenerElemento('openOperationsDashboard')?.addEventListener('click', () => establecerPanelDashboardOperaciones(true));
     obtenerElemento('closeOperationsDashboard')?.addEventListener('click', () => establecerPanelDashboardOperaciones(false));
     obtenerElemento('refreshOperationsDashboard')?.addEventListener('click', cargarDashboardOperaciones);
     obtenerElemento('operationsDashboardMonth')?.addEventListener('change', cargarDashboardOperaciones);
     obtenerElemento('operationsDashboardSite')?.addEventListener('change', cargarDashboardOperaciones);
     obtenerElemento('exportOperationsChecklistExcel')?.addEventListener('click', exportarChecklistOperacionesExcel);
+    obtenerElemento('operationsChecklistHistory')?.addEventListener('click', event => {
+        const boton = event.target.closest('button[data-share-operations-checklist]');
+        if (!boton) return;
+        compartirPdfChecklistOperaciones(historialChecklistsOperaciones.find(item => item.id === boton.dataset.shareOperationsChecklist));
+    });
+    obtenerElemento('openOperationsGeneralReport')?.addEventListener('click', () => establecerPanelInformeGeneralOperaciones(true));
+    obtenerElemento('closeOperationsGeneralReport')?.addEventListener('click', cerrarPanelInformeGeneralOperaciones);
+    obtenerElemento('refreshOperationsGeneralReport')?.addEventListener('click', cargarInformeGeneralOperaciones);
+    obtenerElemento('operationsGeneralMonth')?.addEventListener('change', cargarInformeGeneralOperaciones);
+    obtenerElemento('exportOperationsGeneralPdf')?.addEventListener('click', exportarInformeGeneralOperacionesPdf);
+    obtenerElemento('exportOperationsGeneralPptx')?.addEventListener('click', exportarInformeGeneralOperacionesPptx);
     obtenerElemento('openOperationsAssets')?.addEventListener('click', () => establecerPanelActivosOperaciones(true));
     obtenerElemento('closeOperationsAssets')?.addEventListener('click', () => establecerPanelActivosOperaciones(false));
     obtenerElemento('addOperationsAsset')?.addEventListener('click', () => establecerFormularioActivoOperaciones(true));
@@ -9353,6 +9691,20 @@ window.addEventListener('popstate', event => {
         desplazar: false,
         registrarHistorial: false
     });
+    const panelOperaciones = event.state?.urbaparkOperationsPanel || '';
+    const checklist = obtenerElemento('operationsChecklistPanel');
+    const general = obtenerElemento('operationsGeneralReportPanel');
+    if (checklist) {
+        checklist.hidden = panelOperaciones !== 'checklist';
+        checklist.classList.toggle('operations-subwindow-active', panelOperaciones === 'checklist');
+    }
+    if (general) {
+        general.hidden = panelOperaciones !== 'general';
+        general.classList.toggle('operations-subwindow-active', panelOperaciones === 'general');
+    }
+    document.body.classList.toggle('operations-subwindow-open', ['checklist', 'general'].includes(panelOperaciones));
+    obtenerElemento('openOperationsChecklist')?.setAttribute('aria-expanded', String(panelOperaciones === 'checklist'));
+    obtenerElemento('openOperationsGeneralReport')?.setAttribute('aria-expanded', String(panelOperaciones === 'general'));
 });
 
 if ('serviceWorker' in navigator) {
