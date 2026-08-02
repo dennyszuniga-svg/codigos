@@ -499,6 +499,7 @@ let historialChecklistsOperaciones = [];
 let ultimoChecklistOperacionesFinalizado = null;
 let informeGeneralOperaciones = [];
 let temporizadorChecklistOperaciones = null;
+let temporizadorVentanaChecklistOperaciones = null;
 let sedeActivaPorModulo = {
     mantenimiento: 'puruchuco',
     caja: 'gama',
@@ -2564,20 +2565,93 @@ function horaLocal(fecha = new Date()) {
     return `${String(fecha.getHours()).padStart(2, '0')}:${String(fecha.getMinutes()).padStart(2, '0')}`;
 }
 
+const VENTANAS_CHECKLIST_OPERACIONES = Object.freeze({
+    apertura: { etiqueta: 'Apertura', inicio: '05:00', puntualHasta: '10:00', cierre: '14:00' },
+    intermedio: { etiqueta: 'Intermedio', inicio: '14:00', puntualHasta: '15:00', cierre: '18:00' },
+    cierre: { etiqueta: 'Cierre', inicio: '18:00', puntualHasta: '23:00', cierre: '02:00' }
+});
+
+function minutosDelDia(fecha = new Date()) {
+    return fecha.getHours() * 60 + fecha.getMinutes();
+}
+
+function restarDiasFechaLocal(fecha, dias) {
+    const copia = new Date(fecha);
+    copia.setDate(copia.getDate() - dias);
+    return fechaLocalISO(copia);
+}
+
+function obtenerVentanaChecklistOperaciones(fecha = new Date()) {
+    const minutos = minutosDelDia(fecha);
+    let turno = '';
+    let estado = 'cerrado';
+    let fechaOperativa = fechaLocalISO(fecha);
+
+    if (minutos >= 5 * 60 && minutos < 14 * 60) {
+        turno = 'apertura';
+        estado = minutos < 10 * 60 ? 'a_tiempo' : 'tardanza';
+    } else if (minutos >= 14 * 60 && minutos < 18 * 60) {
+        turno = 'intermedio';
+        estado = minutos < 15 * 60 ? 'a_tiempo' : 'tardanza';
+    } else if (minutos >= 18 * 60) {
+        turno = 'cierre';
+        estado = minutos < 23 * 60 ? 'a_tiempo' : 'tardanza';
+    } else if (minutos < 2 * 60) {
+        turno = 'cierre';
+        estado = 'tardanza';
+        fechaOperativa = restarDiasFechaLocal(fecha, 1);
+    }
+
+    const configuracion = turno ? VENTANAS_CHECKLIST_OPERACIONES[turno] : null;
+    return {
+        turno,
+        estado,
+        fechaOperativa,
+        habilitado: estado !== 'cerrado',
+        configuracion,
+        mensaje: configuracion
+            ? `${configuracion.etiqueta}: ${estado === 'a_tiempo' ? 'a tiempo' : 'con tardanza'}. Ventana ${configuracion.inicio}-${configuracion.cierre}; puntual hasta ${configuracion.puntualHasta}.`
+            : 'Checklist cerrado. El siguiente turno de apertura se habilita a las 05:00.'
+    };
+}
+
+function obtenerEstadoHorarioRegistroOperaciones(registro, fecha = new Date()) {
+    const ventana = obtenerVentanaChecklistOperaciones(fecha);
+    if (!registro?.turno) return ventana;
+    const corresponde = ventana.habilitado
+        && registro.turno === ventana.turno
+        && registro.fecha === ventana.fechaOperativa;
+    return corresponde
+        ? ventana
+        : { ...ventana, habilitado: false, estado: 'cerrado', mensaje: `El turno ${VENTANAS_CHECKLIST_OPERACIONES[registro.turno]?.etiqueta || registro.turno} de este borrador ya cerro. El avance queda conservado, pero no puede modificarse ni finalizarse.` };
+}
+
+function obtenerPuntualidadChecklistOperaciones(registro) {
+    if (registro?.estado_horario) return registro.estado_horario;
+    if (registro?.observaciones?.__estado_horario) return registro.observaciones.__estado_horario;
+    if (registro?.inicio_at) {
+        const estadoInferido = obtenerVentanaChecklistOperaciones(new Date(registro.inicio_at)).estado;
+        return estadoInferido === 'cerrado' ? '' : estadoInferido;
+    }
+    return '';
+}
+
 function crearEstadoNuevoChecklistOperaciones(sede) {
     const ahora = new Date();
+    const ventana = obtenerVentanaChecklistOperaciones(ahora);
     return {
         id: null,
         sede,
-        fecha: fechaLocalISO(ahora),
+        fecha: ventana.fechaOperativa,
         inicio_at: ahora.toISOString(),
         responsable_id: sesionActual?.user?.id || '',
         responsable_nombre: obtenerNombreUsuarioActivo(),
         responsable_rol: perfilActual?.rol || '',
-        turno: '',
+        turno: ventana.turno,
+        estado_horario: ventana.estado,
         estado: 'borrador',
         respuestas: {},
-        observaciones: {},
+        observaciones: { __estado_horario: ventana.estado },
         evidencias: {}
     };
 }
@@ -2621,12 +2695,15 @@ function actualizarBannerBorradorOperaciones(mensaje = 'El avance se guarda auto
 
 async function cargarBorradorChecklistOperaciones(sede) {
     checklistOperacionesActual = crearEstadoNuevoChecklistOperaciones(sede);
-    if (supabaseClient && sesionActual?.user) {
+    const ventana = obtenerVentanaChecklistOperaciones();
+    if (supabaseClient && sesionActual?.user && ventana.habilitado) {
         const { data, error } = await supabaseClient
             .from('operaciones_checklists')
             .select('*')
             .eq('responsable_id', sesionActual.user.id)
             .eq('sede', sede)
+            .eq('fecha', ventana.fechaOperativa)
+            .eq('turno', ventana.turno)
             .eq('estado', 'borrador')
             .order('updated_at', { ascending: false })
             .limit(1)
@@ -2636,6 +2713,7 @@ async function cargarBorradorChecklistOperaciones(sede) {
             actualizarBannerBorradorOperaciones('No se pudo consultar el borrador remoto.', 'error');
         } else if (data) {
             checklistOperacionesActual = data;
+            checklistOperacionesActual.estado_horario = obtenerPuntualidadChecklistOperaciones(data);
             actualizarBannerBorradorOperaciones('Borrador recuperado automaticamente.', 'success');
         }
     }
@@ -2676,6 +2754,12 @@ function renderizarChecklistOperaciones() {
     obtenerElemento('operationsChecklistResponsible').value = registro.responsable_nombre;
     obtenerElemento('operationsChecklistRole').value = obtenerEtiquetaRol(registro.responsable_rol);
     obtenerElemento('operationsChecklistShift').value = registro.turno || '';
+    const estadoHorario = obtenerEstadoHorarioRegistroOperaciones(registro);
+    const estadoVentana = obtenerElemento('operationsShiftWindowStatus');
+    if (estadoVentana) {
+        estadoVentana.textContent = estadoHorario.mensaje;
+        estadoVentana.dataset.status = estadoHorario.estado;
+    }
 
     obtenerSeccionesChecklistOperaciones(registro.sede).forEach(seccion => {
         const tarjeta = document.createElement('section');
@@ -2726,6 +2810,45 @@ function renderizarChecklistOperaciones() {
         contenedor.appendChild(tarjeta);
     });
     actualizarProgresoChecklistOperaciones();
+    establecerBloqueoHorarioChecklistOperaciones(!estadoHorario.habilitado);
+}
+
+function establecerBloqueoHorarioChecklistOperaciones(bloqueado) {
+    const formulario = obtenerElemento('operationsChecklistForm');
+    if (!formulario) return;
+    formulario.querySelectorAll('#operationsChecklistSections input, #operationsChecklistSections textarea').forEach(control => {
+        control.disabled = bloqueado;
+    });
+    const finalizar = obtenerElemento('finishOperationsChecklist');
+    if (finalizar) finalizar.disabled = bloqueado;
+    formulario.classList.toggle('is-time-locked', bloqueado);
+}
+
+function actualizarControlHorarioChecklistOperaciones() {
+    if (!checklistOperacionesActual) return;
+    const ventanaActual = obtenerVentanaChecklistOperaciones();
+    const sinAvance = !checklistOperacionesActual.id
+        && Object.keys(checklistOperacionesActual.respuestas || {}).length === 0;
+    if (sinAvance && ventanaActual.habilitado && (
+        checklistOperacionesActual.turno !== ventanaActual.turno
+        || checklistOperacionesActual.fecha !== ventanaActual.fechaOperativa
+    )) {
+        checklistOperacionesActual.turno = ventanaActual.turno;
+        checklistOperacionesActual.fecha = ventanaActual.fechaOperativa;
+        checklistOperacionesActual.inicio_at = new Date().toISOString();
+        checklistOperacionesActual.estado_horario = ventanaActual.estado;
+        checklistOperacionesActual.observaciones.__estado_horario = ventanaActual.estado;
+        obtenerElemento('operationsChecklistShift').value = ventanaActual.turno;
+        obtenerElemento('operationsChecklistDate').value = ventanaActual.fechaOperativa;
+        obtenerElemento('operationsChecklistStartTime').value = horaLocal();
+    }
+    const estadoHorario = obtenerEstadoHorarioRegistroOperaciones(checklistOperacionesActual);
+    const estadoVentana = obtenerElemento('operationsShiftWindowStatus');
+    if (estadoVentana) {
+        estadoVentana.textContent = estadoHorario.mensaje;
+        estadoVentana.dataset.status = estadoHorario.estado;
+    }
+    establecerBloqueoHorarioChecklistOperaciones(!estadoHorario.habilitado);
 }
 
 function calcularResumenChecklistOperaciones(registro = checklistOperacionesActual) {
@@ -2773,9 +2896,9 @@ async function asegurarRegistroChecklistOperaciones() {
         respuestas: registro.respuestas,
         observaciones: registro.observaciones,
         evidencias: registro.evidencias
-    }).select('id').single();
+    }).select('*').single();
     if (error) throw error;
-    registro.id = data.id;
+    Object.assign(registro, data);
     return data.id;
 }
 
@@ -2787,7 +2910,12 @@ function programarGuardadoChecklistOperaciones() {
 
 async function guardarBorradorChecklistOperaciones() {
     if (!checklistOperacionesActual || checklistOperacionesActual.estado !== 'borrador') return;
+    if (!obtenerEstadoHorarioRegistroOperaciones(checklistOperacionesActual).habilitado) {
+        actualizarBannerBorradorOperaciones('Turno cerrado. El borrador se conserva sin nuevos cambios.', 'error');
+        return;
+    }
     try {
+        checklistOperacionesActual.observaciones.__estado_horario = checklistOperacionesActual.estado_horario;
         await asegurarRegistroChecklistOperaciones();
         const resumen = calcularResumenChecklistOperaciones();
         const { error } = await supabaseClient.from('operaciones_checklists').update({
@@ -2813,6 +2941,8 @@ async function guardarBorradorChecklistOperaciones() {
 function validarChecklistOperaciones() {
     const registro = checklistOperacionesActual;
     const resumen = calcularResumenChecklistOperaciones(registro);
+    const estadoHorario = obtenerEstadoHorarioRegistroOperaciones(registro);
+    if (!estadoHorario.habilitado) return estadoHorario.mensaje;
     if (!registro?.turno) return 'Selecciona el turno de la revision.';
     if (resumen.revisados !== resumen.total) return `Faltan ${resumen.total - resumen.revisados} puntos por revisar.`;
     for (const seccion of obtenerSeccionesChecklistOperaciones(registro.sede)) {
@@ -2901,12 +3031,16 @@ async function establecerPanelChecklistOperaciones(abierto) {
         establecerPanelInformeGeneralOperaciones(false, false);
         configurarSelectSedesOperaciones();
         await cargarBorradorChecklistOperaciones(obtenerSedeChecklistOperaciones());
+        window.clearInterval(temporizadorVentanaChecklistOperaciones);
+        temporizadorVentanaChecklistOperaciones = window.setInterval(actualizarControlHorarioChecklistOperaciones, 30000);
         panel.scrollTop = 0;
         if (window.history.state?.urbaparkOperationsPanel !== 'checklist') {
             window.history.pushState({ ...(window.history.state || {}), urbaparkOperationsPanel: 'checklist' }, '', `${window.location.pathname}${window.location.search}#operaciones-checklist`);
         }
         panel.focus({ preventScroll: true });
     } else {
+        window.clearInterval(temporizadorVentanaChecklistOperaciones);
+        temporizadorVentanaChecklistOperaciones = null;
         panel.classList.remove('operations-subwindow-active');
         if (!document.querySelector('.operations-subwindow-active')) document.body.classList.remove('operations-subwindow-open');
         boton.focus({ preventScroll: true });
@@ -2960,6 +3094,7 @@ function renderizarDashboardOperaciones() {
     obtenerElemento('operationsKpiCompliance').textContent = `${promedio.toFixed(1)}%`;
     obtenerElemento('operationsKpiFailures').textContent = String(totalNoCumple);
     obtenerElemento('operationsKpiCritical').textContent = String(totalCriticos);
+    obtenerElemento('operationsKpiLate').textContent = String(registros.filter(item => obtenerPuntualidadChecklistOperaciones(item) === 'tardanza').length);
 
     const resumenSecciones = obtenerElemento('operationsSectionKpis');
     limpiarElemento(resumenSecciones);
@@ -2990,7 +3125,9 @@ function renderizarDashboardOperaciones() {
         const compartir = document.createElement('button');
         tarjeta.className = 'operations-history-item';
         cabecera.append(crearTextoElemento('h3', registro.responsable_nombre), crearTextoElemento('span', obtenerEtiquetaRol(registro.responsable_rol)));
-        datos.textContent = `${registro.fecha} - ${String(registro.turno || '').toUpperCase()} - ${registro.no_cumple_items || 0} no conformidades`;
+        const estadoPuntualidad = obtenerPuntualidadChecklistOperaciones(registro);
+        const puntualidad = estadoPuntualidad === 'tardanza' ? 'TARDANZA' : estadoPuntualidad === 'a_tiempo' ? 'A TIEMPO' : 'SIN CLASIFICAR';
+        datos.textContent = `${registro.fecha} - ${String(registro.turno || '').toUpperCase()} - ${puntualidad} - ${registro.no_cumple_items || 0} no conformidades`;
         resultado.textContent = `${Number(registro.cumplimiento || 0).toFixed(1)}%`;
         resultado.className = Number(registro.criticos_no_cumple || 0) ? 'has-critical' : '';
         compartir.type = 'button';
@@ -3017,6 +3154,7 @@ function exportarChecklistOperacionesExcel() {
         Responsable: registro.responsable_nombre,
         Cargo: obtenerEtiquetaRol(registro.responsable_rol),
         Turno: registro.turno,
+        Puntualidad: obtenerPuntualidadChecklistOperaciones(registro) === 'tardanza' ? 'Tardanza' : obtenerPuntualidadChecklistOperaciones(registro) === 'a_tiempo' ? 'A tiempo' : 'Sin clasificar',
         'Cumplimiento (%)': Number(registro.cumplimiento || 0),
         'No conformidades': Number(registro.no_cumple_items || 0),
         'Criticos no conformes': Number(registro.criticos_no_cumple || 0)
@@ -3111,7 +3249,10 @@ async function crearPdfChecklistOperaciones(registro) {
     );
     const duracion = calcularDuracionChecklistOperaciones(registro);
     reporte.escribir(`Responsable: ${registro.responsable_nombre}`, { bold: true });
-    reporte.escribir(`Cargo: ${obtenerEtiquetaRol(registro.responsable_rol)} | Inicio: ${formatearFechaHoraReporte(registro.inicio_at)} | Fin: ${formatearFechaHoraReporte(registro.fin_at)} | Duracion: ${duracion} min`);
+    const estadoPuntualidad = obtenerPuntualidadChecklistOperaciones(registro);
+    const puntualidad = estadoPuntualidad === 'tardanza' ? 'TARDANZA' : estadoPuntualidad === 'a_tiempo' ? 'A TIEMPO' : 'SIN CLASIFICAR';
+    reporte.escribir(`Cargo: ${obtenerEtiquetaRol(registro.responsable_rol)} | Estado horario: ${puntualidad}`);
+    reporte.escribir(`Inicio: ${formatearFechaHoraReporte(registro.inicio_at)} | Fin: ${formatearFechaHoraReporte(registro.fin_at)} | Duracion: ${duracion} min`);
     reporte.escribir(`Cumplimiento: ${Number(registro.cumplimiento || calcularResumenChecklistOperaciones(registro).cumplimiento).toFixed(1)}%`, { size: 13, bold: true, color: reporte.rgb(0.05, 0.48, 0.29), after: 8 });
     obtenerSeccionesChecklistOperaciones(registro.sede).forEach(seccion => {
         reporte.escribir(seccion.nombre.toUpperCase(), { size: 12, bold: true, color: reporte.rgb(0.94, 0.29, 0.11), after: 4 });
@@ -3222,7 +3363,8 @@ function calcularAnalisisGeneralOperaciones(registros) {
         rapidos,
         total: registros.length,
         cumplimiento: totalCumple + totalNoCumple ? (totalCumple / (totalCumple + totalNoCumple)) * 100 : 0,
-        criticos: registros.reduce((suma, item) => suma + Number(item.criticos_no_cumple || 0), 0)
+        criticos: registros.reduce((suma, item) => suma + Number(item.criticos_no_cumple || 0), 0),
+        tardanzas: registros.filter(item => obtenerPuntualidadChecklistOperaciones(item) === 'tardanza').length
     };
 }
 
@@ -3260,6 +3402,7 @@ function renderizarInformeGeneralOperaciones() {
         ['Cumplimiento general', `${analisis.cumplimiento.toFixed(1)}%`],
         ['Mejor sede', mejor?.nombre || 'Sin datos'],
         ['Criticos no conformes', analisis.criticos],
+        ['Checklists con tardanza', analisis.tardanzas],
         ['Revisiones < 10 min', analisis.rapidos.length]
     ];
     tarjetas.forEach(([etiqueta, valor]) => {
@@ -9189,11 +9332,6 @@ function configurarEventos() {
     obtenerElemento('operationsChecklistForm')?.addEventListener('submit', finalizarChecklistOperaciones);
     obtenerElemento('discardOperationsChecklist')?.addEventListener('click', descartarBorradorChecklistOperaciones);
     obtenerElemento('operationsChecklistSite')?.addEventListener('change', event => cargarBorradorChecklistOperaciones(event.target.value));
-    obtenerElemento('operationsChecklistShift')?.addEventListener('change', event => {
-        if (!checklistOperacionesActual) return;
-        checklistOperacionesActual.turno = event.target.value;
-        programarGuardadoChecklistOperaciones();
-    });
     obtenerElemento('operationsChecklistSections')?.addEventListener('change', event => {
         const resultado = event.target.closest('input[type="radio"][data-operations-item]');
         if (resultado && checklistOperacionesActual) {

@@ -4502,9 +4502,34 @@ body.operations-subwindow-open .bottom-nav { display: none !important; }
 .operations-checklist-footer { margin-top: 15px; padding: 14px; border: 1px solid #d7e0e7; background: #f3f7f9; }
 .operations-checklist-footer > div { display: grid; gap: 3px; }
 .operations-checklist-footer span { color: #607383; font-size: 0.82rem; }
+.operations-shift-window {
+    padding: 11px 14px;
+    border: 1px solid #b9d9e8;
+    border-left: 5px solid #159bd3;
+    border-radius: 6px;
+    background: #eef8fc;
+    color: #17384a;
+    font-weight: 700;
+}
+.operations-shift-window[data-status="tardanza"] {
+    border-color: #f0cf92;
+    border-left-color: #c98316;
+    background: #fff6e4;
+    color: #79500d;
+}
+.operations-shift-window[data-status="cerrado"] {
+    border-color: #efb6b0;
+    border-left-color: #c93c3c;
+    background: #fff0ef;
+    color: #842a2a;
+}
+.operations-checklist-form.is-time-locked .operations-checklist-sections { opacity: 0.68; }
+body.dark-theme .operations-shift-window { background: #173445; color: #eaf8ff; border-color: #31576d; }
+body.dark-theme .operations-shift-window[data-status="tardanza"] { background: #3a2c15; color: #ffe6b3; border-color: #73551f; }
+body.dark-theme .operations-shift-window[data-status="cerrado"] { background: #3b2022; color: #ffd2cf; border-color: #764044; }
 
 .operations-dashboard-filters { grid-template-columns: minmax(150px, 1fr) minmax(180px, 1fr) auto auto; align-items: end; }
-.operations-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin: 14px 0; }
+.operations-kpi-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; margin: 14px 0; }
 .operations-kpi-grid article { padding: 13px; border: 1px solid #d3dee6; border-left: 4px solid #1596cf; background: #f7fafc; }
 .operations-kpi-grid article.critical { border-left-color: #d92d20; }
 .operations-kpi-grid span { display: block; color: #5b6d7c; font-size: 0.8rem; font-weight: 750; }
@@ -4527,7 +4552,7 @@ body.operations-subwindow-open .bottom-nav { display: none !important; }
     margin: 16px 0;
 }
 .operations-general-toolbar label { display: grid; gap: 5px; font-weight: 800; color: #263b4d; }
-.operations-executive-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.operations-executive-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
 .operations-executive-summary article { padding: 12px; border: 1px solid #d3dee6; border-top: 4px solid #1596cf; background: #f7fafc; }
 .operations-executive-summary span { display: block; color: #5b6d7c; font-size: 0.76rem; font-weight: 750; }
 .operations-executive-summary strong { display: block; margin-top: 5px; color: #172c3d; font-size: 1.05rem; }

@@ -825,8 +825,8 @@
                             <label>Hora de inicio<input id="operationsChecklistStartTime" type="time" readonly></label>
                             <label>Responsable<input id="operationsChecklistResponsible" type="text" readonly></label>
                             <label>Cargo<input id="operationsChecklistRole" type="text" readonly></label>
-                            <label>Turno
-                                <select id="operationsChecklistShift" required>
+                            <label>Turno automatico
+                                <select id="operationsChecklistShift" required disabled aria-describedby="operationsShiftWindowStatus">
                                     <option value="">Seleccionar</option>
                                     <option value="apertura">Apertura</option>
                                     <option value="intermedio">Intermedio</option>
@@ -834,6 +834,7 @@
                                 </select>
                             </label>
                         </div>
+                        <div class="operations-shift-window" id="operationsShiftWindowStatus" role="status" aria-live="polite"></div>
                         <div class="operations-draft-banner" id="operationsDraftBanner" role="status" aria-live="polite">El avance se guarda automaticamente.</div>
                         <div id="operationsChecklistSections" class="operations-checklist-sections"></div>
                         <div class="operations-checklist-footer">
@@ -889,6 +890,7 @@
                         <article><span>Cumplimiento</span><strong id="operationsKpiCompliance">0%</strong></article>
                         <article><span>No conformidades</span><strong id="operationsKpiFailures">0</strong></article>
                         <article class="critical"><span>Criticos pendientes</span><strong id="operationsKpiCritical">0</strong></article>
+                        <article><span>Con tardanza</span><strong id="operationsKpiLate">0</strong></article>
                     </div>
                     <div id="operationsSectionKpis" class="operations-section-kpis"></div>
                     <div id="operationsChecklistHistory" class="operations-checklist-history" aria-live="polite"></div>
