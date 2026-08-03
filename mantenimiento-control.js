@@ -1070,10 +1070,6 @@ async function exportMaintenanceMonthlyPptx() {
                     ['Equipo', 'Tipo', 'Fecha', 'Horario', 'Duracion', 'Tecnico', 'Detalle'],
                     ...tableRows
                 ], { x: 0.48, y: 1.57, w: 12.35, h: 4.95, border: { type: 'solid', color: 'CAD6DE', pt: 0.8 }, fill: 'FFFFFF', color: '233746', fontSize: 9.2, margin: 0.055, rowH: 0.57, colW: [2.15, 1.55, 1.1, 1.3, 0.9, 1.65, 3.7], autoFit: false, valign: 'mid' });
-                pptMetric(slide, pptx, 0.72, 6.37, 2.65, 'COBERTURA', `${site.maintained}/${site.base} (${site.coverage.toFixed(1)}%)`, site.coverage >= 95 ? colors.green : colors.orange);
-                pptMetric(slide, pptx, 3.57, 6.37, 2.65, 'CORRECTIVOS', String(site.failures), site.failures ? colors.red : colors.green);
-                pptMetric(slide, pptx, 6.42, 6.37, 2.65, 'PARADA', `${site.downtime.toFixed(1)} h`, site.downtime ? colors.red : colors.green);
-                pptMetric(slide, pptx, 9.27, 6.37, 2.65, 'DISPONIBILIDAD', `${site.availability.toFixed(2)}%`, site.availability >= 99 ? colors.green : colors.orange);
             }
         });
 
