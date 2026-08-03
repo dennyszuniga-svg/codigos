@@ -1,5 +1,5 @@
 const LOGO_SRC = 'assets/urbapark-logo.png';
-const PUBLIC_LOGO_SRC = 'https://dennyszuniga-svg.github.io/codigos/assets/urbapark-logo.png';
+const PUBLIC_LOGO_SRC = new URL('assets/urbapark-logo.png', window.location.href).href;
 const APP_CONTEXT = readAppContext();
 const DRAFT_KEY = `urbapark-intervention-draft-v3:${APP_CONTEXT.usuarioId || 'sin-usuario'}`;
 const DRAFT_DB_NAME = 'urbapark-intervention-drafts';

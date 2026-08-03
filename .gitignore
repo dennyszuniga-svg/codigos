@@ -9,6 +9,9 @@ supabase/.temp/
 .env.*
 !.env.example
 
+# Salida generada para Cloudflare Pages/Workers
+dist/
+
 # Sistema operativo
 Thumbs.db
 ehthumbs.db

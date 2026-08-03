@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codigos-urbapark-v111';
+const CACHE_NAME = 'codigos-urbapark-v112';
 const APP_SHELL = [
     './',
     './index.html',
@@ -116,7 +116,7 @@ self.addEventListener('notificationclick', event => {
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true })
             .then(clientList => {
-                const appClient = clientList.find(client => client.url.includes('/codigos/'));
+                const appClient = clientList.find(client => client.url.startsWith(self.location.origin));
 
                 if (appClient) {
                     return appClient.navigate(destino).then(() => appClient.focus());
