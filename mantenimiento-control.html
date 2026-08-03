@@ -7,6 +7,8 @@
     <title>URBAPARK - Centro de control</title>
     <link rel="stylesheet" href="mantenimiento-control.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script src="assets/jszip.min.js" defer></script>
+    <script src="assets/pptxgen.min.js" defer></script>
     <script src="mantenimiento-control.js" defer></script>
 </head>
 <body>
@@ -27,7 +29,11 @@
             <button id="refreshControl" type="button">Actualizar</button>
             <button id="exportGeneralCsv" type="button">Exportar CSV</button>
             <button id="exportGeneralPdf" type="button">Generar PDF</button>
+            <button id="exportMaintenanceMonthlyPptx" class="pptx-export-button" type="button" hidden aria-describedby="maintenancePptxStatus">
+                <span aria-hidden="true">&#8681;</span> PowerPoint mensual
+            </button>
         </section>
+        <p id="maintenancePptxStatus" class="status pptx-export-status" role="status" aria-live="polite"></p>
 
         <nav class="control-tabs" aria-label="Vistas de mantenimiento">
             <button type="button" data-control-tab="dashboard" aria-selected="true">Dashboard</button>

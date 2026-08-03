@@ -848,6 +848,309 @@ function csvCell(value) {
     return `"${String(value ?? '').replace(/"/g, '""')}"`;
 }
 
+const MAINTENANCE_EQUIPMENT_BASE = {
+    civico: 8,
+    primavera: 12,
+    puruchuco: 15,
+    salaverry: 18
+};
+
+const MONTH_NAMES = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+
+function maintenanceMonthLabel() {
+    const [year, month] = monthValue().split('-').map(Number);
+    return `${MONTH_NAMES[month - 1]} ${year}`;
+}
+
+function maintenanceMonthRange() {
+    const [year, month] = monthValue().split('-').map(Number);
+    const start = new Date(Date.UTC(year, month - 1, 1));
+    const end = new Date(Date.UTC(year, month, 1));
+    return {
+        start: start.toISOString(),
+        end: end.toISOString(),
+        days: new Date(Date.UTC(year, month, 0)).getUTCDate(),
+        year,
+        month
+    };
+}
+
+function normalizeMaintenanceType(value) {
+    return String(value || '').toLowerCase().replace(/[^a-z]/g, '');
+}
+
+function isMonthlyPreventive(item) {
+    return normalizeMaintenanceType(item.tipo_mantenimiento) === 'preventivomensual';
+}
+
+function isCorrective(item) {
+    return normalizeMaintenanceType(item.tipo_mantenimiento) === 'correctivo';
+}
+
+function reportDurationHours(item) {
+    return Math.max(0, Number(item.duracion_minutos || 0)) / 60;
+}
+
+function calculateMaintenancePresentation(rows) {
+    const range = maintenanceMonthRange();
+    const sites = Object.keys(MAINTENANCE_EQUIPMENT_BASE).map(site => {
+        const reports = rows.filter(item => item.sede === site);
+        const preventive = reports.filter(isMonthlyPreventive);
+        const corrective = reports.filter(isCorrective);
+        const maintained = new Set(preventive.map(item => item.equipo_codigo || item.equipo_nombre).filter(Boolean)).size;
+        const base = MAINTENANCE_EQUIPMENT_BASE[site];
+        const downtime = corrective.reduce((sum, item) => sum + reportDurationHours(item), 0);
+        const availableHours = base * range.days * 24;
+        const failures = corrective.length;
+        return {
+            id: site,
+            name: siteName(site),
+            reports,
+            preventive,
+            corrective,
+            other: reports.filter(item => !isMonthlyPreventive(item) && !isCorrective(item)),
+            maintained,
+            base,
+            coverage: base ? Math.min(100, maintained / base * 100) : 0,
+            downtime,
+            failures,
+            mttr: failures ? downtime / failures : null,
+            mtbf: failures ? Math.max(0, availableHours - downtime) / failures : null,
+            availability: availableHours ? Math.max(0, availableHours - downtime) / availableHours * 100 : 100,
+            availableHours
+        };
+    });
+    const totalBase = sites.reduce((sum, site) => sum + site.base, 0);
+    const totalMaintained = sites.reduce((sum, site) => sum + site.maintained, 0);
+    const totalDowntime = sites.reduce((sum, site) => sum + site.downtime, 0);
+    const totalFailures = sites.reduce((sum, site) => sum + site.failures, 0);
+    const totalAvailableHours = sites.reduce((sum, site) => sum + site.availableHours, 0);
+    const correctiveRows = rows.filter(isCorrective).sort((a, b) => reportDurationHours(b) - reportDurationHours(a));
+    return {
+        range,
+        sites,
+        rows,
+        totalBase,
+        totalMaintained,
+        totalPreventive: rows.filter(isMonthlyPreventive).length,
+        totalCorrective: rows.filter(isCorrective).length,
+        totalOther: rows.filter(item => !isMonthlyPreventive(item) && !isCorrective(item)).length,
+        totalDowntime,
+        totalFailures,
+        totalAvailableHours,
+        coverage: totalBase ? Math.min(100, totalMaintained / totalBase * 100) : 0,
+        availability: totalAvailableHours ? Math.max(0, totalAvailableHours - totalDowntime) / totalAvailableHours * 100 : 100,
+        mttr: totalFailures ? totalDowntime / totalFailures : null,
+        mtbf: totalFailures ? Math.max(0, totalAvailableHours - totalDowntime) / totalFailures : null,
+        largestCorrective: correctiveRows[0] || null
+    };
+}
+
+function pptMetric(slide, pptx, x, y, w, label, value, color) {
+    slide.addShape(pptx.ShapeType.roundRect, { x, y, w, h: 1.05, rectRadius: 0.05, fill: { color: 'FFFFFF', transparency: 4 }, line: { color, pt: 1.4 }, radius: 0.05 });
+    slide.addText(value, { x: x + 0.12, y: y + 0.16, w: w - 0.24, h: 0.42, fontSize: 22, bold: true, color, margin: 0, align: 'center', fit: 'shrink' });
+    slide.addText(label, { x: x + 0.1, y: y + 0.65, w: w - 0.2, h: 0.22, fontSize: 8.5, bold: true, color: '566775', margin: 0, align: 'center', fit: 'shrink' });
+}
+
+function pptBar(slide, pptx, y, label, value, maximum, valueLabel, color) {
+    const width = 7.6;
+    const ratio = maximum > 0 ? Math.max(0, Math.min(1, value / maximum)) : 0;
+    slide.addText(label, { x: 0.75, y, w: 3.1, h: 0.3, fontSize: 13, bold: true, color: '243746', margin: 0, fit: 'shrink' });
+    slide.addShape(pptx.ShapeType.roundRect, { x: 3.8, y: y + 0.02, w: width, h: 0.28, fill: { color: 'E5EBF0' }, line: { color: 'E5EBF0' }, radius: 0.04 });
+    if (ratio > 0) slide.addShape(pptx.ShapeType.roundRect, { x: 3.8, y: y + 0.02, w: Math.max(0.08, width * ratio), h: 0.28, fill: { color }, line: { color }, radius: 0.04 });
+    slide.addText(valueLabel, { x: 11.55, y: y - 0.01, w: 1.05, h: 0.32, fontSize: 12, bold: true, color, align: 'right', margin: 0 });
+}
+
+function formatMaintenanceDate(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('es-PE');
+}
+
+function maintenanceDetailRows(site) {
+    return [...site.preventive, ...site.corrective]
+        .sort((a, b) => new Date(a.fecha_guardado) - new Date(b.fecha_guardado));
+}
+
+async function exportMaintenanceMonthlyPptx() {
+    const button = byId('exportMaintenanceMonthlyPptx');
+    const status = byId('maintenancePptxStatus');
+    if (!isSuperior()) return;
+    if (!window.PptxGenJS) {
+        status.textContent = 'No se pudo cargar el generador de PowerPoint. Actualiza la pagina.';
+        status.dataset.state = 'error';
+        return;
+    }
+    button.disabled = true;
+    status.textContent = 'Consultando todas las sedes y preparando la presentacion...';
+    status.dataset.state = '';
+    try {
+        const range = maintenanceMonthRange();
+        const { data, error } = await client.from('intervenciones_mantenimiento')
+            .select('id,numero_informe,sede,equipo_codigo,equipo_nombre,equipo_tipo,tipo_mantenimiento,prioridad,estado_inicial,resultado_final,motivo,solucion,tecnico,supervisor,hora_inicio,hora_final,duracion_minutos,genera_parada,fecha_guardado,creado_por')
+            .gte('fecha_guardado', range.start)
+            .lt('fecha_guardado', range.end)
+            .order('fecha_guardado', { ascending: true })
+            .limit(3000);
+        if (error) throw error;
+        const rows = data || [];
+        if (!rows.length) throw new Error('No hay intervenciones registradas para el mes seleccionado.');
+
+        const analysis = calculateMaintenancePresentation(rows);
+        const period = maintenanceMonthLabel();
+        const pptx = new window.PptxGenJS();
+        const colors = { navy: '102F43', blue: '1596CE', orange: 'EF4B23', green: '168453', red: 'D92D20', gray: '607184', light: 'F5F8FA' };
+        pptx.layout = 'LAYOUT_WIDE';
+        pptx.author = profile?.nombre || 'UrbaPark';
+        pptx.company = 'UrbaPark';
+        pptx.subject = 'Indicadores mensuales de mantenimiento';
+        pptx.title = `KPIs de mantenimiento - ${period}`;
+        pptx.lang = 'es-PE';
+        pptx.theme = { headFontFace: 'Aptos Display', bodyFontFace: 'Aptos', lang: 'es-PE' };
+        pptx.defineSlideMaster({
+            title: 'URBAPARK_MANTTO',
+            background: { color: 'F7FAFC' },
+            objects: [
+                { rect: { x: 0, y: 0, w: 13.333, h: 0.14, fill: { color: colors.orange }, line: { color: colors.orange } } },
+                { text: { text: 'URBAPARK | MANTENIMIENTO', options: { x: 0.5, y: 0.22, w: 4.8, h: 0.26, fontSize: 9.5, bold: true, color: colors.blue, margin: 0 } } },
+                { text: { text: period, options: { x: 10.2, y: 0.22, w: 2.55, h: 0.26, fontSize: 9, color: colors.gray, align: 'right', margin: 0 } } }
+            ],
+            slideNumber: { x: 12.72, y: 7.08, color: '7B8791', fontSize: 8 }
+        });
+        const addTitle = (slide, title, subtitle = '') => {
+            slide.addText(title, { x: 0.58, y: 0.7, w: 11.9, h: 0.42, fontSize: 23, bold: true, color: colors.navy, margin: 0, fit: 'shrink' });
+            if (subtitle) slide.addText(subtitle, { x: 0.6, y: 1.16, w: 11.8, h: 0.28, fontSize: 10.5, color: colors.gray, margin: 0, fit: 'shrink' });
+        };
+        const addLogo = slide => slide.addImage({ path: new URL('assets/urbapark-logo.png', window.location.href).href, x: 10.65, y: 0.64, w: 2.05, h: 0.43 });
+
+        let slide = pptx.addSlide();
+        slide.background = { color: colors.navy };
+        slide.addShape(pptx.ShapeType.arc, { x: 8.75, y: 0.65, w: 3.45, h: 3.45, adjustPoint: 0.2, rotate: 20, fill: { color: colors.blue, transparency: 18 }, line: { color: '62C7EE', pt: 4 } });
+        slide.addImage({ path: new URL('assets/urbapark-logo.png', window.location.href).href, x: 0.78, y: 0.62, w: 2.65, h: 0.56 });
+        slide.addText('KPIs DE\nMANTENIMIENTO', { x: 0.8, y: 1.65, w: 7.4, h: 1.45, fontSize: 33, bold: true, color: 'FFFFFF', margin: 0, breakLine: false });
+        slide.addText(period.toUpperCase(), { x: 0.82, y: 3.26, w: 6.4, h: 0.42, fontSize: 18, bold: true, color: '8ED8F2', margin: 0 });
+        slide.addText('Informe gerencial multisede', { x: 0.82, y: 3.72, w: 5.5, h: 0.32, fontSize: 13, color: 'D7E9F2', margin: 0 });
+        pptMetric(slide, pptx, 0.82, 5.35, 2.55, 'INTERVENCIONES', String(rows.length), colors.blue);
+        pptMetric(slide, pptx, 3.57, 5.35, 2.55, 'COBERTURA', `${analysis.coverage.toFixed(1)}%`, colors.green);
+        pptMetric(slide, pptx, 6.32, 5.35, 2.55, 'DISPONIBILIDAD', `${analysis.availability.toFixed(2)}%`, colors.green);
+        pptMetric(slide, pptx, 9.07, 5.35, 2.55, 'HORAS DE PARADA', analysis.totalDowntime.toFixed(1), analysis.totalDowntime ? colors.red : colors.green);
+
+        slide = pptx.addSlide('URBAPARK_MANTTO');
+        addTitle(slide, 'Resumen ejecutivo', `Resultados consolidados de ${analysis.sites.length} sedes operativas`); addLogo(slide);
+        const largest = analysis.largestCorrective;
+        const summaryLines = [
+            `${analysis.totalPreventive} mantenimientos preventivos mensuales y ${analysis.totalCorrective} correctivos registrados.`,
+            `Cobertura consolidada: ${analysis.totalMaintained} de ${analysis.totalBase} equipos (${analysis.coverage.toFixed(1)}%).`,
+            `Disponibilidad estimada: ${analysis.availability.toFixed(2)}%, con ${analysis.totalDowntime.toFixed(1)} horas de parada correctiva.`,
+            `MTTR consolidado: ${analysis.mttr === null ? 'N/A' : `${analysis.mttr.toFixed(2)} h`}. MTBF consolidado: ${analysis.mtbf === null ? 'N/A' : `${analysis.mtbf.toFixed(0)} h`}.`,
+            largest ? `Mayor evento correctivo: ${siteName(largest.sede)} - ${largest.equipo_codigo || largest.equipo_nombre}, ${reportDurationHours(largest).toFixed(1)} h.` : 'No se registraron eventos correctivos en el periodo.'
+        ];
+        slide.addText(summaryLines.map(text => ({ text, options: { bullet: { indent: 18 }, hanging: 4, breakLine: true } })), { x: 0.8, y: 1.75, w: 11.7, h: 3.65, fontSize: 18, color: '243746', paraSpaceAfterPt: 17, margin: 0.06, breakLine: false, fit: 'shrink' });
+        analysis.sites.forEach((site, index) => pptMetric(slide, pptx, 0.72 + index * 3.08, 5.7, 2.8, site.name.replace('Real Plaza ', ''), `${site.coverage.toFixed(1)}%`, site.coverage >= 95 ? colors.green : colors.orange));
+
+        analysis.sites.forEach(site => {
+            const details = maintenanceDetailRows(site);
+            const pages = Math.max(1, Math.ceil(details.length / 8));
+            for (let page = 0; page < pages; page += 1) {
+                slide = pptx.addSlide('URBAPARK_MANTTO');
+                addTitle(slide, `${site.name} - detalle de intervenciones`, `${period}${pages > 1 ? ` | pagina ${page + 1} de ${pages}` : ''}`); addLogo(slide);
+                const chunk = details.slice(page * 8, page * 8 + 8);
+                const tableRows = chunk.length ? chunk.map(item => [
+                    item.equipo_codigo || item.equipo_nombre || '-',
+                    isCorrective(item) ? 'Correctivo' : 'Preventivo mensual',
+                    formatMaintenanceDate(item.fecha_guardado),
+                    item.hora_inicio && item.hora_final ? `${item.hora_inicio} - ${item.hora_final}` : '-',
+                    formatMinutes(item.duracion_minutos),
+                    item.tecnico || '-',
+                    item.motivo || item.solucion || '-'
+                ]) : [['-', 'Sin intervenciones', '-', '-', '-', '-', '-']];
+                slide.addTable([
+                    ['Equipo', 'Tipo', 'Fecha', 'Horario', 'Duracion', 'Tecnico', 'Detalle'],
+                    ...tableRows
+                ], { x: 0.48, y: 1.57, w: 12.35, h: 4.95, border: { type: 'solid', color: 'CAD6DE', pt: 0.8 }, fill: 'FFFFFF', color: '233746', fontSize: 9.2, margin: 0.055, rowH: 0.57, colW: [2.15, 1.55, 1.1, 1.3, 0.9, 1.65, 3.7], autoFit: false, valign: 'mid' });
+                pptMetric(slide, pptx, 0.72, 6.37, 2.65, 'COBERTURA', `${site.maintained}/${site.base} (${site.coverage.toFixed(1)}%)`, site.coverage >= 95 ? colors.green : colors.orange);
+                pptMetric(slide, pptx, 3.57, 6.37, 2.65, 'CORRECTIVOS', String(site.failures), site.failures ? colors.red : colors.green);
+                pptMetric(slide, pptx, 6.42, 6.37, 2.65, 'PARADA', `${site.downtime.toFixed(1)} h`, site.downtime ? colors.red : colors.green);
+                pptMetric(slide, pptx, 9.27, 6.37, 2.65, 'DISPONIBILIDAD', `${site.availability.toFixed(2)}%`, site.availability >= 99 ? colors.green : colors.orange);
+            }
+        });
+
+        slide = pptx.addSlide('URBAPARK_MANTTO');
+        addTitle(slide, 'Actividad de mantenimiento', 'Intervenciones registradas por sede'); addLogo(slide);
+        const maxActivity = Math.max(1, ...analysis.sites.map(site => site.reports.length));
+        analysis.sites.forEach((site, index) => pptBar(slide, pptx, 1.72 + index * 0.83, site.name, site.reports.length, maxActivity, `${site.reports.length}`, colors.blue));
+        pptMetric(slide, pptx, 1.15, 5.8, 3.25, 'PREVENTIVOS MENSUALES', String(analysis.totalPreventive), colors.green);
+        pptMetric(slide, pptx, 5.02, 5.8, 3.25, 'CORRECTIVOS', String(analysis.totalCorrective), analysis.totalCorrective ? colors.red : colors.green);
+        pptMetric(slide, pptx, 8.89, 5.8, 3.25, 'OTRAS INTERVENCIONES', String(analysis.totalOther), colors.blue);
+
+        slide = pptx.addSlide('URBAPARK_MANTTO');
+        addTitle(slide, 'Cobertura preventiva mensual', 'Equipos con mantenimiento mensual sobre la base operativa validada'); addLogo(slide);
+        analysis.sites.forEach((site, index) => pptBar(slide, pptx, 1.72 + index * 0.83, site.name, site.coverage, 100, `${site.maintained}/${site.base}  ${site.coverage.toFixed(1)}%`, site.coverage >= 95 ? colors.green : colors.orange));
+        pptMetric(slide, pptx, 4.8, 5.65, 3.7, 'COBERTURA CONSOLIDADA', `${analysis.totalMaintained}/${analysis.totalBase} (${analysis.coverage.toFixed(1)}%)`, analysis.coverage >= 95 ? colors.green : colors.orange);
+
+        const indicatorSlides = [
+            ['MTTR - tiempo medio de reparacion', 'Horas promedio utilizadas para resolver cada evento correctivo', 'mttr', ' h', colors.red],
+            ['MTBF - tiempo medio entre fallas', 'Horas operativas estimadas entre eventos correctivos', 'mtbf', ' h', colors.blue],
+            ['Disponibilidad estimada', 'Horas disponibles respecto a la capacidad mensual de cada sede', 'availability', '%', colors.green]
+        ];
+        indicatorSlides.forEach(([title, subtitle, key, suffix, color]) => {
+            slide = pptx.addSlide('URBAPARK_MANTTO');
+            addTitle(slide, title, subtitle); addLogo(slide);
+            const numeric = analysis.sites.map(site => site[key]).filter(value => value !== null && Number.isFinite(value));
+            const maximum = key === 'availability' ? 100 : Math.max(1, ...numeric);
+            analysis.sites.forEach((site, index) => {
+                const value = site[key];
+                pptBar(slide, pptx, 1.7 + index * 0.84, site.name, value === null ? 0 : value, maximum, value === null ? 'N/A' : `${value.toFixed(key === 'availability' ? 2 : 1)}${suffix}`, value === null ? '8A98A5' : color);
+            });
+            const globalValue = analysis[key];
+            pptMetric(slide, pptx, 4.72, 5.63, 3.9, 'RESULTADO CONSOLIDADO', globalValue === null ? 'N/A' : `${globalValue.toFixed(key === 'availability' ? 2 : 2)}${suffix}`, color);
+        });
+
+        slide = pptx.addSlide('URBAPARK_MANTTO');
+        addTitle(slide, 'Benchmark de sedes', 'Comparacion mensual de cobertura, actividad y confiabilidad'); addLogo(slide);
+        const ranked = [...analysis.sites].sort((a, b) => b.coverage - a.coverage || b.availability - a.availability);
+        slide.addTable([
+            ['Posicion', 'Sede', 'Cobertura', 'Preventivos', 'Correctivos', 'MTTR', 'MTBF', 'Disponibilidad'],
+            ...ranked.map((site, index) => [String(index + 1), site.name, `${site.coverage.toFixed(1)}%`, String(site.preventive.length), String(site.corrective.length), site.mttr === null ? 'N/A' : `${site.mttr.toFixed(1)} h`, site.mtbf === null ? 'N/A' : `${site.mtbf.toFixed(0)} h`, `${site.availability.toFixed(2)}%`])
+        ], { x: 0.55, y: 1.6, w: 12.2, h: 4.3, border: { type: 'solid', color: 'CAD6DE', pt: 1 }, fill: 'FFFFFF', color: '233746', fontSize: 12.2, margin: 0.07, rowH: 0.64, colW: [1, 2.9, 1.35, 1.35, 1.35, 1.25, 1.25, 1.75], autoFit: false });
+
+        slide = pptx.addSlide('URBAPARK_MANTTO');
+        addTitle(slide, 'Conclusiones y acciones', 'Prioridades sugeridas para el siguiente periodo'); addLogo(slide);
+        const actions = [];
+        analysis.sites.filter(site => site.coverage < 100).forEach(site => actions.push(`Completar la cobertura de ${site.name}: faltan ${site.base - site.maintained} equipos de la base operativa.`));
+        if (analysis.largestCorrective) actions.push(`Revisar causa raiz del mayor evento: ${siteName(analysis.largestCorrective.sede)} - ${analysis.largestCorrective.equipo_codigo || analysis.largestCorrective.equipo_nombre}.`);
+        if (analysis.totalCorrective) actions.push('Dar seguimiento mensual a equipos reincidentes y validar el cierre de las acciones correctivas.');
+        actions.push('Confirmar mensualmente la base de equipos activos para mantener la cobertura KPI actualizada.');
+        slide.addText(actions.slice(0, 7).map(text => ({ text, options: { bullet: { indent: 18 }, hanging: 4, breakLine: true } })), { x: 0.85, y: 1.72, w: 11.6, h: 4.5, fontSize: 18, color: '243746', paraSpaceAfterPt: 17, margin: 0.06, breakLine: false, fit: 'shrink' });
+
+        slide = pptx.addSlide('URBAPARK_MANTTO');
+        addTitle(slide, 'Metodologia y alcance', 'Criterios utilizados para el calculo automatico'); addLogo(slide);
+        const methodology = [
+            'Cobertura: equipos unicos con Preventivo mensual / base operativa validada por sede.',
+            'MTTR: horas acumuladas de correctivos / cantidad de eventos correctivos.',
+            'MTBF: horas disponibles estimadas, descontando paradas, / eventos correctivos.',
+            'Disponibilidad: (horas disponibles - parada correctiva) / horas disponibles.',
+            `Periodo calculado con ${analysis.range.days} dias y registros guardados entre el inicio y fin del mes.`,
+            'GAMA no se incluye en cobertura hasta contar con una base operativa validada; sus intervenciones permanecen en los datos.'
+        ];
+        slide.addText(methodology.map(text => ({ text, options: { bullet: { indent: 18 }, hanging: 4, breakLine: true } })), { x: 0.85, y: 1.7, w: 11.5, h: 4.7, fontSize: 18, color: '243746', paraSpaceAfterPt: 16, margin: 0.06, breakLine: false, fit: 'shrink' });
+
+        status.textContent = 'Presentacion lista. Iniciando descarga...';
+        const fileName = `KPIs_Mantenimiento_${MONTH_NAMES[range.month - 1]}_${range.year}.pptx`;
+        await pptx.writeFile({ fileName });
+        status.textContent = `Descarga generada: ${fileName}`;
+        status.dataset.state = 'success';
+    } catch (error) {
+        console.warn('No se pudo generar el PowerPoint mensual:', error);
+        status.textContent = error.message || 'No se pudo generar el PowerPoint mensual.';
+        status.dataset.state = 'error';
+    } finally {
+        button.disabled = false;
+    }
+}
+
 function exportGeneralCsv() {
     const rows = visibleInterventions().filter(item => inSelectedMonth(item.fecha_guardado));
     if (!rows.length) { setStatus('No hay intervenciones para exportar en el filtro actual.', 'warning'); return; }
@@ -934,6 +1237,7 @@ function configureEvents() {
     byId('inventoryMovementForm').addEventListener('submit', saveInventoryMovement);
     byId('movementType').addEventListener('change', event => updateMovementFields(event.target.value));
     byId('exportGeneralCsv').addEventListener('click', exportGeneralCsv);
+    byId('exportMaintenanceMonthlyPptx').addEventListener('click', exportMaintenanceMonthlyPptx);
     byId('exportInventoryPyg').addEventListener('click', exportInventoryPygCsv);
     byId('exportGeneralPdf').addEventListener('click', () => window.print());
     document.querySelector('.control-tabs').addEventListener('click', event => {
@@ -945,6 +1249,7 @@ function configureEvents() {
 async function init() {
     if (!await verifyAccess()) return;
     configureFilters();
+    byId('exportMaintenanceMonthlyPptx').hidden = !isSuperior();
     configureEvents();
     byId('accessMessage').hidden = true;
     byId('controlShell').hidden = false;
