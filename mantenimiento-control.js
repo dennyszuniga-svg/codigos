@@ -115,7 +115,7 @@ async function verifyAccess() {
         return false;
     }
     const { data, error } = await client.from('profiles').select('nombre,rol,activo,sede').eq('id', session.user.id).maybeSingle();
-    if (error || !data?.activo || !['encargado_ti', 'admin', 'tecnico'].includes(data.rol)) {
+    if (error || !data?.activo || !['encargado_ti', 'tecnico'].includes(data.rol)) {
         byId('accessMessage').querySelector('h1').textContent = 'Acceso restringido';
         byId('accessMessage').querySelector('p').textContent = 'Tu usuario no tiene acceso al centro de mantenimiento.';
         return false;

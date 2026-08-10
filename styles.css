@@ -4198,7 +4198,7 @@ body.dark-theme .modal-dialog {
 
 .technical-dashboard {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 8px;
     margin: 12px 0;
 }
@@ -4257,10 +4257,14 @@ body.dark-theme .modal-dialog {
 
 .maintenance-task-card.is-overdue { border-left-color: #d92d20; }
 .maintenance-task-card.is-completed { border-left-color: #168453; opacity: 0.82; }
+.maintenance-task-card[data-task-status="observado"] { border-left-color: #d97706; background: #fffaf0; }
+.maintenance-task-card[data-task-status="aprobado"] { border-left-color: #168453; }
+.maintenance-task-card[data-task-status="cerrado"] { border-left-color: #526274; opacity: 0.78; }
 .maintenance-task-card h5 { margin: 0 0 5px; font-size: 1rem; }
 .maintenance-task-card p { margin: 4px 0; }
 .maintenance-task-meta { color: #56677b; font-size: 0.83rem; }
 .maintenance-task-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 7px; }
+.maintenance-task-status-select { min-width: 150px; min-height: 42px; }
 .maintenance-task-state { font-size: 0.78rem; font-weight: 800; text-transform: uppercase; color: #17638a; }
 .maintenance-task-note { grid-column: 1 / -1; display: grid; gap: 5px; }
 
@@ -4274,6 +4278,7 @@ body.dark-theme .equipment-history-panel {
 body.dark-theme .maintenance-task-form { background: #111923; border-color: #3b4b5e; }
 body.dark-theme .maintenance-task-form label { color: #eef5fb; }
 body.dark-theme .maintenance-task-meta { color: #b9c7d5; }
+body.dark-theme .maintenance-task-card[data-task-status="observado"] { background: #302616; }
 body.dark-theme .equipment-history-item { background: #111923; border-color: #3b4b5e; }
 body.dark-theme .equipment-history-item p { color: #b9c7d5; }
 body.dark-theme .repeated-failure-item { background: #341b1b; color: #ffd7cf; border-color: #794037; }

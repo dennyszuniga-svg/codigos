@@ -378,13 +378,26 @@ taskList.addEventListener('change', async (event) => {
     }
 
     if (event.target.dataset.action === 'task-photos') {
-        const photos = await readImageFiles([...event.target.files], async (photo) => {
-            task.photos.push(photo);
+        try {
+            const photos = await readImageFiles([...event.target.files], async (photo) => {
+                task.photos.push(photo);
+                await savePhotoToIndexedDbImmediately(task.id, photo);
+                renderTasks();
+                updateProgress();
+                await saveDraft();
+            });
+            setStatus(`${photos.length} foto${photos.length === 1 ? '' : 's'} agregada${photos.length === 1 ? '' : 's'} y protegida${photos.length === 1 ? '' : 's'}. Complete tipo y subtitulo.`);
+        } catch (error) {
+            console.warn('No se pudo proteger una foto del informe.', error);
+            tasks.forEach(item => {
+                item.photos = item.photos.filter(photo => persistedPhotoKeys.has(getPhotoStorageKey(item.id, photo.id)));
+            });
             renderTasks();
             updateProgress();
-            await saveDraft();
-        });
-        setStatus(`${photos.length} foto${photos.length === 1 ? '' : 's'} agregada${photos.length === 1 ? '' : 's'} y protegida${photos.length === 1 ? '' : 's'}. Complete tipo y subtitulo.`);
+            setStatus('La foto no se guardo. Revisa el espacio disponible antes de continuar.', true);
+        } finally {
+            event.target.value = '';
+        }
     }
 
     if (event.target.dataset.action === 'photo-stage') {
@@ -2048,6 +2061,30 @@ async function saveDraftToIndexedDb(draft) {
         transaction.onabort = () => reject(transaction.error || new Error('Se interrumpio el guardado'));
     });
     persistedPhotoKeys = activePhotoKeys;
+    database.close();
+}
+
+async function savePhotoToIndexedDbImmediately(taskId, photo) {
+    if (!photo?.dataUrl) throw new Error('La foto no contiene datos para guardar.');
+    const database = await openDraftDatabase();
+    const key = getPhotoStorageKey(taskId, photo.id);
+    const draft = createDraftSnapshot();
+    await new Promise((resolve, reject) => {
+        const transaction = database.transaction([DRAFT_DB_STORE, DRAFT_DB_PHOTO_STORE], 'readwrite');
+        transaction.objectStore(DRAFT_DB_PHOTO_STORE).put({
+            key,
+            draftKey: DRAFT_KEY,
+            taskId,
+            photoId: photo.id,
+            dataUrl: photo.dataUrl,
+            savedAt: new Date().toISOString()
+        });
+        transaction.objectStore(DRAFT_DB_STORE).put(createMetadataOnlyDraft(draft), DRAFT_KEY);
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error || new Error('No se pudo proteger la foto.'));
+        transaction.onabort = () => reject(transaction.error || new Error('Se interrumpio el guardado de la foto.'));
+    });
+    persistedPhotoKeys.add(key);
     database.close();
 }
 

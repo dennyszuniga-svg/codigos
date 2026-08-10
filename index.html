@@ -542,7 +542,8 @@
                                 <span id="maintenanceSiteLabel">Inventario de la sede asignada</span>
                                 <div class="maintenance-toolbar-actions">
                                     <span class="maintenance-role-badge">Acceso por rol</span>
-                                    <a class="finish-btn maintenance-control-link" id="maintenanceControlCenter" href="mantenimiento-control.html">Centro de control</a>
+                                    <button class="finish-btn" id="toggleMaintenanceTasks" type="button" aria-expanded="false" aria-controls="maintenanceTasksPanel">Tareas y pendientes</button>
+                                    <a class="finish-btn maintenance-control-link" id="maintenanceControlCenter" href="mantenimiento-control.html" hidden>Centro de control</a>
                                     <button class="clear-btn" id="toggleManagementDashboard" type="button" aria-expanded="false" aria-controls="managementDashboardPanel" hidden>Dashboard</button>
                                     <button class="clear-btn" id="exportMonthlyMaintenance" type="button" hidden>Exportar mes</button>
                                     <button class="finish-btn" id="toggleMaintenanceKpis" type="button" aria-expanded="false" aria-controls="maintenanceKpiPanel" hidden>Ver KPIs</button>
@@ -581,15 +582,18 @@
                                 <div id="maintenanceKpiCategories" class="maintenance-kpi-categories"></div>
                             </section>
 
-                            <section class="maintenance-tasks-panel" aria-labelledby="maintenanceTasksTitle">
+                            <section class="maintenance-tasks-panel" id="maintenanceTasksPanel" aria-labelledby="maintenanceTasksTitle" tabindex="-1" hidden>
                                 <div class="inventory-heading">
                                     <div>
-                                        <h4 id="maintenanceTasksTitle">Plan mensual de tareas</h4>
-                                        <p id="maintenanceTasksSubtitle">Consulta las tareas asignadas y su fecha limite.</p>
+                                        <h4 id="maintenanceTasksTitle">Tareas y pendientes</h4>
+                                        <p id="maintenanceTasksSubtitle">Consulta las tareas asignadas, revisa su avance y controla su cierre.</p>
                                     </div>
-                                    <label class="month-filter" for="maintenanceTasksMonth">Mes
-                                        <input id="maintenanceTasksMonth" type="month">
-                                    </label>
+                                    <div class="maintenance-kpi-heading-actions">
+                                        <label class="month-filter" for="maintenanceTasksMonth">Mes
+                                            <input id="maintenanceTasksMonth" type="month">
+                                        </label>
+                                        <button class="modal-close maintenance-kpi-close" id="closeMaintenanceTasks" type="button" aria-label="Cerrar tareas y pendientes" title="Cerrar tareas y pendientes">&times;</button>
+                                    </div>
                                 </div>
 
                                 <form id="maintenanceTaskForm" class="maintenance-task-form" hidden>

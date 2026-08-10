@@ -22,6 +22,9 @@ const SUPABASE_ESM_SOURCES = [
 const VAPID_PUBLIC_KEY = 'BG9moXgahVKNxX367YNu3NPS5GdD03nrtB3YikfldVYwq8YAsKZEmIPevWZaozevHeCgWXXDPNp3BKC652FoZHc';
 const GUIDE_IMAGE_BUCKET = 'guide-images';
 const GUIDE_IMAGE_URL_TTL = 60 * 60;
+const MEDIA_VAULT_DB_NAME = 'urbapark-media-vault';
+const MEDIA_VAULT_DB_VERSION = 1;
+const MEDIA_VAULT_STORE = 'media';
 const MAINTENANCE_ACCESS_SESSION_KEY = 'urbapark-maintenance-area-unlocked';
 const SEDES_OPERACION = [
     { id: 'puruchuco', nombre: 'Real Plaza Puruchuco', corto: 'Puruchuco' },
@@ -467,6 +470,7 @@ let canalEstadoOperativo = null;
 let aplicandoEstadoRemoto = false;
 let temporizadorSincronizacion = null;
 let ultimoCodigoRemotoAlertado = null;
+let hidratandoFotosCodigos = false;
 let moduloActivo = null;
 let elementoRetornoModulo = null;
 let guiasOperativas = [];
@@ -682,13 +686,16 @@ function configurarPanelTareasMantenimiento() {
     const fecha = obtenerElemento('maintenanceTaskDueDate');
     const subtitulo = obtenerElemento('maintenanceTasksSubtitle');
 
-    if (formulario) formulario.hidden = !usuarioEsSuperior();
+    const puedeGestionar = usuarioPuedeGestionarTareasMantenimiento();
+    if (formulario) formulario.hidden = !puedeGestionar;
+    const opcionRecurrente = obtenerElemento('maintenanceTaskRecurring')?.closest('label');
+    if (opcionRecurrente) opcionRecurrente.hidden = !usuarioEsSuperior();
     if (mes && !mes.value) mes.value = obtenerMesActual();
     if (fecha && !fecha.value) fecha.value = `${mes?.value || obtenerMesActual()}-28`;
     if (subtitulo) {
-        subtitulo.textContent = usuarioEsSuperior()
-            ? 'Asigna trabajos a cada tecnico y controla su avance durante el mes.'
-            : 'Estas son las tareas que debes completar durante el mes.';
+        subtitulo.textContent = puedeGestionar
+            ? 'Crea pendientes, asigna responsables y controla su revision hasta el cierre.'
+            : 'Estas son las tareas que debes atender durante el mes.';
     }
 
     if (sede && !sede.options.length) {
@@ -700,7 +707,88 @@ function configurarPanelTareasMantenimiento() {
         });
         sede.value = obtenerSedeMantenimientoActiva();
     }
+    if (sede) {
+        const adminSede = perfilActual?.rol === 'admin';
+        if (adminSede && perfilActual?.sede) sede.value = perfilActual.sede;
+        sede.disabled = adminSede;
+    }
     actualizarEquiposAsignacionMantenimiento();
+}
+
+function abrirAlmacenMultimedia() {
+    return new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+            reject(new Error('El dispositivo no ofrece almacenamiento multimedia.'));
+            return;
+        }
+        const solicitud = window.indexedDB.open(MEDIA_VAULT_DB_NAME, MEDIA_VAULT_DB_VERSION);
+        solicitud.onupgradeneeded = () => {
+            const base = solicitud.result;
+            if (!base.objectStoreNames.contains(MEDIA_VAULT_STORE)) {
+                const almacen = base.createObjectStore(MEDIA_VAULT_STORE, { keyPath: 'key' });
+                almacen.createIndex('scope', 'scope', { unique: false });
+            }
+        };
+        solicitud.onsuccess = () => resolve(solicitud.result);
+        solicitud.onerror = () => reject(solicitud.error || new Error('No se pudo abrir el respaldo multimedia.'));
+    });
+}
+
+async function guardarMediaLocal(key, dataUrl, scope = 'general', extra = {}) {
+    const base = await abrirAlmacenMultimedia();
+    await new Promise((resolve, reject) => {
+        const transaccion = base.transaction(MEDIA_VAULT_STORE, 'readwrite');
+        transaccion.objectStore(MEDIA_VAULT_STORE).put({ key, scope, dataUrl, savedAt: new Date().toISOString(), ...extra });
+        transaccion.oncomplete = resolve;
+        transaccion.onerror = () => reject(transaccion.error || new Error('No se pudo respaldar la foto.'));
+        transaccion.onabort = () => reject(transaccion.error || new Error('Se interrumpio el respaldo de la foto.'));
+    });
+    base.close();
+}
+
+async function leerMediaLocal(key) {
+    if (!key) return null;
+    const base = await abrirAlmacenMultimedia();
+    const registro = await new Promise((resolve, reject) => {
+        const transaccion = base.transaction(MEDIA_VAULT_STORE, 'readonly');
+        const solicitud = transaccion.objectStore(MEDIA_VAULT_STORE).get(key);
+        solicitud.onsuccess = () => resolve(solicitud.result || null);
+        solicitud.onerror = () => reject(solicitud.error || new Error('No se pudo recuperar la foto.'));
+    });
+    base.close();
+    return registro;
+}
+
+async function leerMediaPorScope(scope) {
+    const base = await abrirAlmacenMultimedia();
+    const registros = await new Promise((resolve, reject) => {
+        const transaccion = base.transaction(MEDIA_VAULT_STORE, 'readonly');
+        const solicitud = transaccion.objectStore(MEDIA_VAULT_STORE).index('scope').getAll(scope);
+        solicitud.onsuccess = () => resolve(solicitud.result || []);
+        solicitud.onerror = () => reject(solicitud.error || new Error('No se pudieron recuperar las fotos pendientes.'));
+    });
+    base.close();
+    return registros;
+}
+
+async function eliminarMediaLocal(key) {
+    if (!key) return;
+    const base = await abrirAlmacenMultimedia();
+    await new Promise((resolve, reject) => {
+        const transaccion = base.transaction(MEDIA_VAULT_STORE, 'readwrite');
+        transaccion.objectStore(MEDIA_VAULT_STORE).delete(key);
+        transaccion.oncomplete = resolve;
+        transaccion.onerror = () => reject(transaccion.error || new Error('No se pudo retirar la foto local.'));
+    });
+    base.close();
+}
+
+async function solicitarAlmacenPersistenteMultimedia() {
+    try {
+        if (navigator.storage?.persist) await navigator.storage.persist();
+    } catch (error) {
+        console.warn('El navegador no concedio almacenamiento persistente para fotos.', error);
+    }
 }
 
 function actualizarEquiposAsignacionMantenimiento() {
@@ -726,7 +814,7 @@ function actualizarEquiposAsignacionMantenimiento() {
 
 async function cargarTecnicosMantenimiento() {
     const selector = obtenerElemento('maintenanceTaskTechnician');
-    if (!usuarioEsSuperior() || !supabaseClient || !selector) return;
+    if (!usuarioPuedeGestionarTareasMantenimiento() || !supabaseClient || !selector) return;
 
     const { data, error } = await supabaseClient
         .from('profiles')
@@ -792,7 +880,18 @@ async function cargarTareasMantenimiento() {
 }
 
 function etiquetaEstadoTarea(estado) {
-    return { pendiente: 'Pendiente', en_proceso: 'En proceso', completada: 'Completada' }[estado] || estado;
+    return {
+        pendiente: 'Pendiente',
+        en_proceso: 'En proceso',
+        observado: 'Observado',
+        aprobado: 'Aprobado',
+        cerrado: 'Cerrado',
+        completada: 'Aprobado'
+    }[estado] || estado;
+}
+
+function tareaEstaFinalizada(estado) {
+    return ['aprobado', 'cerrado', 'completada'].includes(estado);
 }
 
 function crearEnlaceInformeTarea(tarea) {
@@ -826,11 +925,12 @@ function renderizarTareasMantenimiento() {
         const estado = document.createElement('span');
         const acciones = document.createElement('div');
         const informe = document.createElement('a');
-        const vencida = tarea.estado !== 'completada' && tarea.fecha_limite < new Date().toISOString().slice(0, 10);
+        const vencida = !tareaEstaFinalizada(tarea.estado) && tarea.fecha_limite < new Date().toISOString().slice(0, 10);
 
         tarjeta.className = 'maintenance-task-card';
         tarjeta.classList.toggle('is-overdue', vencida);
-        tarjeta.classList.toggle('is-completed', tarea.estado === 'completada');
+        tarjeta.classList.toggle('is-completed', tareaEstaFinalizada(tarea.estado));
+        tarjeta.dataset.taskStatus = tarea.estado;
         titulo.textContent = tarea.titulo;
         detalle.textContent = tarea.descripcion || 'Sin indicaciones adicionales.';
         meta.className = 'maintenance-task-meta';
@@ -848,14 +948,36 @@ function renderizarTareasMantenimiento() {
         acciones.className = 'maintenance-task-actions';
         acciones.append(estado, informe);
 
-        if (!usuarioEsSuperior() && tarea.estado !== 'completada') {
+        if (!usuarioPuedeGestionarTareasMantenimiento() && !tareaEstaFinalizada(tarea.estado)) {
             const avanzar = document.createElement('button');
             avanzar.type = 'button';
             avanzar.className = 'finish-btn';
             avanzar.dataset.updateMaintenanceTask = tarea.id;
-            avanzar.dataset.taskState = tarea.estado === 'pendiente' ? 'en_proceso' : 'completada';
-            avanzar.textContent = tarea.estado === 'pendiente' ? 'Iniciar tarea' : 'Marcar completada';
-            acciones.appendChild(avanzar);
+            if (tarea.estado === 'pendiente') {
+                avanzar.dataset.taskState = 'en_proceso';
+                avanzar.textContent = 'Iniciar tarea';
+                acciones.appendChild(avanzar);
+            }
+        }
+        if (usuarioPuedeGestionarTareasMantenimiento()) {
+            const selectorEstado = document.createElement('select');
+            selectorEstado.className = 'maintenance-task-status-select';
+            selectorEstado.setAttribute('aria-label', `Estado de ${tarea.titulo}`);
+            ['pendiente', 'en_proceso', 'observado', 'aprobado', 'cerrado'].forEach(valor => {
+                const opcion = document.createElement('option');
+                opcion.value = valor;
+                opcion.textContent = etiquetaEstadoTarea(valor);
+                selectorEstado.appendChild(opcion);
+            });
+            selectorEstado.value = tarea.estado === 'completada' ? 'aprobado' : tarea.estado;
+            selectorEstado.dataset.taskStatusSelect = tarea.id;
+
+            const actualizar = document.createElement('button');
+            actualizar.type = 'button';
+            actualizar.className = 'finish-btn';
+            actualizar.dataset.manageMaintenanceTask = tarea.id;
+            actualizar.textContent = 'Actualizar estado';
+            acciones.append(selectorEstado, actualizar);
         }
         if (usuarioEsSuperior()) {
             const eliminar = document.createElement('button');
@@ -879,7 +1001,7 @@ function renderizarTareasMantenimiento() {
 
 async function guardarTareaMantenimiento(event) {
     event.preventDefault();
-    if (!usuarioEsSuperior() || !supabaseClient) return;
+    if (!usuarioPuedeGestionarTareasMantenimiento() || !supabaseClient) return;
     const equipoSelect = obtenerElemento('maintenanceTaskEquipment');
     const opcionEquipo = equipoSelect?.selectedOptions?.[0];
     const payload = {
@@ -893,7 +1015,7 @@ async function guardarTareaMantenimiento(event) {
         asignado_a: obtenerElemento('maintenanceTaskTechnician').value,
         asignado_por: sesionActual.user.id
     };
-    const recurrente = obtenerElemento('maintenanceTaskRecurring')?.checked === true;
+    const recurrente = usuarioEsSuperior() && obtenerElemento('maintenanceTaskRecurring')?.checked === true;
     if (!payload.titulo || !payload.sede || !payload.fecha_limite || !payload.asignado_a) {
         actualizarEstadoTareasMantenimiento('Completa tarea, tecnico, sede y fecha limite.', 'error');
         return;
@@ -990,14 +1112,16 @@ function renderizarDashboardTecnico() {
     const total = tareasMantenimiento.length;
     const pendientes = tareasMantenimiento.filter(item => item.estado === 'pendiente').length;
     const proceso = tareasMantenimiento.filter(item => item.estado === 'en_proceso').length;
-    const completadas = tareasMantenimiento.filter(item => item.estado === 'completada').length;
-    const vencidas = tareasMantenimiento.filter(item => item.estado !== 'completada' && item.fecha_limite < hoy).length;
+    const observadas = tareasMantenimiento.filter(item => item.estado === 'observado').length;
+    const completadas = tareasMantenimiento.filter(item => tareaEstaFinalizada(item.estado)).length;
+    const vencidas = tareasMantenimiento.filter(item => !tareaEstaFinalizada(item.estado) && item.fecha_limite < hoy).length;
     const cumplimiento = total ? Math.round((completadas / total) * 100) : 0;
     panel.append(
         crearTarjetaDashboard('Asignadas', String(total), 'Tareas del mes', 'neutral'),
         crearTarjetaDashboard('Pendientes', String(pendientes), 'Aun no iniciadas', pendientes ? 'warning' : 'good'),
         crearTarjetaDashboard('En proceso', String(proceso), 'Trabajos iniciados', proceso ? 'neutral' : 'good'),
-        crearTarjetaDashboard('Completadas', String(completadas), `${cumplimiento}% de cumplimiento`, cumplimiento >= 90 ? 'good' : 'warning'),
+        crearTarjetaDashboard('Observadas', String(observadas), 'Requieren correccion', observadas ? 'danger' : 'good'),
+        crearTarjetaDashboard('Aprobadas/cerradas', String(completadas), `${cumplimiento}% de cumplimiento`, cumplimiento >= 90 ? 'good' : 'warning'),
         crearTarjetaDashboard('Vencidas', String(vencidas), 'Requieren atencion', vencidas ? 'danger' : 'good')
     );
 }
@@ -1076,8 +1200,15 @@ function renderizarHistorialEquipos() {
 
 async function actualizarEstadoTareaMantenimiento(id, estado) {
     let observacion = '';
-    if (estado === 'completada') {
-        observacion = window.prompt('Observacion final de la tarea (opcional):', '') || '';
+    if (['observado', 'aprobado', 'cerrado'].includes(estado)) {
+        observacion = window.prompt(
+            estado === 'observado' ? 'Indica que debe corregirse:' : 'Observacion de revision (opcional):',
+            ''
+        ) || '';
+        if (estado === 'observado' && !observacion.trim()) {
+            mostrarToast('La observacion es obligatoria para devolver la tarea.');
+            return;
+        }
     }
     const { error } = await supabaseClient.rpc('actualizar_estado_tarea_mantenimiento', {
         tarea_id: id,
@@ -1088,18 +1219,18 @@ async function actualizarEstadoTareaMantenimiento(id, estado) {
         mostrarToast('No se pudo actualizar la tarea.');
         return;
     }
-    if (estado === 'completada') {
+    if (['aprobado', 'cerrado'].includes(estado)) {
         const tarea = tareasMantenimiento.find(item => item.id === id);
         supabaseClient.functions.invoke('send-code-alert', {
             body: {
-                evento: 'tarea_completada',
+                evento: estado === 'cerrado' ? 'tarea_cerrada' : 'tarea_aprobada',
                 tareaId: id,
                 titulo: tarea?.titulo || 'Tarea de mantenimiento',
                 sede: tarea?.sede || obtenerSedeMantenimientoActiva()
             }
         }).catch(errorPush => console.warn('No se pudo notificar la tarea completada:', errorPush));
     }
-    mostrarToast(estado === 'completada' ? 'Tarea completada.' : 'Tarea iniciada.');
+    mostrarToast(`Estado actualizado a ${etiquetaEstadoTarea(estado)}.`);
     await cargarTareasMantenimiento();
 }
 
@@ -1128,6 +1259,10 @@ function obtenerClaveSesionMantenimiento() {
 
 function usuarioPuedeAccederMantenimiento() {
     return perfilActual?.activo !== false && [ROL_SUPERIOR, 'admin', 'tecnico'].includes(perfilActual?.rol);
+}
+
+function usuarioPuedeGestionarTareasMantenimiento() {
+    return perfilActual?.activo !== false && [ROL_SUPERIOR, 'admin'].includes(perfilActual?.rol);
 }
 
 function usuarioPuedeGestionarInventario() {
@@ -1591,6 +1726,9 @@ function actualizarAreaMantenimientoUI() {
         obtenerElemento('toggleMaintenanceKpis')
     ];
     const centroControl = obtenerElemento('maintenanceControlCenter');
+    const botonTareas = obtenerElemento('toggleMaintenanceTasks');
+    const panelTareas = obtenerElemento('maintenanceTasksPanel');
+    const accionInforme = obtenerElemento('openMaintenanceReport')?.closest('.maintenance-report-action');
 
     const autorizado = usuarioPuedeAccederMantenimiento();
     accesoMantenimientoActivo = autorizado;
@@ -1615,6 +1753,18 @@ function actualizarAreaMantenimientoUI() {
     });
     if (centroControl) {
         centroControl.href = `mantenimiento-control.html?sede=${encodeURIComponent(obtenerSedeMantenimientoActiva())}`;
+        centroControl.hidden = perfilActual?.rol === 'admin';
+    }
+    if (botonTareas) {
+        botonTareas.textContent = perfilActual?.rol === 'tecnico' ? 'Mis tareas' : 'Tareas y pendientes';
+        botonTareas.hidden = !autorizado;
+    }
+    if (panelTareas && perfilActual?.rol === 'admin') {
+        panelTareas.hidden = true;
+        botonTareas?.setAttribute('aria-expanded', 'false');
+    }
+    if (accionInforme) {
+        accionInforme.hidden = perfilActual?.rol === 'admin';
     }
     if (sede) {
         sede.textContent = `Area de mantenimiento: ${obtenerNombreSede(obtenerSedeMantenimientoActiva())}`;
@@ -2830,16 +2980,103 @@ function obtenerEvidenciasSeccionOperaciones(registro, seccionId) {
     return Array.isArray(evidencias) ? evidencias : [];
 }
 
+function obtenerScopeEvidenciasOperaciones(registro = checklistOperacionesActual) {
+    return registro?.id ? `operaciones:${registro.id}` : '';
+}
+
+function obtenerEvidenciasOperacionesPersistibles(evidencias = checklistOperacionesActual?.evidencias) {
+    const resultado = {};
+    Object.entries(evidencias || {}).forEach(([seccion, fotos]) => {
+        resultado[seccion] = (Array.isArray(fotos) ? fotos : [])
+            .filter(foto => foto?.path && !foto.pendiente)
+            .map(foto => ({
+                path: foto.path,
+                nombre: foto.nombre || 'evidencia.jpg',
+                autor_id: foto.autor_id || '',
+                autor_nombre: foto.autor_nombre || '',
+                creado_at: foto.creado_at || ''
+            }));
+    });
+    return resultado;
+}
+
+async function recuperarEvidenciasPendientesOperaciones(registro = checklistOperacionesActual) {
+    const scope = obtenerScopeEvidenciasOperaciones(registro);
+    if (!scope) return;
+    try {
+        const pendientes = await leerMediaPorScope(scope);
+        pendientes.forEach(pendiente => {
+            const seccion = pendiente.seccionId;
+            if (!seccion) return;
+            registro.evidencias = registro.evidencias || {};
+            if (!Array.isArray(registro.evidencias[seccion])) registro.evidencias[seccion] = [];
+            if (!registro.evidencias[seccion].some(foto => foto.localKey === pendiente.key)) {
+                registro.evidencias[seccion].push({
+                    localKey: pendiente.key,
+                    dataUrl: pendiente.dataUrl,
+                    nombre: pendiente.nombre || 'evidencia.jpg',
+                    autor_nombre: pendiente.autorNombre || obtenerNombreUsuarioActivo(),
+                    creado_at: pendiente.savedAt,
+                    pendiente: true
+                });
+            }
+        });
+    } catch (error) {
+        console.warn('No se pudieron recuperar evidencias operativas pendientes:', error);
+    }
+}
+
+async function sincronizarEvidenciasPendientesOperaciones(registro = checklistOperacionesActual) {
+    const scope = obtenerScopeEvidenciasOperaciones(registro);
+    if (!scope || !supabaseClient || !sesionActual?.user || registro.estado !== 'borrador') return;
+    let pendientes = [];
+    try {
+        pendientes = await leerMediaPorScope(scope);
+    } catch (error) {
+        console.warn('No se pudo consultar la cola de fotos operativas:', error);
+        return;
+    }
+    for (const pendiente of pendientes) {
+        let ruta = '';
+        try {
+            const blob = await fetch(pendiente.dataUrl).then(respuesta => respuesta.blob());
+            ruta = `${registro.sede}/${sesionActual.user.id}/${registro.id}/${pendiente.seccionId}/${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`;
+            const { error: uploadError } = await supabaseClient.storage
+                .from(OPERATIONS_CHECKLIST_BUCKET)
+                .upload(ruta, blob, { contentType: 'image/jpeg', upsert: false });
+            if (uploadError) throw uploadError;
+            const { data, error: rpcError } = await supabaseClient.rpc('agregar_evidencia_checklist_operaciones', {
+                checklist_id_arg: registro.id,
+                seccion_arg: pendiente.seccionId,
+                evidencia_arg: { path: ruta, nombre: pendiente.nombre || 'evidencia.jpg' }
+            });
+            if (rpcError) throw rpcError;
+            registro.evidencias = data || registro.evidencias || {};
+            await eliminarMediaLocal(pendiente.key);
+        } catch (error) {
+            console.warn('La evidencia operativa sigue pendiente de sincronizar:', error);
+            if (ruta) await supabaseClient.storage.from(OPERATIONS_CHECKLIST_BUCKET).remove([ruta]);
+        }
+    }
+}
+
 async function hidratarEvidenciasChecklistOperaciones(registro) {
-    if (!supabaseClient || !registro?.evidencias) return registro;
-    const fotos = Object.values(registro.evidencias).flat().filter(foto => foto?.path);
-    await Promise.all(fotos.map(async foto => {
-        if (foto.url) return;
-        const { data, error } = await supabaseClient.storage
-            .from(OPERATIONS_CHECKLIST_BUCKET)
-            .createSignedUrl(foto.path, 60 * 60);
-        if (!error && data?.signedUrl) foto.url = data.signedUrl;
-    }));
+    if (!registro) return registro;
+    if (supabaseClient && registro.evidencias) {
+        const fotos = Object.values(registro.evidencias).flat().filter(foto => foto?.path);
+        await Promise.all(fotos.map(async foto => {
+            if (foto.url && Number(foto.urlExpiresAt || 0) > Date.now()) return;
+            const { data, error } = await supabaseClient.storage
+                .from(OPERATIONS_CHECKLIST_BUCKET)
+                .createSignedUrl(foto.path, 60 * 60 * 24);
+            if (!error && data?.signedUrl) {
+                foto.url = data.signedUrl;
+                foto.urlExpiresAt = Date.now() + (23 * 60 * 60 * 1000);
+            }
+        }));
+    }
+    await recuperarEvidenciasPendientesOperaciones(registro);
+    await sincronizarEvidenciasPendientesOperaciones(registro);
     return registro;
 }
 
@@ -2886,10 +3123,11 @@ function crearPanelEvidenciasChecklistOperaciones(seccion) {
         const imagen = document.createElement('img');
         const pie = document.createElement('figcaption');
         figura.className = 'operations-evidence-item';
-        imagen.src = foto.url || '';
+        imagen.src = foto.url || foto.dataUrl || '';
         imagen.alt = `Evidencia ${indice + 1} de ${seccion.nombre}`;
         imagen.loading = 'lazy';
         pie.textContent = `${foto.autor_nombre || 'Personal de sede'} · ${foto.creado_at ? formatearFechaHoraReporte(foto.creado_at) : 'sin hora'}`;
+        if (foto.pendiente) figura.classList.add('is-pending');
         figura.append(imagen, pie);
         galeria.appendChild(figura);
     });
@@ -3066,7 +3304,7 @@ async function asegurarRegistroChecklistOperaciones() {
         turno: registro.turno || null,
         respuestas: registro.respuestas,
         observaciones: registro.observaciones,
-        evidencias: registro.evidencias
+        evidencias: obtenerEvidenciasOperacionesPersistibles(registro.evidencias)
     }).select('*').single();
     if (error) throw error;
     Object.assign(registro, data);
@@ -3093,7 +3331,7 @@ async function guardarBorradorChecklistOperaciones() {
             turno: checklistOperacionesActual.turno || null,
             respuestas: checklistOperacionesActual.respuestas,
             observaciones: checklistOperacionesActual.observaciones,
-            evidencias: checklistOperacionesActual.evidencias,
+            evidencias: obtenerEvidenciasOperacionesPersistibles(checklistOperacionesActual.evidencias),
             total_items: resumen.total,
             cumple_items: resumen.cumple,
             no_cumple_items: resumen.noCumple,
@@ -3117,7 +3355,9 @@ function validarChecklistOperaciones() {
     if (!registro?.turno) return 'Selecciona el turno de la revision.';
     if (resumen.revisados !== resumen.total) return `Faltan ${resumen.total - resumen.revisados} puntos por revisar.`;
     for (const seccion of obtenerSeccionesChecklistOperaciones(registro.sede)) {
-        const cantidadFotos = obtenerEvidenciasSeccionOperaciones(registro, seccion.id).length;
+        const fotosSeccion = obtenerEvidenciasSeccionOperaciones(registro, seccion.id);
+        if (fotosSeccion.some(foto => foto.pendiente)) return `Hay fotos pendientes de sincronizar en ${seccion.nombre}. Conecta el equipo antes de finalizar.`;
+        const cantidadFotos = fotosSeccion.length;
         if (cantidadFotos < 3) return `Adjunta al menos 3 fotos en ${seccion.nombre}.`;
         const tieneNoCumple = seccion.items.some(item => registro.respuestas?.[`${seccion.id}:${item[0]}`] === 'no_cumple');
         if (tieneNoCumple && !String(registro.observaciones?.[seccion.id] || '').trim()) {
@@ -3145,8 +3385,15 @@ async function adjuntarFotosChecklistOperaciones(seccionId, archivos) {
     let agregadas = 0;
     for (const archivo of seleccionados) {
         let ruta = '';
+        let dataUrl = '';
+        const localKey = `operaciones:${checklistOperacionesActual.id}:${seccionId}:${Date.now()}-${Math.random().toString(16).slice(2)}`;
         try {
-            const dataUrl = await comprimirFoto(archivo, 1280, 0.74);
+            dataUrl = await comprimirFoto(archivo, 1280, 0.74);
+            await guardarMediaLocal(localKey, dataUrl, obtenerScopeEvidenciasOperaciones(), {
+                seccionId,
+                nombre: archivo.name || 'evidencia.jpg',
+                autorNombre: obtenerNombreUsuarioActivo()
+            });
             const blob = await fetch(dataUrl).then(respuesta => respuesta.blob());
             ruta = `${checklistOperacionesActual.sede}/${sesionActual.user.id}/${checklistOperacionesActual.id}/${seccionId}/${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`;
             const { error: uploadError } = await supabaseClient.storage
@@ -3167,11 +3414,27 @@ async function adjuntarFotosChecklistOperaciones(seccionId, archivos) {
             });
             if (rpcError) throw rpcError;
             checklistOperacionesActual.evidencias = evidenciasActualizadas || checklistOperacionesActual.evidencias || {};
+            await eliminarMediaLocal(localKey);
             await hidratarEvidenciasChecklistOperaciones(checklistOperacionesActual);
             agregadas += 1;
         } catch (error) {
             console.warn('No se pudo adjuntar evidencia operativa:', error);
             if (ruta) await supabaseClient.storage.from(OPERATIONS_CHECKLIST_BUCKET).remove([ruta]);
+            if (dataUrl) {
+                checklistOperacionesActual.evidencias = checklistOperacionesActual.evidencias || {};
+                const fotosPendientes = checklistOperacionesActual.evidencias[seccionId] || [];
+                if (!fotosPendientes.some(foto => foto.localKey === localKey)) {
+                    fotosPendientes.push({
+                        localKey,
+                        dataUrl,
+                        nombre: archivo.name || 'evidencia.jpg',
+                        autor_nombre: obtenerNombreUsuarioActivo(),
+                        creado_at: new Date().toISOString(),
+                        pendiente: true
+                    });
+                    checklistOperacionesActual.evidencias[seccionId] = fotosPendientes;
+                }
+            }
         }
     }
     const panel = obtenerElemento('operationsChecklistPanel');
@@ -3182,7 +3445,7 @@ async function adjuntarFotosChecklistOperaciones(seccionId, archivos) {
     if (estadoActual) {
         estadoActual.textContent = agregadas
             ? `${agregadas} foto(s) agregada(s) por ${obtenerNombreUsuarioActivo()}.`
-            : 'No se pudo subir la evidencia. Revisa la conexion.';
+            : 'Foto protegida en este dispositivo y pendiente de sincronizar. Revisa la conexion.';
         estadoActual.dataset.status = agregadas ? 'success' : 'error';
     }
 }
@@ -4874,6 +5137,7 @@ async function cargarPerfilActual() {
         migrarDatosLocalesInicialesDeSede();
         historial = cargarHistorial();
         checklistEstado = cargarChecklistEstado();
+        await hidratarFotosChecklistCodigos();
         actualizarHistorialUI();
         actualizarResumenUI();
     }
@@ -6618,7 +6882,7 @@ async function guardarRegistroRemoto(entrada, estado) {
             prioridad: entrada.prioridad,
             activado_en: entrada.activadoEn || null,
             cerrado_en: entrada.cerradoEn || null,
-            pasos: estado?.pasos || [],
+            pasos: crearChecklistPersistible({ [entrada.codigo]: estado })[entrada.codigo]?.pasos || [],
             controles: estado?.controles || {},
             sede,
             creado_por: sesionActual.user.id,
@@ -6641,7 +6905,7 @@ function crearSnapshotEstadoOperativo() {
     return {
         sede: obtenerSedeActual(),
         codigo_activo: codigoActivo,
-        checklist_estado: checklistEstado,
+        checklist_estado: crearChecklistPersistible(),
         actualizado_por: sesionActual?.user?.id || null,
         actualizado_por_email: obtenerNombreUsuarioActivo()
     };
@@ -6702,6 +6966,28 @@ function normalizarEstadoOperativoRemoto(estadoRemoto) {
     return normalizado;
 }
 
+function conservarFotosLocalesEnEstadoRemoto(estadoRemoto, estadoLocal = checklistEstado) {
+    Object.entries(estadoRemoto || {}).forEach(([codigo, estado]) => {
+        const pasosLocales = estadoLocal?.[codigo]?.pasos || [];
+        (estado?.pasos || []).forEach((paso, indice) => {
+            const fotoLocal = pasosLocales[indice]?.foto;
+            if (!fotoLocal) return;
+            const fotoRemota = paso.foto;
+            const mismaFoto = !fotoRemota
+                || (fotoLocal.storageKey && fotoRemota.storageKey === fotoLocal.storageKey)
+                || (fotoLocal.path && fotoRemota.path === fotoLocal.path);
+            if (mismaFoto) {
+                paso.foto = {
+                    ...(fotoRemota || {}),
+                    ...fotoLocal,
+                    path: fotoRemota?.path || fotoLocal.path || ''
+                };
+            }
+        });
+    });
+    return estadoRemoto;
+}
+
 function aplicarEstadoOperativoRemoto(registro) {
     if (!registro || registro.sede !== obtenerSedeActual()) {
         return;
@@ -6713,7 +6999,10 @@ function aplicarEstadoOperativoRemoto(registro) {
         : null;
 
     aplicandoEstadoRemoto = true;
-    checklistEstado = normalizarEstadoOperativoRemoto(registro.checklist_estado);
+    checklistEstado = conservarFotosLocalesEnEstadoRemoto(
+        normalizarEstadoOperativoRemoto(registro.checklist_estado),
+        checklistEstado
+    );
     guardarChecklistEstado();
     codigoActivo = codigoRemoto;
 
@@ -6726,6 +7015,7 @@ function aplicarEstadoOperativoRemoto(registro) {
     actualizarResumenUI();
     actualizarEstadoSincronizacion('Online', 'success');
     aplicandoEstadoRemoto = false;
+    hidratarFotosChecklistCodigos();
 
     if (codigoRemoto && codigoRemoto !== codigoPrevio) {
         mostrarAlertaRemota(codigoRemoto, registro.actualizado_por_email);
@@ -7260,8 +7550,27 @@ function cargarChecklistEstado() {
     return estado;
 }
 
+function crearChecklistPersistible(origen = checklistEstado) {
+    const copia = {};
+    Object.entries(origen || {}).forEach(([codigo, estado]) => {
+        copia[codigo] = {
+            ...estado,
+            pasos: (estado?.pasos || []).map(paso => ({
+                ...paso,
+                foto: paso?.foto ? {
+                    storageKey: paso.foto.storageKey || '',
+                    path: paso.foto.path || '',
+                    nombre: paso.foto.nombre || '',
+                    tomadaEn: paso.foto.tomadaEn || ''
+                } : null
+            }))
+        };
+    });
+    return copia;
+}
+
 function guardarChecklistEstado() {
-    guardarEstadoLocalStorage(obtenerClaveLocalPorSede(STORAGE_KEYS.checklist), checklistEstado);
+    guardarEstadoLocalStorage(obtenerClaveLocalPorSede(STORAGE_KEYS.checklist), crearChecklistPersistible());
 }
 
 function obtenerFechaHoraActual() {
@@ -8080,12 +8389,13 @@ function actualizarChecklistUI(codigo) {
         evidenciaAcciones.append(fotoLabel, fotoEstado);
         evidencia.appendChild(evidenciaAcciones);
 
-        if (pasoEstado.foto?.dataUrl) {
+        const fuenteFoto = pasoEstado.foto?.dataUrl || pasoEstado.foto?.url || '';
+        if (fuenteFoto) {
             const preview = document.createElement('img');
             const quitar = document.createElement('button');
 
             preview.className = 'photo-preview';
-            preview.src = pasoEstado.foto.dataUrl;
+            preview.src = fuenteFoto;
             preview.alt = `Evidencia fotografica del paso ${indice + 1}`;
 
             quitar.className = 'remove-photo-btn';
@@ -8619,8 +8929,9 @@ function crearContenidoInforme(codigo) {
         const estadoTexto = pasoEstado.completado ? 'Completado' : 'Pendiente';
         const hora = pasoEstado.completadoEn ? formatearFechaHoraISO(pasoEstado.completadoEn) : '-';
         const observacion = pasoEstado.observacion || '-';
-        const foto = pasoEstado.foto?.dataUrl
-            ? `<img class="evidence-photo" src="${pasoEstado.foto.dataUrl}" alt="Evidencia fotografica del paso ${indice + 1}">`
+        const fuenteFoto = pasoEstado.foto?.dataUrl || pasoEstado.foto?.url || '';
+        const foto = fuenteFoto
+            ? `<img class="evidence-photo" src="${fuenteFoto}" alt="Evidencia fotografica del paso ${indice + 1}">`
             : '-';
 
         return `
@@ -9009,16 +9320,106 @@ function comprimirFoto(file, maxDimension = 960, calidad = 0.72) {
     });
 }
 
-function actualizarFotoChecklist(codigo, indice, foto) {
+function obtenerClaveFotoCodigo(codigo, indice, activadoEn = '') {
+    const sede = obtenerSedeActual() || 'sin-sede';
+    const activacion = activadoEn || 'actual';
+    return `codigo:${sede}:${codigo}:${activacion}:${indice}`;
+}
+
+async function obtenerUrlRemotaFoto(path) {
+    if (!path || !supabaseClient) return '';
+    const { data, error } = await supabaseClient.storage
+        .from(OPERATIONS_CHECKLIST_BUCKET)
+        .createSignedUrl(path, 60 * 60);
+    return error ? '' : data?.signedUrl || '';
+}
+
+async function hidratarFotosChecklistCodigos() {
+    if (hidratandoFotosCodigos) return;
+    hidratandoFotosCodigos = true;
+    let huboCambios = false;
+    try {
+        for (const estado of Object.values(checklistEstado || {})) {
+            for (const paso of estado?.pasos || []) {
+                const foto = paso?.foto;
+                if (!foto || foto.dataUrl || foto.url) continue;
+                try {
+                    const local = await leerMediaLocal(foto.storageKey);
+                    if (local?.dataUrl) {
+                        foto.dataUrl = local.dataUrl;
+                        huboCambios = true;
+                        continue;
+                    }
+                    const url = await obtenerUrlRemotaFoto(foto.path);
+                    if (url) {
+                        foto.url = url;
+                        huboCambios = true;
+                    }
+                } catch (error) {
+                    console.warn('No se pudo recuperar una evidencia de codigo:', error);
+                }
+            }
+        }
+    } finally {
+        hidratandoFotosCodigos = false;
+    }
+    if (huboCambios && codigoActivo) actualizarChecklistUI(codigoActivo);
+}
+
+async function sincronizarFotoCodigo(codigo, indice, foto, pathAnterior = '') {
+    if (!foto?.dataUrl || !supabaseClient || !sesionActual?.user || !obtenerSedeActual()) return;
+    try {
+        const blob = await fetch(foto.dataUrl).then(respuesta => respuesta.blob());
+        const activacion = String(obtenerEstadoChecklist(codigo)?.activadoEn || Date.now()).replace(/[^0-9A-Za-z_-]/g, '-');
+        const ruta = `${obtenerSedeActual()}/${sesionActual.user.id}/codigos/${codigo}/${activacion}/paso-${indice + 1}-${Date.now()}.jpg`;
+        const { error } = await supabaseClient.storage
+            .from(OPERATIONS_CHECKLIST_BUCKET)
+            .upload(ruta, blob, { contentType: 'image/jpeg', upsert: false });
+        if (error) throw error;
+        foto.path = ruta;
+        const estadoActual = obtenerEstadoChecklist(codigo);
+        if (estadoActual?.pasos?.[indice]) {
+            estadoActual.pasos[indice].foto = {
+                ...(estadoActual.pasos[indice].foto || {}),
+                ...foto,
+                path: ruta
+            };
+        }
+        if (pathAnterior && pathAnterior !== ruta) {
+            await supabaseClient.storage.from(OPERATIONS_CHECKLIST_BUCKET).remove([pathAnterior]);
+        }
+        guardarChecklistEstado();
+        programarSincronizacionEstadoOperativo(100);
+    } catch (error) {
+        console.warn('La foto de codigo queda protegida localmente y pendiente de sincronizar:', error);
+    }
+}
+
+async function actualizarFotoChecklist(codigo, indice, foto) {
     const estado = obtenerEstadoChecklist(codigo);
 
     if (!estado || !estado.pasos[indice]) {
         return;
     }
 
+    const anterior = estado.pasos[indice].foto;
+    if (foto?.dataUrl) {
+        foto.storageKey = foto.storageKey || obtenerClaveFotoCodigo(codigo, indice, estado.activadoEn);
+        await guardarMediaLocal(foto.storageKey, foto.dataUrl, 'codigo', { codigo, indice });
+    }
     estado.pasos[indice].foto = foto;
     guardarChecklistEstado();
     programarSincronizacionEstadoOperativo(100);
+
+    if (!foto && anterior?.storageKey) {
+        eliminarMediaLocal(anterior.storageKey).catch(error => console.warn('No se pudo retirar el respaldo anterior:', error));
+        if (anterior.path && supabaseClient) {
+            supabaseClient.storage.from(OPERATIONS_CHECKLIST_BUCKET).remove([anterior.path])
+                .catch(error => console.warn('No se pudo retirar la foto remota anterior:', error));
+        }
+    } else if (foto) {
+        sincronizarFotoCodigo(codigo, indice, foto, anterior?.path || '');
+    }
 
     if (codigoActivo === codigo) {
         actualizarChecklistUI(codigo);
@@ -9661,6 +10062,29 @@ function configurarEventos() {
     obtenerElemento('maintenanceTaskForm')?.addEventListener('submit', guardarTareaMantenimiento);
     obtenerElemento('maintenanceTaskSite')?.addEventListener('change', actualizarEquiposAsignacionMantenimiento);
     obtenerElemento('maintenanceTasksMonth')?.addEventListener('change', cargarTareasMantenimiento);
+    obtenerElemento('toggleMaintenanceTasks')?.addEventListener('click', () => {
+        const panel = obtenerElemento('maintenanceTasksPanel');
+        const boton = obtenerElemento('toggleMaintenanceTasks');
+        if (!panel || !boton) return;
+        const abrir = panel.hidden;
+        panel.hidden = !abrir;
+        boton.setAttribute('aria-expanded', String(abrir));
+        if (abrir) {
+            cargarTareasMantenimiento();
+            cargarTecnicosMantenimiento();
+            panel.focus({ preventScroll: true });
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+    obtenerElemento('closeMaintenanceTasks')?.addEventListener('click', () => {
+        const panel = obtenerElemento('maintenanceTasksPanel');
+        const boton = obtenerElemento('toggleMaintenanceTasks');
+        if (panel) panel.hidden = true;
+        if (boton) {
+            boton.setAttribute('aria-expanded', 'false');
+            boton.focus();
+        }
+    });
     obtenerElemento('equipmentHistorySelect')?.addEventListener('change', renderizarHistorialEquipos);
     obtenerElemento('repeatedFailuresSummary')?.addEventListener('click', event => {
         const boton = event.target.closest('button[data-history-equipment]');
@@ -9672,6 +10096,12 @@ function configurarEventos() {
         const actualizar = event.target.closest('button[data-update-maintenance-task]');
         if (actualizar) {
             actualizarEstadoTareaMantenimiento(actualizar.dataset.updateMaintenanceTask, actualizar.dataset.taskState);
+            return;
+        }
+        const gestionar = event.target.closest('button[data-manage-maintenance-task]');
+        if (gestionar) {
+            const selector = obtenerElemento('maintenanceTasksList')?.querySelector(`select[data-task-status-select="${gestionar.dataset.manageMaintenanceTask}"]`);
+            if (selector) actualizarEstadoTareaMantenimiento(gestionar.dataset.manageMaintenanceTask, selector.value);
             return;
         }
         const eliminar = event.target.closest('button[data-delete-maintenance-task]');
@@ -9959,7 +10389,7 @@ function configurarEventos() {
         try {
             const file = fotoInput.files[0];
             const dataUrl = await comprimirFoto(file);
-            actualizarFotoChecklist(
+            await actualizarFotoChecklist(
                 fotoInput.dataset.codigo,
                 Number(fotoInput.dataset.index),
                 {
@@ -9970,6 +10400,7 @@ function configurarEventos() {
             );
         } catch (error) {
             console.warn('No se pudo adjuntar la foto:', error);
+            mostrarToast('No se pudo proteger la foto. Revisa el espacio disponible del celular.');
         } finally {
             fotoInput.value = '';
         }
@@ -10044,6 +10475,7 @@ document.addEventListener('DOMContentLoaded', () => {
         urbaparkModule: null
     }, '', `${urlInicial.pathname}${urlInicial.search}${urlInicial.hash}`);
     aplicarTemaGuardado();
+    solicitarAlmacenPersistenteMultimedia();
     prepararVoces();
     if (window.speechSynthesis) {
         window.speechSynthesis.onvoiceschanged = prepararVoces;
@@ -10053,6 +10485,7 @@ document.addEventListener('DOMContentLoaded', () => {
     poblarFiltroCodigos();
     historial = cargarHistorial();
     checklistEstado = cargarChecklistEstado();
+    hidratarFotosChecklistCodigos();
     cargarProgresoGuias();
     cargarGuiasLocales();
     reiniciarTareasBorrador();
