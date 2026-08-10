@@ -41,6 +41,21 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
+  if (/^\d{8}$/.test(usuario)) {
+    const { data: perfilDni, error: errorDni } = await supabase
+      .from('profiles')
+      .select('email,activo')
+      .eq('dni', usuario)
+      .eq('activo', true)
+      .maybeSingle();
+
+    if (errorDni || !perfilDni?.email) {
+      return jsonResponse({ error: 'DNI no encontrado' }, 404);
+    }
+
+    return jsonResponse({ email: perfilDni.email });
+  }
+
   const { data, error } = await supabase
     .from('profiles')
     .select('email,nombre,activo')

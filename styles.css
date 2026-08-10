@@ -4290,6 +4290,38 @@ body.dark-theme .repeated-failure-item { background: #341b1b; color: #ffd7cf; bo
     .technical-dashboard { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+.user-admin-identity {
+    display: grid;
+    gap: 6px;
+}
+
+.user-admin-identity input {
+    min-width: 0;
+}
+
+.module-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.module-icon-gdh {
+    background: linear-gradient(145deg, #1474a8, #f04a1d);
+}
+
+.account-modal .remote-alert-card,
+.mandatory-announcement .remote-alert-card {
+    max-width: 580px;
+}
+
+.mandatory-announcement .remote-alert-card {
+    border-top: 7px solid #f04a1d;
+}
+
+.mandatory-announcement #mandatoryAnnouncementText {
+    white-space: pre-wrap;
+    line-height: 1.55;
+}
+
 .operations-main-actions {
     display: flex;
     flex-wrap: wrap;

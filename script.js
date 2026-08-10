@@ -22,6 +22,8 @@ const SUPABASE_ESM_SOURCES = [
 const VAPID_PUBLIC_KEY = 'BG9moXgahVKNxX367YNu3NPS5GdD03nrtB3YikfldVYwq8YAsKZEmIPevWZaozevHeCgWXXDPNp3BKC652FoZHc';
 const GUIDE_IMAGE_BUCKET = 'guide-images';
 const GUIDE_IMAGE_URL_TTL = 60 * 60;
+const GDH_DOCUMENT_BUCKET = 'gdh-documentos';
+const GDH_ANNOUNCEMENT_BUCKET = 'gdh-comunicados';
 const MEDIA_VAULT_DB_NAME = 'urbapark-media-vault';
 const MEDIA_VAULT_DB_VERSION = 1;
 const MEDIA_VAULT_STORE = 'media';
@@ -499,6 +501,10 @@ let canalSolicitudesAbonados = null;
 let activosOperaciones = [];
 let canalActivosOperaciones = null;
 let canalChecklistOperaciones = null;
+let canalComunicadosGdh = null;
+let comunicadosGdh = [];
+let lecturasGdh = [];
+let comunicadoObligatorioActual = null;
 let checklistOperacionesActual = null;
 let historialChecklistsOperaciones = [];
 let ultimoChecklistOperacionesFinalizado = null;
@@ -656,7 +662,7 @@ function mostrarAppAutenticada(mostrar) {
 }
 
 function obtenerNombreUsuarioActivo() {
-    return perfilActual?.nombre || sesionActual?.user?.email || 'Usuario conectado';
+    return perfilActual?.apellidos_nombres || perfilActual?.nombre || sesionActual?.user?.email || 'Usuario conectado';
 }
 
 function prepararEnlaceInformeMantenimiento() {
@@ -4790,8 +4796,8 @@ function configurarFormularioCreacionUsuario() {
     }
     if (ayuda) {
         ayuda.textContent = esSuperior
-            ? 'Los roles globales trabajan con todas las sedes. Para los demas roles, la sede define sus alertas y operacion.'
-            : 'Puedes crear anfitriones, Charly, ECO, Fortaleza y supervisores para tu misma sede.';
+            ? 'Ingresa apellidos y nombres y el DNI. El sistema entregara una contrasena temporal.'
+            : 'Puedes crear personal operativo para tu sede. El sistema entregara una contrasena temporal.';
     }
     if (actualizar) actualizar.hidden = !esSuperior;
     if (estadoUsuarios) estadoUsuarios.hidden = !esSuperior;
@@ -5126,7 +5132,7 @@ async function cargarPerfilActual() {
 
     const { data, error } = await supabaseClient
         .from('profiles')
-        .select('nombre, rol, activo, sede')
+        .select('nombre,apellidos_nombres,dni,rol,activo,sede,debe_cambiar_password,password_actualizada_at')
         .eq('id', sesionActual.user.id)
         .maybeSingle();
 
@@ -6453,7 +6459,7 @@ async function cargarUsuariosAdmin() {
 
     const { data, error } = await supabaseClient
         .from('profiles')
-        .select('id,email,nombre,rol,activo,sede,created_at')
+        .select('id,email,nombre,apellidos_nombres,dni,rol,activo,sede,debe_cambiar_password,created_at')
         .order('created_at', { ascending: true });
 
     if (error) {
@@ -6497,7 +6503,8 @@ function renderizarUsuariosAdmin() {
     usuariosAdmin.forEach(usuario => {
         const fila = document.createElement('article');
         const datos = document.createElement('div');
-        const nombre = document.createElement('strong');
+        const nombre = document.createElement('input');
+        const dni = document.createElement('input');
         const email = document.createElement('span');
         const rol = document.createElement('select');
         const sede = document.createElement('select');
@@ -6509,16 +6516,30 @@ function renderizarUsuariosAdmin() {
 
         fila.className = 'user-admin-row';
         fila.dataset.userId = usuario.id;
-        nombre.textContent = usuario.nombre || 'Sin nombre';
+        nombre.type = 'text';
+        nombre.value = usuario.apellidos_nombres || usuario.nombre || '';
+        nombre.placeholder = 'Apellidos y nombres';
+        nombre.dataset.userName = usuario.id;
+        nombre.setAttribute('aria-label', `Apellidos y nombres de ${usuario.nombre || usuario.email}`);
+        dni.type = 'text';
+        dni.inputMode = 'numeric';
+        dni.maxLength = 8;
+        dni.value = usuario.dni || '';
+        dni.placeholder = 'DNI pendiente';
+        dni.dataset.userDni = usuario.id;
+        dni.setAttribute('aria-label', `DNI de ${usuario.nombre || usuario.email}`);
         const progreso = progresoUsuariosAdmin[usuario.id];
         const esCorreoInterno = String(usuario.email || '').endsWith('@usuarios.urbapark.pe');
-        const acceso = esCorreoInterno
-            ? `Acceso: ${usuario.nombre || String(usuario.email).split('@')[0]}`
-            : usuario.email;
+        const acceso = usuario.dni
+            ? `DNI: ${usuario.dni}`
+            : esCorreoInterno
+                ? `Acceso anterior: ${usuario.nombre || String(usuario.email).split('@')[0]}`
+                : usuario.email;
         email.textContent = progreso
             ? `${acceso} - ${progreso.revisadas}/${guiasOperativas.length || progreso.total} guias revisadas`
             : `${acceso} - sin avance registrado`;
-        datos.append(nombre, email);
+        datos.className = 'user-admin-identity';
+        datos.append(nombre, dni, email);
 
         ROLES_USUARIO.forEach(opcion => {
             const option = document.createElement('option');
@@ -6586,6 +6607,13 @@ async function guardarUsuarioAdmin(id) {
     const rol = document.querySelector(`[data-user-role="${id}"]`)?.value;
     const sede = document.querySelector(`[data-user-site="${id}"]`)?.value;
     const activo = document.querySelector(`[data-user-active="${id}"]`)?.value === 'true';
+    const nombre = document.querySelector(`[data-user-name="${id}"]`)?.value.trim();
+    const dni = document.querySelector(`[data-user-dni="${id}"]`)?.value.replace(/\D/g, '') || null;
+
+    if (!nombre || (dni && !/^\d{8}$/.test(dni))) {
+        mostrarToast('Revisa apellidos y nombres y el DNI de 8 digitos.');
+        return;
+    }
 
     if (sede === 'general' && !usuarioEsRolGlobal(rol)) {
         mostrarToast('La sede General solo corresponde a roles globales.');
@@ -6594,7 +6622,7 @@ async function guardarUsuarioAdmin(id) {
 
     const { error } = await supabaseClient
         .from('profiles')
-        .update({ rol, sede, activo })
+        .update({ rol, sede, activo, nombre, apellidos_nombres: nombre, dni })
         .eq('id', id);
 
     if (error) {
@@ -6704,7 +6732,7 @@ async function crearUsuarioDesdeAdmin(event) {
 
     const estado = obtenerElemento('createUserStatus');
     const nombre = obtenerElemento('newUserName')?.value.trim();
-    const password = obtenerElemento('newUserPassword')?.value;
+    const dni = obtenerElemento('newUserDni')?.value.replace(/\D/g, '');
     const sede = obtenerElemento('newUserSite')?.value;
     const rol = obtenerElemento('newUserRole')?.value;
 
@@ -6724,9 +6752,9 @@ async function crearUsuarioDesdeAdmin(event) {
         return;
     }
 
-    if (!nombre || !password || !sede || !rol) {
+    if (!nombre || !/^\d{8}$/.test(dni || '') || !sede || !rol) {
         if (estado) {
-            estado.textContent = 'Completa el nombre de usuario, la contrasena y la sede.';
+            estado.textContent = 'Completa apellidos y nombres, un DNI valido de 8 digitos y la sede.';
             estado.dataset.status = 'error';
         }
         return;
@@ -6739,7 +6767,7 @@ async function crearUsuarioDesdeAdmin(event) {
 
     try {
         const { data, error } = await supabaseClient.functions.invoke('create-user', {
-            body: { nombre, password, sede, rol }
+            body: { apellidosNombres: nombre, dni, sede, rol }
         });
 
         if (error || data?.error) {
@@ -6750,7 +6778,7 @@ async function crearUsuarioDesdeAdmin(event) {
         obtenerElemento('createUserForm')?.reset();
         configurarFormularioCreacionUsuario();
         if (estado) {
-            estado.textContent = `${nombre} fue creado con rol ${rol} en ${obtenerNombreSede(sede)}.`;
+            estado.textContent = `${nombre} fue creado. DNI: ${dni}. Contrasena temporal: ${data.temporaryPassword}`;
             estado.dataset.status = 'success';
         }
         mostrarToast(`Usuario creado: ${nombre}`);
@@ -7124,6 +7152,168 @@ function suscribirGuiasOperativas() {
         .subscribe();
 }
 
+function abrirModalCambioPassword(primeraVez = false) {
+    const modal = obtenerElemento('passwordModal');
+    const texto = obtenerElemento('passwordModalText');
+    if (!modal) return;
+    if (texto) {
+        texto.textContent = primeraVez
+            ? 'Estas usando una contrasena temporal. Puedes crear ahora una clave personal de al menos 8 caracteres.'
+            : 'Crea una clave personal de al menos 8 caracteres.';
+    }
+    obtenerElemento('passwordChangeForm')?.reset();
+    const estado = obtenerElemento('passwordChangeStatus');
+    if (estado) estado.textContent = '';
+    modal.hidden = false;
+    obtenerElemento('newPersonalPassword')?.focus();
+}
+
+function cerrarModalCambioPassword() {
+    const modal = obtenerElemento('passwordModal');
+    if (modal) modal.hidden = true;
+}
+
+async function cambiarPasswordPersonal(event) {
+    event.preventDefault();
+    if (!supabaseClient || !sesionActual?.user) return;
+    const password = obtenerElemento('newPersonalPassword')?.value || '';
+    const confirmacion = obtenerElemento('confirmPersonalPassword')?.value || '';
+    const estado = obtenerElemento('passwordChangeStatus');
+    if (password.length < 8 || password !== confirmacion) {
+        if (estado) {
+            estado.textContent = password !== confirmacion
+                ? 'Las contrasenas no coinciden.'
+                : 'La contrasena debe tener al menos 8 caracteres.';
+            estado.dataset.status = 'error';
+        }
+        return;
+    }
+    if (estado) {
+        estado.textContent = 'Actualizando contrasena...';
+        estado.dataset.status = 'info';
+    }
+    const { error } = await supabaseClient.auth.updateUser({ password });
+    if (error) {
+        if (estado) {
+            estado.textContent = 'No se pudo actualizar la contrasena.';
+            estado.dataset.status = 'error';
+        }
+        return;
+    }
+    await supabaseClient.rpc('confirmar_cambio_password');
+    if (perfilActual) perfilActual.debe_cambiar_password = false;
+    mostrarToast('Contrasena personal actualizada.');
+    cerrarModalCambioPassword();
+}
+
+async function obtenerUrlFirmadaGdh(bucket, ruta) {
+    if (!ruta || !supabaseClient) return '';
+    const { data, error } = await supabaseClient.storage.from(bucket).createSignedUrl(ruta, 300);
+    if (error) {
+        console.warn('No se pudo firmar archivo GDH:', error);
+        return '';
+    }
+    return data?.signedUrl || '';
+}
+
+function cerrarComunicadoObligatorio() {
+    const modal = obtenerElemento('mandatoryAnnouncement');
+    if (modal) modal.hidden = true;
+    comunicadoObligatorioActual = null;
+}
+
+async function mostrarComunicadoObligatorio(comunicado) {
+    comunicadoObligatorioActual = comunicado;
+    const modal = obtenerElemento('mandatoryAnnouncement');
+    const titulo = obtenerElemento('mandatoryAnnouncementTitle');
+    const texto = obtenerElemento('mandatoryAnnouncementText');
+    const enlaces = obtenerElemento('mandatoryAnnouncementLinks');
+    const estado = obtenerElemento('mandatoryAnnouncementStatus');
+    if (!modal || !titulo || !texto || !enlaces) return;
+    titulo.textContent = comunicado.titulo;
+    texto.textContent = comunicado.contenido;
+    limpiarElemento(enlaces);
+    if (comunicado.link_url && /^https?:\/\//i.test(comunicado.link_url)) {
+        const link = document.createElement('a');
+        link.className = 'clear-btn';
+        link.href = comunicado.link_url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'Abrir enlace';
+        enlaces.appendChild(link);
+    }
+    if (comunicado.storage_path) {
+        const url = await obtenerUrlFirmadaGdh(GDH_ANNOUNCEMENT_BUCKET, comunicado.storage_path);
+        if (url) {
+            const link = document.createElement('a');
+            link.className = 'clear-btn';
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = 'Ver documento adjunto';
+            enlaces.appendChild(link);
+        }
+    }
+    if (estado) estado.textContent = 'Revisa la informacion antes de confirmar.';
+    modal.hidden = false;
+    obtenerElemento('confirmMandatoryAnnouncement')?.focus();
+}
+
+async function cargarComunicadosGdh() {
+    if (!supabaseClient || !sesionActual?.user) return;
+    const [{ data: comunicados, error }, { data: lecturas }] = await Promise.all([
+        supabaseClient.from('gdh_comunicados').select('*').order('created_at', { ascending: false }),
+        supabaseClient.from('gdh_lecturas').select('comunicado_id,user_id,confirmado,visto_at,confirmado_at').eq('user_id', sesionActual.user.id)
+    ]);
+    if (error) {
+        console.warn('Modulo GDH pendiente de configuracion:', error);
+        return;
+    }
+    comunicadosGdh = comunicados || [];
+    lecturasGdh = lecturas || [];
+    const comunicadoAplica = comunicado => comunicado.audiencia === 'todos'
+        || (comunicado.audiencia === 'sedes' && comunicado.sedes?.includes(perfilActual?.sede))
+        || (comunicado.audiencia === 'roles' && comunicado.roles?.includes(perfilActual?.rol))
+        || (comunicado.audiencia === 'usuarios' && comunicado.usuarios?.includes(sesionActual.user.id));
+    const pendiente = comunicadosGdh.find(comunicado => comunicado.obligatorio && comunicadoAplica(comunicado) && !lecturasGdh.some(lectura =>
+        lectura.comunicado_id === comunicado.id && lectura.confirmado
+    ));
+    if (pendiente) {
+        await mostrarComunicadoObligatorio(pendiente);
+    } else {
+        cerrarComunicadoObligatorio();
+    }
+}
+
+async function confirmarComunicadoObligatorio() {
+    if (!comunicadoObligatorioActual || !supabaseClient || !sesionActual?.user) return;
+    const estado = obtenerElemento('mandatoryAnnouncementStatus');
+    if (estado) estado.textContent = 'Registrando confirmacion...';
+    const ahora = new Date().toISOString();
+    const { error } = await supabaseClient.from('gdh_lecturas').upsert({
+        comunicado_id: comunicadoObligatorioActual.id,
+        user_id: sesionActual.user.id,
+        visto_at: ahora,
+        confirmado: true,
+        confirmado_at: ahora
+    }, { onConflict: 'comunicado_id,user_id' });
+    if (error) {
+        if (estado) estado.textContent = 'No se pudo guardar la lectura. Revisa tu conexion e intenta nuevamente.';
+        return;
+    }
+    mostrarToast('Lectura confirmada para GDH.');
+    await cargarComunicadosGdh();
+}
+
+function suscribirComunicadosGdh() {
+    if (!supabaseClient || !sesionActual?.user) return;
+    if (canalComunicadosGdh) supabaseClient.removeChannel(canalComunicadosGdh);
+    canalComunicadosGdh = supabaseClient
+        .channel(`gdh-comunicados-${sesionActual.user.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'gdh_comunicados' }, () => cargarComunicadosGdh())
+        .subscribe();
+}
+
 async function aplicarSesion(session) {
     sesionActual = session;
 
@@ -7169,6 +7359,12 @@ async function aplicarSesion(session) {
             supabaseClient.removeChannel(canalChecklistOperaciones);
             canalChecklistOperaciones = null;
         }
+        if (canalComunicadosGdh && supabaseClient) {
+            supabaseClient.removeChannel(canalComunicadosGdh);
+            canalComunicadosGdh = null;
+        }
+        cerrarComunicadoObligatorio();
+        cerrarModalCambioPassword();
         activosOperaciones = [];
         solicitudesAbonados = [];
         mostrarAppAutenticada(false);
@@ -7183,6 +7379,11 @@ async function aplicarSesion(session) {
     actualizarSesionUI();
     actualizarBotonAlertas();
     await cargarPerfilActual();
+    await cargarComunicadosGdh();
+    suscribirComunicadosGdh();
+    if (perfilActual?.debe_cambiar_password) {
+        abrirModalCambioPassword(true);
+    }
     limpiarEvidenciasOperacionesVencidas();
     configurarSelectSedesOperaciones();
     configurarSedeActivosOperaciones();
@@ -7242,7 +7443,7 @@ async function iniciarSesion(event) {
         if (boton) {
             boton.disabled = false;
         }
-        actualizarEstadoAuth('No se encontro ese usuario. Prueba con tu correo asignado.', 'error');
+        actualizarEstadoAuth('No se encontro ese DNI o usuario anterior.', 'error');
         return;
     }
 
@@ -7253,7 +7454,7 @@ async function iniciarSesion(event) {
     }
 
     if (error) {
-        actualizarEstadoAuth('No se pudo iniciar sesion. Revisa correo y contrasena.', 'error');
+        actualizarEstadoAuth('No se pudo iniciar sesion. Revisa DNI y contrasena.', 'error');
         return;
     }
 
@@ -9943,6 +10144,14 @@ function configurarEventos() {
 
     obtenerElemento('authForm').addEventListener('submit', iniciarSesion);
     obtenerElemento('signOutButton').addEventListener('click', cerrarSesion);
+    obtenerElemento('changePasswordButton')?.addEventListener('click', () => abrirModalCambioPassword(false));
+    obtenerElemento('closePasswordModal')?.addEventListener('click', cerrarModalCambioPassword);
+    obtenerElemento('passwordChangeForm')?.addEventListener('submit', cambiarPasswordPersonal);
+    obtenerElemento('confirmMandatoryAnnouncement')?.addEventListener('click', confirmarComunicadoObligatorio);
+    obtenerElemento('declineMandatoryAnnouncement')?.addEventListener('click', () => {
+        const estado = obtenerElemento('mandatoryAnnouncementStatus');
+        if (estado) estado.textContent = 'La confirmacion sigue pendiente. Debes leer y confirmar para continuar.';
+    });
     obtenerElemento('enableAlertsButton').addEventListener('click', solicitarPermisoAlertas);
     obtenerElemento('remoteAlertOpen').addEventListener('click', abrirChecklistDesdeAlerta);
     obtenerElemento('remoteAlertDismiss').addEventListener('click', cerrarAlertaRemota);

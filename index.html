@@ -17,10 +17,10 @@
             <img class="auth-logo" src="assets/urbapark-logo.png" alt="UrbaPark" width="475" height="106">
             <p class="eyebrow">Acceso operativo</p>
             <h1 id="authTitle">Ingresar al sistema</h1>
-            <p>Usa tu nombre de usuario o correo asignado para registrar codigos e informes compartidos.</p>
+            <p>Usa tu DNI y contrasena para ingresar a tu informacion y herramientas asignadas.</p>
             <form id="authForm" class="auth-form">
-                <label for="authEmail">Usuario</label>
-                <input id="authEmail" type="text" autocomplete="username" placeholder="Nombre o correo" required>
+                <label for="authEmail">DNI</label>
+                <input id="authEmail" type="text" autocomplete="username" placeholder="DNI (o usuario anterior)" maxlength="80" required>
                 <label for="authPassword">Contrasena</label>
                 <input id="authPassword" type="password" autocomplete="current-password" placeholder="Contrasena" required>
                 <button class="finish-btn" type="submit" id="authSubmit" disabled>Conectando...</button>
@@ -61,6 +61,10 @@
                     <button class="clear-btn" type="button" id="enableAlertsButton">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"></path></svg>
                         <span>Alertas</span>
+                    </button>
+                    <button class="clear-btn" type="button" id="changePasswordButton">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5zM12 15v3"></path></svg>
+                        <span>Clave</span>
                     </button>
                     <button class="clear-btn sign-out-btn" type="button" id="signOutButton">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3M15 3h5a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-5"></path></svg>
@@ -162,6 +166,12 @@
                         </span>
                         <span class="module-copy"><strong>Registro</strong><small>Ingreso, salida y turnos</small></span>
                     </button>
+                    <a class="module-button module-link" href="gdh.html">
+                        <span class="module-icon module-icon-gdh" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" focusable="false"><path d="M12 10h40v44H12zM20 20h24M20 29h24M20 38h14"></path><circle cx="45" cy="44" r="8"></circle><path d="m41 44 3 3 6-7"></path></svg>
+                        </span>
+                        <span class="module-copy"><strong>GDH</strong><small>Documentos y comunicados</small></span>
+                    </a>
                 </div>
             </section>
 
@@ -282,12 +292,12 @@
                 </div>
                 <form id="createUserForm" class="admin-guide-form create-user-form">
                     <label>
-                        Nombre de usuario
-                        <input id="newUserName" type="text" autocomplete="off" placeholder="Ej. Juan Perez" minlength="3" required>
+                        Apellidos y nombres
+                        <input id="newUserName" type="text" autocomplete="off" placeholder="Ej. Perez Ramos, Juan" minlength="5" required>
                     </label>
                     <label>
-                        Contrasena inicial
-                        <input id="newUserPassword" type="password" minlength="6" placeholder="Minimo 6 caracteres" required>
+                        DNI
+                        <input id="newUserDni" type="text" inputmode="numeric" autocomplete="off" pattern="[0-9]{8}" minlength="8" maxlength="8" placeholder="8 digitos" required>
                     </label>
                     <label>
                         Sede base (General para roles globales)
@@ -317,7 +327,7 @@
                         </select>
                     </label>
                     <button class="finish-btn" type="submit">Crear usuario</button>
-                    <p class="form-helper" id="createUserHelper">Los roles globales trabajan con todas las sedes. Para los demas roles, la sede define sus alertas y operacion.</p>
+                    <p class="form-helper" id="createUserHelper">El sistema generara una contrasena temporal para entregar al colaborador. Luego podra cambiarla desde su cuenta.</p>
                     <p id="createUserStatus" class="auth-status" role="status" aria-live="polite"></p>
                 </form>
                 <p id="usersAdminStatus" class="auth-status" role="status" aria-live="polite"></p>
@@ -1102,6 +1112,37 @@
                 <button class="finish-btn" type="button" id="remoteAlertOpen">Ver checklist</button>
                 <button class="clear-btn" type="button" id="remoteAlertDismiss">Cerrar</button>
             </div>
+        </div>
+    </div>
+
+    <div class="remote-alert account-modal" id="passwordModal" role="dialog" aria-modal="true" aria-labelledby="passwordModalTitle" hidden>
+        <div class="remote-alert-card">
+            <button class="remote-alert-close" type="button" id="closePasswordModal" aria-label="Cerrar">&times;</button>
+            <p class="eyebrow">Seguridad de cuenta</p>
+            <h2 id="passwordModalTitle">Cambiar contrasena</h2>
+            <p id="passwordModalText">Crea una clave personal de al menos 8 caracteres.</p>
+            <form id="passwordChangeForm" class="auth-form">
+                <label for="newPersonalPassword">Nueva contrasena</label>
+                <input id="newPersonalPassword" type="password" minlength="8" autocomplete="new-password" required>
+                <label for="confirmPersonalPassword">Confirmar contrasena</label>
+                <input id="confirmPersonalPassword" type="password" minlength="8" autocomplete="new-password" required>
+                <button class="finish-btn" type="submit">Guardar nueva contrasena</button>
+                <p id="passwordChangeStatus" class="auth-status" role="status" aria-live="polite"></p>
+            </form>
+        </div>
+    </div>
+
+    <div class="remote-alert mandatory-announcement" id="mandatoryAnnouncement" role="alertdialog" aria-modal="true" aria-labelledby="mandatoryAnnouncementTitle" aria-describedby="mandatoryAnnouncementText" hidden>
+        <div class="remote-alert-card">
+            <p class="eyebrow">Informacion obligatoria de GDH</p>
+            <h2 id="mandatoryAnnouncementTitle">Comunicado pendiente</h2>
+            <p id="mandatoryAnnouncementText"></p>
+            <div class="remote-alert-actions" id="mandatoryAnnouncementLinks"></div>
+            <div class="remote-alert-actions">
+                <button class="finish-btn" type="button" id="confirmMandatoryAnnouncement">Si, confirmo que he leido</button>
+                <button class="clear-btn" type="button" id="declineMandatoryAnnouncement">Aun no</button>
+            </div>
+            <p id="mandatoryAnnouncementStatus" class="auth-status" role="status" aria-live="polite"></p>
         </div>
     </div>
 

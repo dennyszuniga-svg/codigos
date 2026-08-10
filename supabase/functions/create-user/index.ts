@@ -31,17 +31,10 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
-function normalizarNombre(valor: string) {
-  return valor.trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-function crearAlias(valor: string) {
-  return valor
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '.')
-    .replace(/^\.+|\.+$/g, '');
+function generarPasswordTemporal(dni: string) {
+  const bytes = crypto.getRandomValues(new Uint8Array(4));
+  const codigo = Array.from(bytes, (item) => (item % 36).toString(36).toUpperCase()).join('');
+  return `UP-${dni.slice(-4)}-${codigo}`;
 }
 
 Deno.serve(async (req) => {
@@ -80,19 +73,23 @@ Deno.serve(async (req) => {
   }
 
   const body = await req.json().catch(() => ({}));
-  const password = typeof body.password === 'string' ? body.password : '';
-  const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : '';
+  const nombre = typeof body.apellidosNombres === 'string'
+    ? body.apellidosNombres.trim().replace(/\s+/g, ' ')
+    : typeof body.nombre === 'string'
+      ? body.nombre.trim().replace(/\s+/g, ' ')
+      : '';
+  const dni = typeof body.dni === 'string' ? body.dni.replace(/\D/g, '') : '';
   const rol = typeof body.rol === 'string' ? body.rol : 'anfitrion';
   const sede = typeof body.sede === 'string' ? body.sede.trim().toLowerCase() : '';
-  const alias = crearAlias(nombre);
-  const email = `${alias}@${dominioInterno}`;
+  const password = generarPasswordTemporal(dni);
+  const email = `${dni}@${dominioInterno}`;
 
-  if (nombre.length < 3 || alias.length < 3) {
-    return jsonResponse({ error: 'El nombre de usuario debe tener al menos 3 letras o numeros' }, 400);
+  if (nombre.length < 5) {
+    return jsonResponse({ error: 'Ingresa los apellidos y nombres completos' }, 400);
   }
 
-  if (!password || password.length < 6) {
-    return jsonResponse({ error: 'La contrasena debe tener al menos 6 caracteres' }, 400);
+  if (!/^\d{8}$/.test(dni)) {
+    return jsonResponse({ error: 'El DNI debe contener exactamente 8 numeros' }, 400);
   }
 
   if (!rolesPermitidos.has(rol)) {
@@ -113,21 +110,16 @@ Deno.serve(async (req) => {
 
   const { data: existingProfiles, error: existingError } = await supabase
     .from('profiles')
-    .select('nombre,email');
+    .select('dni,email');
 
   if (existingError) {
     return jsonResponse({ error: 'No se pudo validar el nombre de usuario' }, 500);
   }
 
-  const nombreNormalizado = normalizarNombre(nombre);
-  const yaExiste = (existingProfiles || []).some((item) => {
-    const nombreExistente = normalizarNombre(String(item.nombre || ''));
-    const aliasExistente = String(item.email || '').split('@')[0].toLowerCase();
-    return nombreExistente === nombreNormalizado || aliasExistente === alias;
-  });
+  const yaExiste = (existingProfiles || []).some((item) => item.dni === dni || item.email === email);
 
   if (yaExiste) {
-    return jsonResponse({ error: 'Ese nombre de usuario ya esta registrado' }, 409);
+    return jsonResponse({ error: 'Ese DNI ya esta registrado' }, 409);
   }
 
   const { data: created, error: createError } = await supabase.auth.admin.createUser({
@@ -136,7 +128,8 @@ Deno.serve(async (req) => {
     email_confirm: true,
     user_metadata: {
       nombre,
-      usuario: alias,
+      apellidos_nombres: nombre,
+      dni,
       sede,
     },
   });
@@ -151,9 +144,12 @@ Deno.serve(async (req) => {
       id: created.user.id,
       email,
       nombre,
+      apellidos_nombres: nombre,
+      dni,
       rol,
       sede,
       activo: true,
+      debe_cambiar_password: true,
     });
 
   if (profileUpsertError) {
@@ -163,9 +159,11 @@ Deno.serve(async (req) => {
 
   return jsonResponse({
     id: created.user.id,
-    usuario: alias,
+    usuario: dni,
+    dni,
     nombre,
     rol,
     sede,
+    temporaryPassword: password,
   });
 });

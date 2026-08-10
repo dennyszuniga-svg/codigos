@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1474a8">
+    <title>GDH | URBAPARK</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+    <link rel="stylesheet" href="gdh.css">
+</head>
+<body>
+    <header class="gdh-header">
+        <a class="icon-button" href="index.html" aria-label="Volver al inicio" title="Volver">&#8592;</a>
+        <img src="assets/urbapark-logo.png" alt="UrbaPark" width="220" height="50">
+        <div><span>Gestion de personas</span><strong id="gdhUserLabel">Cargando...</strong></div>
+    </header>
+
+    <main class="gdh-shell">
+        <section class="hero-band">
+            <p>GDH</p>
+            <h1>Mi informacion laboral</h1>
+            <span>Documentos privados, boletas y comunicados oficiales.</span>
+        </section>
+
+        <nav class="gdh-tabs" aria-label="Secciones de GDH">
+            <button class="active" type="button" data-gdh-tab="documentos">Mis documentos</button>
+            <button type="button" data-gdh-tab="comunicados">Comunicados</button>
+            <button type="button" data-gdh-tab="gestion" id="gdhManagementTab" hidden>Gestion GDH</button>
+        </nav>
+
+        <section class="gdh-panel" data-gdh-panel="documentos">
+            <div class="panel-heading"><div><p>Archivo personal</p><h2>Historico de documentos</h2></div><button type="button" class="secondary-button" id="refreshDocuments">Actualizar</button></div>
+            <p class="privacy-note">Solo tu cuenta y el personal autorizado de GDH pueden consultar estos archivos.</p>
+            <div class="card-list" id="myDocumentsList" aria-live="polite"></div>
+        </section>
+
+        <section class="gdh-panel" data-gdh-panel="comunicados" hidden>
+            <div class="panel-heading"><div><p>Informacion oficial</p><h2>Comunicados y anuncios</h2></div><button type="button" class="secondary-button" id="refreshAnnouncements">Actualizar</button></div>
+            <div class="card-list" id="announcementsList" aria-live="polite"></div>
+        </section>
+
+        <section class="gdh-panel" data-gdh-panel="gestion" hidden>
+            <div class="management-grid">
+                <form class="tool-panel" id="documentUploadForm">
+                    <p>Expediente digital</p><h2>Cargar documento</h2>
+                    <label>Colaborador<select id="documentUser" required></select></label>
+                    <div class="form-grid">
+                        <label>Categoria<select id="documentCategory" required><option value="boleta">Boleta</option><option value="contrato">Contrato</option><option value="formulario">Formulario firmado</option><option value="constancia">Constancia</option><option value="politica">Politica o reglamento</option><option value="otro">Otro</option></select></label>
+                        <label>Periodo<input id="documentPeriod" type="month"></label>
+                    </div>
+                    <label>Titulo<input id="documentTitle" type="text" maxlength="180" required placeholder="Ej. Boleta de julio 2026"></label>
+                    <label>Archivo PDF o imagen<input id="documentFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" required></label>
+                    <button class="primary-button" type="submit">Guardar en expediente</button>
+                    <p class="form-status" id="documentUploadStatus" role="status"></p>
+                </form>
+
+                <form class="tool-panel" id="announcementForm">
+                    <p>Comunicaciones</p><h2>Publicar comunicado</h2>
+                    <label>Titulo<input id="announcementTitle" type="text" maxlength="180" required></label>
+                    <label>Contenido<textarea id="announcementContent" rows="5" maxlength="5000" required></textarea></label>
+                    <div class="form-grid">
+                        <label>Audiencia<select id="announcementAudience"><option value="todos">Todos los usuarios</option><option value="sedes">Sedes seleccionadas</option><option value="roles">Roles seleccionados</option><option value="usuarios">Personas seleccionadas</option></select></label>
+                        <label>Vigente hasta<input id="announcementExpiry" type="datetime-local"></label>
+                    </div>
+                    <label class="check-line"><input id="announcementMandatory" type="checkbox"> Requiere confirmacion obligatoria</label>
+                    <div id="announcementAudienceOptions" class="option-grid" hidden></div>
+                    <label>Enlace opcional<input id="announcementLink" type="url" placeholder="https://..."></label>
+                    <label>Adjunto opcional<input id="announcementFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></label>
+                    <button class="primary-button" type="submit">Publicar comunicado</button>
+                    <p class="form-status" id="announcementStatus" role="status"></p>
+                </form>
+            </div>
+
+            <section class="metrics-panel">
+                <div class="panel-heading"><div><p>Indicadores de lectura</p><h2>Seguimiento de comunicados</h2></div><button type="button" class="secondary-button" id="refreshMetrics">Actualizar</button></div>
+                <div class="metrics-grid" id="gdhMetrics"></div>
+                <div class="table-wrap"><table><thead><tr><th>Comunicado</th><th>Dirigido a</th><th>Confirmados</th><th>Pendientes</th><th>Cumplimiento</th></tr></thead><tbody id="gdhMetricsTable"></tbody></table></div>
+            </section>
+        </section>
+    </main>
+
+    <div class="viewer" id="announcementViewer" hidden>
+        <div class="viewer-card" role="dialog" aria-modal="true" aria-labelledby="viewerTitle">
+            <button class="viewer-close" id="closeViewer" type="button" aria-label="Cerrar">&times;</button>
+            <p id="viewerTag">Comunicado</p><h2 id="viewerTitle"></h2><div id="viewerContent"></div>
+            <div class="viewer-actions" id="viewerActions"></div>
+        </div>
+    </div>
+
+    <div id="gdhToast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="gdh.js"></script>
+</body>
+</html>

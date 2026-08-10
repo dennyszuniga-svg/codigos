@@ -16,7 +16,10 @@ const publicFiles = [
   "asistencia.html",
   "asistencia.css",
   "asistencia-status.css",
-  "asistencia.js"
+  "asistencia.js",
+  "gdh.html",
+  "gdh.css",
+  "gdh.js"
 ];
 
 await rm(outputDirectory, { recursive: true, force: true });
