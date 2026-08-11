@@ -1710,6 +1710,88 @@ body.dark-theme .site-button[aria-pressed="true"] {
     opacity: 0.75;
 }
 
+.password-reset-result {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px 18px;
+    align-items: center;
+    margin: 14px 0;
+    padding: 16px;
+    border: 2px solid #16a36a;
+    border-radius: 8px;
+    background: #effcf6;
+}
+
+.password-reset-result[hidden] {
+    display: none;
+}
+
+.password-reset-result h3,
+.password-reset-result p {
+    margin: 3px 0;
+}
+
+.password-reset-result code {
+    padding: 12px 14px;
+    border: 1px solid #8bd7b6;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #102033;
+    font-size: 1.05rem;
+    font-weight: 900;
+    letter-spacing: 0;
+    user-select: all;
+}
+
+.password-reset-result-actions {
+    display: flex;
+    gap: 8px;
+    grid-column: 1 / -1;
+}
+
+.password-reset-result-actions .finish-btn,
+.password-reset-result-actions .clear-btn {
+    width: auto;
+}
+
+.password-reset-result > p:last-child {
+    grid-column: 1 / -1;
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+body.dark-theme .password-reset-result {
+    border-color: #34d399;
+    background: #12352d;
+}
+
+body.dark-theme .password-reset-result code {
+    border-color: #2e8066;
+    background: #0d1f26;
+    color: #ffffff;
+}
+
+@media (max-width: 720px) {
+    .password-reset-result {
+        grid-template-columns: 1fr;
+    }
+
+    .password-reset-result code,
+    .password-reset-result-actions,
+    .password-reset-result > p:last-child {
+        grid-column: 1;
+    }
+
+    .password-reset-result-actions {
+        flex-direction: column;
+    }
+
+    .password-reset-result-actions .finish-btn,
+    .password-reset-result-actions .clear-btn {
+        width: 100%;
+    }
+}
+
 .activity-log {
     display: grid;
     gap: 10px;

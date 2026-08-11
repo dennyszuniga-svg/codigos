@@ -2288,6 +2288,20 @@ function usuarioEsSuperior() {
     return perfilActual?.rol === ROL_SUPERIOR && perfilActual?.activo !== false;
 }
 
+function usuarioPuedeRestablecerPassword() {
+    return perfilActual?.activo !== false && [ROL_SUPERIOR, 'gdh'].includes(perfilActual?.rol);
+}
+
+function usuarioPuedeRestablecerCuenta(usuario) {
+    if (!usuarioPuedeRestablecerPassword() || !usuario?.activo || !usuario?.dni || usuario.id === sesionActual?.user?.id) {
+        return false;
+    }
+    if (usuarioEsSuperior()) {
+        return true;
+    }
+    return ['comercial_abonados', 'tecnico', 'supervisor', 'fortaleza', 'eco', 'charly', 'anfitrion'].includes(usuario.rol);
+}
+
 function usuarioPuedeVerSaludSupabase() {
     const nombre = String(perfilActual?.nombre || '')
         .normalize('NFD')
@@ -4388,11 +4402,13 @@ function actualizarPanelAdminGuias() {
     }
 
     const admin = usuarioEsAdmin();
-    acciones.hidden = !admin;
-    botonUsuarios.hidden = !admin;
+    const puedeUsuarios = admin || usuarioPuedeRestablecerPassword();
+    acciones.hidden = !admin && !puedeUsuarios;
+    if (botonGuias) botonGuias.hidden = !admin;
+    botonUsuarios.hidden = !puedeUsuarios;
     if (botonSalud) botonSalud.hidden = !usuarioPuedeVerSaludSupabase();
 
-    if (!admin) {
+    if (!admin && !puedeUsuarios) {
         panel.hidden = true;
         usuarios.hidden = true;
         if (salud) salud.hidden = true;
@@ -4412,8 +4428,8 @@ function actualizarPanelAdminGuias() {
         botonSalud?.setAttribute('aria-expanded', 'false');
     }
 
+    configurarFormularioCreacionUsuario();
     if (admin) {
-        configurarFormularioCreacionUsuario();
         if (!guiaTareasBorrador.length) {
             guiaTareasBorrador = [crearTareaBorrador()];
         }
@@ -4450,7 +4466,9 @@ function cerrarPanelesAdmin() {
     }
 
     if (botonUsuarios) {
-        botonUsuarios.textContent = 'Crear usuarios';
+        botonUsuarios.textContent = usuarioPuedeRestablecerPassword() && !usuarioEsAdmin()
+            ? 'Contraseñas'
+            : 'Crear usuarios';
         botonUsuarios.setAttribute('aria-expanded', 'false');
     }
 
@@ -4459,6 +4477,7 @@ function cerrarPanelesAdmin() {
         botonSalud.setAttribute('aria-expanded', 'false');
     }
 
+    ocultarResultadoRestablecimiento();
     document.body.classList.remove('admin-panel-open');
 
     if (elementoRetornoPanelAdmin?.isConnected) {
@@ -4468,7 +4487,12 @@ function cerrarPanelesAdmin() {
 }
 
 function alternarPanelAdmin(tipo) {
-    if (!usuarioEsAdmin() || (tipo === 'salud' && !usuarioPuedeVerSaludSupabase())) {
+    const accesoPermitido = tipo === 'usuarios'
+        ? (usuarioEsAdmin() || usuarioPuedeRestablecerPassword())
+        : tipo === 'salud'
+            ? usuarioPuedeVerSaludSupabase()
+            : usuarioEsAdmin();
+    if (!accesoPermitido) {
         return;
     }
     const panelGuias = obtenerElemento('adminGuidePanel');
@@ -4496,7 +4520,8 @@ function alternarPanelAdmin(tipo) {
     botonUsuarios?.setAttribute('aria-expanded', String(abrirUsuarios));
     botonSalud?.setAttribute('aria-expanded', String(abrirSalud));
     botonGuias.textContent = abrirGuias ? 'Ocultar crear guias' : 'Crear guias';
-    botonUsuarios.textContent = abrirUsuarios ? 'Ocultar crear usuario' : 'Crear usuarios';
+    const etiquetaUsuarios = usuarioPuedeRestablecerPassword() && !usuarioEsAdmin() ? 'Contraseñas' : 'Crear usuarios';
+    botonUsuarios.textContent = abrirUsuarios ? `Ocultar ${etiquetaUsuarios.toLowerCase()}` : etiquetaUsuarios;
     if (botonSalud) botonSalud.textContent = abrirSalud ? 'Ocultar salud' : 'Salud de Supabase';
 
     if (abrirGuias) {
@@ -4506,7 +4531,7 @@ function alternarPanelAdmin(tipo) {
 
     if (abrirUsuarios) {
         configurarFormularioCreacionUsuario();
-        if (usuarioEsSuperior()) {
+        if (usuarioEsSuperior() || usuarioPuedeRestablecerPassword()) {
             cargarUsuariosAdmin();
         }
         panelUsuarios.querySelector('[data-close-admin-panel]')?.focus();
@@ -4779,8 +4804,10 @@ async function cargarSaludSupabase() {
 
 function configurarFormularioCreacionUsuario() {
     const esSuperior = usuarioEsSuperior();
+    const esGdh = perfilActual?.rol === 'gdh' && perfilActual?.activo !== false;
     const selectorSede = obtenerElemento('newUserSite');
     const selectorRol = obtenerElemento('newUserRole');
+    const formulario = obtenerElemento('createUserForm');
     const titulo = obtenerElemento('adminUsersTitle');
     const descripcion = obtenerElemento('adminUsersDescription');
     const ayuda = obtenerElemento('createUserHelper');
@@ -4788,9 +4815,11 @@ function configurarFormularioCreacionUsuario() {
     const estadoUsuarios = obtenerElemento('usersAdminStatus');
     const lista = obtenerElemento('usersAdminList');
 
-    if (titulo) titulo.textContent = esSuperior ? 'Usuarios y roles' : 'Crear usuario de sede';
+    if (titulo) titulo.textContent = esGdh ? 'Restablecer contraseñas' : esSuperior ? 'Usuarios y roles' : 'Crear usuario de sede';
     if (descripcion) {
-        descripcion.textContent = esSuperior
+        descripcion.textContent = esGdh
+            ? 'Genera una contraseña temporal para colaboradores activos. No puedes modificar roles ni cuentas administrativas.'
+            : esSuperior
             ? 'Crea cuentas, ajusta roles o elimina definitivamente usuarios que ya no deben ingresar.'
             : 'Crea cuentas operativas únicamente para tu sede asignada.';
     }
@@ -4799,9 +4828,10 @@ function configurarFormularioCreacionUsuario() {
             ? 'Ingresa apellidos y nombres y el DNI. El sistema entregara una contrasena temporal.'
             : 'Puedes crear personal operativo para tu sede. El sistema entregara una contrasena temporal.';
     }
-    if (actualizar) actualizar.hidden = !esSuperior;
-    if (estadoUsuarios) estadoUsuarios.hidden = !esSuperior;
-    if (lista) lista.hidden = !esSuperior;
+    if (formulario) formulario.hidden = esGdh;
+    if (actualizar) actualizar.hidden = !esSuperior && !esGdh;
+    if (estadoUsuarios) estadoUsuarios.hidden = !esSuperior && !esGdh;
+    if (lista) lista.hidden = !esSuperior && !esGdh;
 
     if (selectorSede) {
         Array.from(selectorSede.options).forEach(opcion => {
@@ -6448,7 +6478,7 @@ function actualizarProgresoCapacitacionUI() {
 }
 
 async function cargarUsuariosAdmin() {
-    if (!usuarioEsSuperior() || !supabaseClient) {
+    if (!usuarioPuedeRestablecerPassword() || !supabaseClient) {
         return;
     }
 
@@ -6457,10 +6487,22 @@ async function cargarUsuariosAdmin() {
         lista.textContent = 'Cargando usuarios...';
     }
 
-    const { data, error } = await supabaseClient
-        .from('profiles')
-        .select('id,email,nombre,apellidos_nombres,dni,rol,activo,sede,debe_cambiar_password,created_at')
-        .order('created_at', { ascending: true });
+    let data;
+    let error;
+    if (usuarioEsSuperior()) {
+        const respuesta = await supabaseClient
+            .from('profiles')
+            .select('id,email,nombre,apellidos_nombres,dni,rol,activo,sede,debe_cambiar_password,created_at')
+            .order('created_at', { ascending: true });
+        data = respuesta.data;
+        error = respuesta.error;
+    } else {
+        const respuesta = await supabaseClient.functions.invoke('reset-user-password', {
+            body: { action: 'list' }
+        });
+        data = respuesta.data?.users;
+        error = respuesta.error || (respuesta.data?.error ? new Error(respuesta.data.error) : null);
+    }
 
     if (error) {
         if (lista) {
@@ -6471,10 +6513,15 @@ async function cargarUsuariosAdmin() {
     }
 
     usuariosAdmin = data || [];
+    progresoUsuariosAdmin = {};
+    if (!usuarioEsSuperior()) {
+        renderizarUsuariosAdmin();
+        return;
+    }
+
     const { data: progreso } = await supabaseClient
         .from('guia_progreso')
         .select('user_id,revisada');
-    progresoUsuariosAdmin = {};
     (progreso || []).forEach(item => {
         if (!progresoUsuariosAdmin[item.user_id]) {
             progresoUsuariosAdmin[item.user_id] = { total: 0, revisadas: 0 };
@@ -6500,6 +6547,8 @@ function renderizarUsuariosAdmin() {
         return;
     }
 
+    const soloRestablecer = !usuarioEsSuperior();
+
     usuariosAdmin.forEach(usuario => {
         const fila = document.createElement('article');
         const datos = document.createElement('div');
@@ -6510,6 +6559,7 @@ function renderizarUsuariosAdmin() {
         const sede = document.createElement('select');
         const activo = document.createElement('select');
         const guardar = document.createElement('button');
+        const restablecer = document.createElement('button');
         const eliminar = document.createElement('button');
         const acciones = document.createElement('div');
         const esCuentaActual = usuario.id === sesionActual?.user?.id;
@@ -6521,6 +6571,7 @@ function renderizarUsuariosAdmin() {
         nombre.placeholder = 'Apellidos y nombres';
         nombre.dataset.userName = usuario.id;
         nombre.setAttribute('aria-label', `Apellidos y nombres de ${usuario.nombre || usuario.email}`);
+        nombre.disabled = soloRestablecer;
         dni.type = 'text';
         dni.inputMode = 'numeric';
         dni.maxLength = 8;
@@ -6528,6 +6579,7 @@ function renderizarUsuariosAdmin() {
         dni.placeholder = 'DNI pendiente';
         dni.dataset.userDni = usuario.id;
         dni.setAttribute('aria-label', `DNI de ${usuario.nombre || usuario.email}`);
+        dni.disabled = soloRestablecer;
         const progreso = progresoUsuariosAdmin[usuario.id];
         const esCorreoInterno = String(usuario.email || '').endsWith('@usuarios.urbapark.pe');
         const acceso = usuario.dni
@@ -6550,6 +6602,7 @@ function renderizarUsuariosAdmin() {
             rol.appendChild(option);
         });
         rol.dataset.userRole = usuario.id;
+        rol.disabled = soloRestablecer;
 
         const sedesUsuario = usuarioEsRolGlobal(usuario.rol)
             ? [{ id: 'general', nombre: 'General' }, ...SEDES_OPERACION]
@@ -6563,6 +6616,7 @@ function renderizarUsuariosAdmin() {
         });
         sede.dataset.userSite = usuario.id;
         sede.setAttribute('aria-label', `Sede de ${usuario.nombre || usuario.email}`);
+        sede.disabled = soloRestablecer;
 
         [
             ['true', 'Activo'],
@@ -6575,17 +6629,32 @@ function renderizarUsuariosAdmin() {
             activo.appendChild(option);
         });
         activo.dataset.userActive = usuario.id;
+        activo.disabled = soloRestablecer;
 
         guardar.className = 'clear-btn';
         guardar.type = 'button';
         guardar.dataset.saveUser = usuario.id;
         guardar.textContent = 'Guardar';
+        guardar.hidden = soloRestablecer;
+
+        const puedeRestablecer = usuarioPuedeRestablecerCuenta(usuario);
+        restablecer.className = 'clear-btn';
+        restablecer.type = 'button';
+        restablecer.dataset.resetUserPassword = usuario.id;
+        restablecer.textContent = 'Restablecer';
+        restablecer.disabled = !puedeRestablecer;
+        restablecer.title = puedeRestablecer
+            ? `Generar una contraseña temporal para ${usuario.nombre || usuario.dni}`
+            : esCuentaActual
+                ? 'No puedes restablecer tu propia contraseña desde este panel'
+                : 'Esta cuenta está protegida para tu rol';
 
         eliminar.className = 'clear-btn danger-action';
         eliminar.type = 'button';
         eliminar.dataset.deleteUser = usuario.id;
         eliminar.textContent = esCuentaActual ? 'Tu cuenta' : 'Eliminar';
         eliminar.disabled = esCuentaActual || usuario.rol === ROL_SUPERIOR;
+        eliminar.hidden = soloRestablecer;
         eliminar.title = esCuentaActual
             ? 'No puedes eliminar la cuenta con la que iniciaste sesion'
             : usuario.rol === ROL_SUPERIOR
@@ -6593,7 +6662,7 @@ function renderizarUsuariosAdmin() {
                 : `Eliminar definitivamente a ${usuario.nombre || usuario.email}`;
 
         acciones.className = 'user-admin-actions';
-        acciones.append(guardar, eliminar);
+        acciones.append(guardar, restablecer, eliminar);
         fila.append(datos, rol, sede, activo, acciones);
         lista.appendChild(fila);
     });
@@ -6655,6 +6724,93 @@ async function obtenerMensajeErrorFuncion(error, mensajePredeterminado) {
     }
 
     return error?.message || mensajePredeterminado;
+}
+
+function ocultarResultadoRestablecimiento() {
+    const resultado = obtenerElemento('passwordResetResult');
+    if (resultado) resultado.hidden = true;
+    const usuario = obtenerElemento('passwordResetResultUser');
+    const password = obtenerElemento('passwordResetResultValue');
+    if (usuario) usuario.textContent = '';
+    if (password) password.textContent = '';
+}
+
+function mostrarResultadoRestablecimiento(datos) {
+    const resultado = obtenerElemento('passwordResetResult');
+    const usuario = obtenerElemento('passwordResetResultUser');
+    const password = obtenerElemento('passwordResetResultValue');
+    const copiar = obtenerElemento('copyResetPassword');
+    if (!resultado || !usuario || !password) return;
+
+    usuario.textContent = `${datos.nombre || 'Colaborador'} - DNI ${datos.dni}`;
+    password.textContent = datos.temporaryPassword;
+    resultado.hidden = false;
+    resultado.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    copiar?.focus({ preventScroll: true });
+}
+
+async function copiarPasswordRestablecida() {
+    const password = obtenerElemento('passwordResetResultValue')?.textContent?.trim();
+    if (!password) return;
+
+    try {
+        await navigator.clipboard.writeText(password);
+    } catch (error) {
+        const auxiliar = document.createElement('textarea');
+        auxiliar.value = password;
+        auxiliar.setAttribute('readonly', '');
+        auxiliar.style.position = 'fixed';
+        auxiliar.style.opacity = '0';
+        document.body.appendChild(auxiliar);
+        auxiliar.select();
+        document.execCommand('copy');
+        auxiliar.remove();
+    }
+    mostrarToast('Contraseña temporal copiada.');
+}
+
+async function restablecerPasswordUsuario(id) {
+    if (!supabaseClient || !id) return;
+    const usuario = usuariosAdmin.find(item => item.id === id);
+    if (!usuarioPuedeRestablecerCuenta(usuario)) {
+        mostrarToast('No tienes permiso para restablecer esta cuenta.');
+        return;
+    }
+
+    const confirmar = window.confirm(`Se generará una nueva contraseña temporal para ${usuario.nombre || usuario.dni}. La contraseña anterior dejará de funcionar. ¿Continuar?`);
+    if (!confirmar) return;
+
+    const estado = obtenerElemento('usersAdminStatus');
+    ocultarResultadoRestablecimiento();
+    if (estado) {
+        estado.hidden = false;
+        estado.dataset.status = 'info';
+        estado.textContent = 'Generando contraseña temporal...';
+    }
+    document.querySelectorAll('.user-admin-actions button').forEach(boton => { boton.disabled = true; });
+
+    const { data, error } = await supabaseClient.functions.invoke('reset-user-password', {
+        body: { userId: id }
+    });
+
+    if (error || !data?.temporaryPassword) {
+        const mensaje = await obtenerMensajeErrorFuncion(error, data?.error || 'No se pudo restablecer la contraseña.');
+        if (estado) {
+            estado.dataset.status = 'error';
+            estado.textContent = mensaje;
+        }
+        mostrarToast(mensaje);
+        renderizarUsuariosAdmin();
+        return;
+    }
+
+    mostrarResultadoRestablecimiento(data);
+    if (estado) {
+        estado.dataset.status = 'success';
+        estado.textContent = 'Contraseña restablecida. Compártela ahora: solo se mostrará en este momento.';
+    }
+    mostrarToast('Contraseña temporal generada.');
+    renderizarUsuariosAdmin();
 }
 
 async function eliminarUsuarioAdmin(id) {
@@ -10167,6 +10323,8 @@ function configurarEventos() {
     obtenerElemento('addGuideTask')?.addEventListener('click', agregarTareaBorrador);
     obtenerElemento('cancelGuideEdit')?.addEventListener('click', cancelarEdicionGuia);
     obtenerElemento('refreshUsers')?.addEventListener('click', cargarUsuariosAdmin);
+    obtenerElemento('copyResetPassword')?.addEventListener('click', copiarPasswordRestablecida);
+    obtenerElemento('closeResetPassword')?.addEventListener('click', ocultarResultadoRestablecimiento);
     obtenerElemento('toggleGuideAdmin')?.addEventListener('click', () => alternarPanelAdmin('guias'));
     obtenerElemento('toggleUsersAdmin')?.addEventListener('click', () => alternarPanelAdmin('usuarios'));
     obtenerElemento('toggleSystemHealth')?.addEventListener('click', () => alternarPanelAdmin('salud'));
@@ -10398,6 +10556,12 @@ function configurarEventos() {
         const guardarUsuario = event.target.closest('button[data-save-user]');
         if (guardarUsuario) {
             guardarUsuarioAdmin(guardarUsuario.dataset.saveUser);
+            return;
+        }
+
+        const restablecerUsuario = event.target.closest('button[data-reset-user-password]');
+        if (restablecerUsuario) {
+            restablecerPasswordUsuario(restablecerUsuario.dataset.resetUserPassword);
             return;
         }
 

@@ -330,6 +330,19 @@
                     <p class="form-helper" id="createUserHelper">El sistema generara una contrasena temporal para entregar al colaborador. Luego podra cambiarla desde su cuenta.</p>
                     <p id="createUserStatus" class="auth-status" role="status" aria-live="polite"></p>
                 </form>
+                <section class="password-reset-result" id="passwordResetResult" aria-labelledby="passwordResetResultTitle" hidden>
+                    <div>
+                        <p class="eyebrow">Contraseña temporal generada</p>
+                        <h3 id="passwordResetResultTitle">Entrega esta clave al colaborador</h3>
+                        <p id="passwordResetResultUser"></p>
+                    </div>
+                    <code id="passwordResetResultValue" aria-label="Contraseña temporal"></code>
+                    <div class="password-reset-result-actions">
+                        <button class="finish-btn" type="button" id="copyResetPassword">Copiar contraseña</button>
+                        <button class="clear-btn" type="button" id="closeResetPassword">Ocultar</button>
+                    </div>
+                    <p>La clave se muestra solo en este momento. El usuario deberá cambiarla al iniciar sesión.</p>
+                </section>
                 <p id="usersAdminStatus" class="auth-status" role="status" aria-live="polite"></p>
                 <div id="usersAdminList" class="users-admin-list" aria-live="polite"></div>
             </section>
