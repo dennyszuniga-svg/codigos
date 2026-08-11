@@ -81,6 +81,10 @@ body.technical-mode .bottom-nav [data-nav-action="admin"] {
     display: none !important;
 }
 
+body.operational-mode.role-gdh #adminUsersPanel.panel-open {
+    display: block !important;
+}
+
 [hidden] {
     display: none !important;
 }
@@ -1708,6 +1712,10 @@ body.dark-theme .site-button[aria-pressed="true"] {
     color: var(--muted);
     cursor: not-allowed;
     opacity: 0.75;
+}
+
+.module-icon-passwords {
+    background: linear-gradient(145deg, #e84b1a, #b62d0b);
 }
 
 .password-reset-result {

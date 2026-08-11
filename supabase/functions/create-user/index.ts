@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
     .eq('id', userData.user.id)
     .maybeSingle();
 
-  if (profileError || !['encargado_ti', 'admin'].includes(profile?.rol || '') || profile?.activo !== true) {
+  if (profileError || !['encargado_ti', 'admin', 'jefe_operaciones', 'coordinador_operaciones', 'gdh'].includes(profile?.rol || '') || profile?.activo !== true) {
     return jsonResponse({ error: 'Solo administradores autorizados pueden crear usuarios' }, 403);
   }
 

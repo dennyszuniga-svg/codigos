@@ -2257,8 +2257,8 @@ function actualizarSesionUI() {
 
     if (rolActual === ROL_SUPERIOR) {
         document.body.classList.add('admin-mode', `role-${ROL_SUPERIOR}`);
-    } else if (rolActual === 'admin') {
-        document.body.classList.add('admin-mode', 'role-admin');
+    } else if (rolActual === 'admin' || ROLES_OPERACION_GLOBAL.includes(rolActual)) {
+        document.body.classList.add('admin-mode', `role-${rolActual}`);
     } else if (rolActual === 'tecnico') {
         document.body.classList.add('technical-mode', 'role-tecnico');
     } else if (rolActual !== 'sin-rol') {
@@ -2281,7 +2281,13 @@ function actualizarSesionUI() {
 }
 
 function usuarioEsAdmin() {
-    return [ROL_SUPERIOR, 'admin'].includes(perfilActual?.rol) && perfilActual?.activo !== false;
+    return [ROL_SUPERIOR, 'admin', ...ROLES_OPERACION_GLOBAL].includes(perfilActual?.rol)
+        && perfilActual?.activo !== false;
+}
+
+function usuarioEsAdminGlobal() {
+    return [ROL_SUPERIOR, ...ROLES_OPERACION_GLOBAL].includes(perfilActual?.rol)
+        && perfilActual?.activo !== false;
 }
 
 function usuarioEsSuperior() {
@@ -2316,8 +2322,7 @@ function usuarioEsRolGlobal(rol = perfilActual?.rol) {
 }
 
 function usuarioPuedeGestionarActivosOperaciones() {
-    return perfilActual?.activo !== false
-        && [ROL_SUPERIOR, 'admin', 'jefe_operaciones', 'coordinador_operaciones'].includes(perfilActual?.rol);
+    return usuarioEsAdmin();
 }
 
 function usuarioPuedeElegirSedeActivosOperaciones() {
@@ -4396,6 +4401,7 @@ function actualizarPanelAdminGuias() {
     const botonGuias = obtenerElemento('toggleGuideAdmin');
     const botonUsuarios = obtenerElemento('toggleUsersAdmin');
     const botonSalud = obtenerElemento('toggleSystemHealth');
+    const botonModuloPasswords = obtenerElemento('openPasswordResetModule');
 
     if (!acciones || !panel || !usuarios) {
         return;
@@ -4403,6 +4409,9 @@ function actualizarPanelAdminGuias() {
 
     const admin = usuarioEsAdmin();
     const puedeUsuarios = admin || usuarioPuedeRestablecerPassword();
+    if (botonModuloPasswords) {
+        botonModuloPasswords.hidden = perfilActual?.rol !== 'gdh' || !usuarioPuedeRestablecerPassword();
+    }
     acciones.hidden = !admin && !puedeUsuarios;
     if (botonGuias) botonGuias.hidden = !admin;
     botonUsuarios.hidden = !puedeUsuarios;
@@ -4804,7 +4813,7 @@ async function cargarSaludSupabase() {
 
 function configurarFormularioCreacionUsuario() {
     const esSuperior = usuarioEsSuperior();
-    const esGdh = perfilActual?.rol === 'gdh' && perfilActual?.activo !== false;
+    const esAdminGlobal = usuarioEsAdminGlobal();
     const selectorSede = obtenerElemento('newUserSite');
     const selectorRol = obtenerElemento('newUserRole');
     const formulario = obtenerElemento('createUserForm');
@@ -4815,12 +4824,10 @@ function configurarFormularioCreacionUsuario() {
     const estadoUsuarios = obtenerElemento('usersAdminStatus');
     const lista = obtenerElemento('usersAdminList');
 
-    if (titulo) titulo.textContent = esGdh ? 'Restablecer contraseñas' : esSuperior ? 'Usuarios y roles' : 'Crear usuario de sede';
+    if (titulo) titulo.textContent = esAdminGlobal ? 'Usuarios y roles' : 'Crear usuario de sede';
     if (descripcion) {
-        descripcion.textContent = esGdh
-            ? 'Genera una contraseña temporal para colaboradores activos. No puedes modificar roles ni cuentas administrativas.'
-            : esSuperior
-            ? 'Crea cuentas, ajusta roles o elimina definitivamente usuarios que ya no deben ingresar.'
+        descripcion.textContent = esAdminGlobal
+            ? 'Crea cuentas, ajusta roles y administra el acceso del personal de todas las sedes.'
             : 'Crea cuentas operativas únicamente para tu sede asignada.';
     }
     if (ayuda) {
@@ -4828,27 +4835,27 @@ function configurarFormularioCreacionUsuario() {
             ? 'Ingresa apellidos y nombres y el DNI. El sistema entregara una contrasena temporal.'
             : 'Puedes crear personal operativo para tu sede. El sistema entregara una contrasena temporal.';
     }
-    if (formulario) formulario.hidden = esGdh;
-    if (actualizar) actualizar.hidden = !esSuperior && !esGdh;
-    if (estadoUsuarios) estadoUsuarios.hidden = !esSuperior && !esGdh;
-    if (lista) lista.hidden = !esSuperior && !esGdh;
+    if (formulario) formulario.hidden = false;
+    if (actualizar) actualizar.hidden = false;
+    if (estadoUsuarios) estadoUsuarios.hidden = false;
+    if (lista) lista.hidden = false;
 
     if (selectorSede) {
         Array.from(selectorSede.options).forEach(opcion => {
-            opcion.hidden = !esSuperior && opcion.value !== obtenerSedeActual();
-            opcion.disabled = !esSuperior && opcion.value !== obtenerSedeActual();
+            opcion.hidden = !esAdminGlobal && opcion.value !== obtenerSedeActual();
+            opcion.disabled = !esAdminGlobal && opcion.value !== obtenerSedeActual();
         });
-        if (!esSuperior) selectorSede.value = obtenerSedeActual();
-        selectorSede.disabled = !esSuperior;
+        if (!esAdminGlobal) selectorSede.value = obtenerSedeActual();
+        selectorSede.disabled = !esAdminGlobal;
     }
 
     if (selectorRol) {
         Array.from(selectorRol.options).forEach(opcion => {
-            const permitida = esSuperior || ROLES_CREABLES_POR_ADMIN.includes(opcion.value);
+            const permitida = esAdminGlobal || ROLES_CREABLES_POR_ADMIN.includes(opcion.value);
             opcion.hidden = !permitida;
             opcion.disabled = !permitida;
         });
-        if (!esSuperior && !ROLES_CREABLES_POR_ADMIN.includes(selectorRol.value)) {
+        if (!esAdminGlobal && !ROLES_CREABLES_POR_ADMIN.includes(selectorRol.value)) {
             selectorRol.value = 'anfitrion';
         }
     }
@@ -6478,7 +6485,7 @@ function actualizarProgresoCapacitacionUI() {
 }
 
 async function cargarUsuariosAdmin() {
-    if (!usuarioPuedeRestablecerPassword() || !supabaseClient) {
+    if ((!usuarioEsAdmin() && !usuarioPuedeRestablecerPassword()) || !supabaseClient) {
         return;
     }
 
@@ -6489,7 +6496,7 @@ async function cargarUsuariosAdmin() {
 
     let data;
     let error;
-    if (usuarioEsSuperior()) {
+    if (usuarioEsAdmin()) {
         const respuesta = await supabaseClient
             .from('profiles')
             .select('id,email,nombre,apellidos_nombres,dni,rol,activo,sede,debe_cambiar_password,created_at')
@@ -6514,7 +6521,7 @@ async function cargarUsuariosAdmin() {
 
     usuariosAdmin = data || [];
     progresoUsuariosAdmin = {};
-    if (!usuarioEsSuperior()) {
+    if (!usuarioEsAdmin()) {
         renderizarUsuariosAdmin();
         return;
     }
@@ -6547,7 +6554,7 @@ function renderizarUsuariosAdmin() {
         return;
     }
 
-    const soloRestablecer = !usuarioEsSuperior();
+    const soloRestablecer = !usuarioEsAdmin();
 
     usuariosAdmin.forEach(usuario => {
         const fila = document.createElement('article');
@@ -6636,6 +6643,8 @@ function renderizarUsuariosAdmin() {
         guardar.dataset.saveUser = usuario.id;
         guardar.textContent = 'Guardar';
         guardar.hidden = soloRestablecer;
+        guardar.disabled = usuario.rol === ROL_SUPERIOR && !usuarioEsSuperior();
+        guardar.title = guardar.disabled ? 'La cuenta superior está protegida' : 'Guardar cambios del usuario';
 
         const puedeRestablecer = usuarioPuedeRestablecerCuenta(usuario);
         restablecer.className = 'clear-btn';
@@ -6654,7 +6663,7 @@ function renderizarUsuariosAdmin() {
         eliminar.dataset.deleteUser = usuario.id;
         eliminar.textContent = esCuentaActual ? 'Tu cuenta' : 'Eliminar';
         eliminar.disabled = esCuentaActual || usuario.rol === ROL_SUPERIOR;
-        eliminar.hidden = soloRestablecer;
+        eliminar.hidden = !usuarioEsSuperior();
         eliminar.title = esCuentaActual
             ? 'No puedes eliminar la cuenta con la que iniciaste sesion'
             : usuario.rol === ROL_SUPERIOR
@@ -6669,7 +6678,13 @@ function renderizarUsuariosAdmin() {
 }
 
 async function guardarUsuarioAdmin(id) {
-    if (!usuarioEsSuperior() || !supabaseClient || !id) {
+    if (!usuarioEsAdmin() || !supabaseClient || !id) {
+        return;
+    }
+
+    const usuarioActualizado = usuariosAdmin.find(item => item.id === id);
+    if (usuarioActualizado?.rol === ROL_SUPERIOR && !usuarioEsSuperior()) {
+        mostrarToast('La cuenta superior está protegida.');
         return;
     }
 
@@ -6892,7 +6907,7 @@ async function crearUsuarioDesdeAdmin(event) {
     const sede = obtenerElemento('newUserSite')?.value;
     const rol = obtenerElemento('newUserRole')?.value;
 
-    if (!usuarioEsSuperior() && (sede !== obtenerSedeActual() || !ROLES_CREABLES_POR_ADMIN.includes(rol))) {
+    if (!usuarioEsAdminGlobal() && (sede !== obtenerSedeActual() || !ROLES_CREABLES_POR_ADMIN.includes(rol))) {
         if (estado) {
             estado.textContent = 'Solo puedes crear cuentas operativas para tu sede.';
             estado.dataset.status = 'error';
@@ -6938,7 +6953,7 @@ async function crearUsuarioDesdeAdmin(event) {
             estado.dataset.status = 'success';
         }
         mostrarToast(`Usuario creado: ${nombre}`);
-        if (usuarioEsSuperior()) {
+        if (usuarioEsAdmin()) {
             await cargarUsuariosAdmin();
         }
     } catch (error) {
@@ -10327,6 +10342,7 @@ function configurarEventos() {
     obtenerElemento('closeResetPassword')?.addEventListener('click', ocultarResultadoRestablecimiento);
     obtenerElemento('toggleGuideAdmin')?.addEventListener('click', () => alternarPanelAdmin('guias'));
     obtenerElemento('toggleUsersAdmin')?.addEventListener('click', () => alternarPanelAdmin('usuarios'));
+    obtenerElemento('openPasswordResetModule')?.addEventListener('click', () => alternarPanelAdmin('usuarios'));
     obtenerElemento('toggleSystemHealth')?.addEventListener('click', () => alternarPanelAdmin('salud'));
     obtenerElemento('refreshSystemHealth')?.addEventListener('click', cargarSaludSupabase);
     obtenerElemento('createUserForm')?.addEventListener('submit', crearUsuarioDesdeAdmin);
