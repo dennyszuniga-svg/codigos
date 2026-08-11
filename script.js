@@ -4410,7 +4410,7 @@ function actualizarPanelAdminGuias() {
     const admin = usuarioEsAdmin();
     const puedeUsuarios = admin || usuarioPuedeRestablecerPassword();
     if (botonModuloPasswords) {
-        botonModuloPasswords.hidden = perfilActual?.rol !== 'gdh' || !usuarioPuedeRestablecerPassword();
+        botonModuloPasswords.hidden = !usuarioPuedeRestablecerPassword();
     }
     acciones.hidden = !admin && !puedeUsuarios;
     if (botonGuias) botonGuias.hidden = !admin;
@@ -10599,7 +10599,7 @@ function configurarEventos() {
         }
 
         const dentroDelPanel = event.target.closest('.admin-guide-panel.panel-open');
-        const botonApertura = event.target.closest('#toggleGuideAdmin, #toggleUsersAdmin, #toggleSystemHealth');
+        const botonApertura = event.target.closest('#toggleGuideAdmin, #toggleUsersAdmin, #toggleSystemHealth, #openPasswordResetModule');
         if (!dentroDelPanel && !botonApertura) {
             cerrarPanelesAdmin();
         }
