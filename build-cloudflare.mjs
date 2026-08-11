@@ -19,6 +19,7 @@ const publicFiles = [
   "asistencia.js",
   "gdh.html",
   "gdh.css",
+  "gdh-media.css",
   "gdh.js"
 ];
 

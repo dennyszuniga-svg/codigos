@@ -7,6 +7,7 @@
     <title>GDH | URBAPARK</title>
     <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
     <link rel="stylesheet" href="gdh.css">
+    <link rel="stylesheet" href="gdh-media.css">
 </head>
 <body>
     <header class="gdh-header">
@@ -65,7 +66,11 @@
                     <label class="check-line"><input id="announcementMandatory" type="checkbox"> Requiere confirmacion obligatoria</label>
                     <div id="announcementAudienceOptions" class="option-grid" hidden></div>
                     <label>Enlace opcional<input id="announcementLink" type="url" placeholder="https://..."></label>
-                    <label>Adjunto opcional<input id="announcementFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></label>
+                    <label>Imagen, video o PDF (opcional)
+                        <input id="announcementFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,application/pdf" aria-describedby="announcementFileHelp">
+                    </label>
+                    <p class="field-help" id="announcementFileHelp">Se recomienda usar imagenes. Maximo: 12 MB por imagen y 40 MB por video.</p>
+                    <div id="announcementMediaPreview" class="announcement-media-preview" aria-live="polite" hidden></div>
                     <button class="primary-button" type="submit">Publicar comunicado</button>
                     <p class="form-status" id="announcementStatus" role="status"></p>
                 </form>

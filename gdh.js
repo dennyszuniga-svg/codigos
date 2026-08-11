@@ -2,9 +2,12 @@ const SUPABASE_URL='https://uibiwhkxlyxdfytvudbn.supabase.co';
 const SUPABASE_KEY='sb_publishable_R-auhGcSmwSl-1U9WdGe3g_ZYm5BZEt';
 const DOCUMENT_BUCKET='gdh-documentos';
 const ANNOUNCEMENT_BUCKET='gdh-comunicados';
+const ANNOUNCEMENT_IMAGE_LIMIT=12*1024*1024;
+const ANNOUNCEMENT_VIDEO_LIMIT=40*1024*1024;
+const ANNOUNCEMENT_FILE_LIMIT=20*1024*1024;
 const SITES=[['puruchuco','Real Plaza Puruchuco'],['salaverry','Real Plaza Salaverry'],['primavera','Real Plaza Primavera'],['civico','Real Plaza Civico'],['gama','GAMA']];
 const ROLES=[['anfitrion','Anfitrion'],['tecnico','Tecnico'],['charly','Charly'],['eco','ECO'],['supervisor','Supervisor'],['fortaleza','Fortaleza'],['admin','Administrador'],['jefe_operaciones','Jefe de operaciones'],['coordinador_operaciones','Coordinador de operaciones']];
-let client=null,session=null,profile=null,users=[],documents=[],announcements=[],readings=[];
+let client=null,session=null,profile=null,users=[],documents=[],announcements=[],readings=[],announcementPreviewUrl=null;
 
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
@@ -13,6 +16,49 @@ const isManager=()=>['encargado_ti','gdh'].includes(profile?.rol);
 function status(id,text,state=''){const el=$(id);if(el){el.textContent=text;el.dataset.state=state;}}
 function toast(text){const el=$('gdhToast');el.textContent=text;el.hidden=false;clearTimeout(el.timer);el.timer=setTimeout(()=>el.hidden=true,4000)}
 function safeName(name){return String(name||'archivo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]+/g,'-').slice(-100)}
+function announcementMediaKind(source){
+  const type=String(source?.type||source?.mime_type||'').toLowerCase();
+  const name=String(source?.archivo_nombre||source?.name||source?.storage_path||'').toLowerCase();
+  if(type.startsWith('image/')||/\.(jpe?g|png|webp|gif)$/.test(name))return'image';
+  if(type.startsWith('video/')||/\.(mp4|webm|mov)$/.test(name))return'video';
+  if(type==='application/pdf'||name.endsWith('.pdf'))return'pdf';
+  return'file';
+}
+function validateAnnouncementFile(file){
+  if(!file)return'';
+  const kind=announcementMediaKind(file);
+  if(!['image','video','pdf'].includes(kind))return'El formato seleccionado no es compatible.';
+  const limit=kind==='image'?ANNOUNCEMENT_IMAGE_LIMIT:kind==='video'?ANNOUNCEMENT_VIDEO_LIMIT:ANNOUNCEMENT_FILE_LIMIT;
+  return file.size>limit?`El archivo supera el limite de ${Math.round(limit/1024/1024)} MB.`:'';
+}
+function clearAnnouncementPreview(){
+  if(announcementPreviewUrl)URL.revokeObjectURL(announcementPreviewUrl);
+  announcementPreviewUrl=null;
+  const preview=$('announcementMediaPreview');
+  if(preview){preview.replaceChildren();preview.hidden=true}
+}
+function previewAnnouncementFile(){
+  clearAnnouncementPreview();
+  const file=$('announcementFile')?.files?.[0];
+  if(!file)return;
+  const error=validateAnnouncementFile(file);
+  if(error){status('announcementStatus',error,'error');$('announcementFile').value='';return}
+  const preview=$('announcementMediaPreview'),kind=announcementMediaKind(file);
+  announcementPreviewUrl=URL.createObjectURL(file);
+  const media=kind==='image'?document.createElement('img'):kind==='video'?document.createElement('video'):null;
+  if(media){media.src=announcementPreviewUrl;media.className='announcement-media';media.setAttribute('aria-label',`Vista previa de ${file.name}`);if(kind==='video'){media.controls=true;media.preload='metadata';media.playsInline=true}preview.append(media)}
+  const detail=document.createElement('p');detail.textContent=`${file.name} · ${(file.size/1024/1024).toFixed(1)} MB`;preview.append(detail);preview.hidden=false;status('announcementStatus','','');
+}
+async function appendAnnouncementMedia(item,container,compact=false){
+  const kind=announcementMediaKind(item);if(!item.storage_path||!['image','video'].includes(kind))return;
+  try{
+    const url=await signedUrl(ANNOUNCEMENT_BUCKET,item.storage_path);
+    const media=kind==='image'?document.createElement('img'):document.createElement('video');
+    media.src=url;media.className=compact?'announcement-thumbnail':'announcement-media';media.setAttribute('aria-label',item.archivo_nombre||`Adjunto de ${item.titulo}`);
+    if(kind==='video'){media.preload='metadata';media.playsInline=true;media.muted=compact;if(!compact)media.controls=true}
+    container.prepend(media);
+  }catch(error){console.error(error)}
+}
 
 async function signedUrl(bucket,path){const {data,error}=await client.storage.from(bucket).createSignedUrl(path,300);if(error)throw error;return data.signedUrl}
 async function openStored(bucket,path){window.open(await signedUrl(bucket,path),'_blank','noopener,noreferrer')}
@@ -40,7 +86,7 @@ async function loadAnnouncements(){
 }
 function renderAnnouncements(){
   const list=$('announcementsList');list.replaceChildren();if(!announcements.length){list.innerHTML='<p class="empty-state">No hay comunicados vigentes.</p>';return}
-  announcements.forEach(item=>{const read=readings.find(row=>row.comunicado_id===item.id&&row.user_id===session.user.id);const article=document.createElement('article');article.className=`announcement-card${item.obligatorio?' mandatory':''}`;article.innerHTML=`<div><h3>${esc(item.titulo)}</h3><p>${item.obligatorio?'Lectura obligatoria':'Comunicado'} · ${read?.confirmado?'Confirmado':read?'Visto':'Nuevo'} · ${formatDate(item.created_at)}</p></div>`;const button=document.createElement('button');button.className='document-action';button.type='button';button.textContent='Abrir';button.addEventListener('click',()=>openAnnouncement(item));article.append(button);list.append(article)})
+  announcements.forEach(item=>{const read=readings.find(row=>row.comunicado_id===item.id&&row.user_id===session.user.id);const article=document.createElement('article');article.className=`announcement-card${item.obligatorio?' mandatory':''}`;const summary=document.createElement('div');summary.className='announcement-summary';const text=document.createElement('div');const title=document.createElement('h3');title.textContent=item.titulo;const meta=document.createElement('p');meta.textContent=`${item.obligatorio?'Lectura obligatoria':'Comunicado'} · ${read?.confirmado?'Confirmado':read?'Visto':'Nuevo'} · ${formatDate(item.created_at)}`;text.append(title,meta);summary.append(text);article.append(summary);appendAnnouncementMedia(item,summary,true);const button=document.createElement('button');button.className='document-action';button.type='button';button.textContent='Abrir';button.addEventListener('click',()=>openAnnouncement(item));article.append(button);list.append(article)})
 }
 async function registerView(item,confirmed=false){
   const existing=readings.find(row=>row.comunicado_id===item.id&&row.user_id===session.user.id);
@@ -51,7 +97,7 @@ async function registerView(item,confirmed=false){
 }
 async function openAnnouncement(item){
   $('viewerTag').textContent=item.obligatorio?'Lectura obligatoria':'Comunicado';$('viewerTitle').textContent=item.titulo;
-  $('viewerContent').innerHTML=`<div class="viewer-content">${esc(item.contenido)}</div>`;
+  const content=$('viewerContent');content.replaceChildren();const body=document.createElement('div');body.className='viewer-content';body.textContent=item.contenido;content.append(body);await appendAnnouncementMedia(item,content,false);
   const actions=$('viewerActions');actions.replaceChildren();
   if(item.link_url){const link=document.createElement('a');link.className='document-action';link.href=item.link_url;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Abrir enlace';actions.append(link)}
   if(item.storage_path){const file=document.createElement('button');file.className='document-action';file.type='button';file.textContent='Ver adjunto';file.addEventListener('click',()=>openStored(ANNOUNCEMENT_BUCKET,item.storage_path));actions.append(file)}
@@ -83,10 +129,11 @@ async function uploadDocument(event){
 async function publishAnnouncement(event){
   event.preventDefault();const audience=$('announcementAudience').value;const selected=[...$('announcementAudienceOptions').querySelectorAll('input:checked')].map(input=>input.value);if(audience!=='todos'&&!selected.length){status('announcementStatus','Selecciona al menos un destinatario.','error');return}
   status('announcementStatus','Publicando comunicado...');const id=crypto.randomUUID(),file=$('announcementFile').files[0];let path=null;
-  try{if(file){path=`${id}/${safeName(file.name)}`;const {error}=await client.storage.from(ANNOUNCEMENT_BUCKET).upload(path,file,{contentType:file.type});if(error)throw error}
-    const payload={id,titulo:$('announcementTitle').value.trim(),contenido:$('announcementContent').value.trim(),link_url:$('announcementLink').value.trim()||null,storage_path:path,archivo_nombre:file?.name||null,obligatorio:$('announcementMandatory').checked,audiencia:audience,sedes:audience==='sedes'?selected:[],roles:audience==='roles'?selected:[],usuarios:audience==='usuarios'?selected:[],vence_at:$('announcementExpiry').value?new Date($('announcementExpiry').value).toISOString():null,created_by:session.user.id};
+  const fileError=validateAnnouncementFile(file);if(fileError){status('announcementStatus',fileError,'error');return}
+  try{if(file){path=`${id}/${safeName(file.name)}`;const {error}=await client.storage.from(ANNOUNCEMENT_BUCKET).upload(path,file,{contentType:file.type,upsert:false});if(error)throw error}
+    const payload={id,titulo:$('announcementTitle').value.trim(),contenido:$('announcementContent').value.trim(),link_url:$('announcementLink').value.trim()||null,storage_path:path,archivo_nombre:file?.name||null,mime_type:file?.type||null,tamano_bytes:file?.size||null,obligatorio:$('announcementMandatory').checked,audiencia:audience,sedes:audience==='sedes'?selected:[],roles:audience==='roles'?selected:[],usuarios:audience==='usuarios'?selected:[],vence_at:$('announcementExpiry').value?new Date($('announcementExpiry').value).toISOString():null,created_by:session.user.id};
     const {error}=await client.from('gdh_comunicados').insert(payload);if(error){if(path)await client.storage.from(ANNOUNCEMENT_BUCKET).remove([path]);throw error}
-    event.target.reset();renderAudienceOptions();status('announcementStatus','Comunicado publicado.','success');toast('Comunicado disponible para los destinatarios.');await loadAnnouncements();await loadMetrics();
+    event.target.reset();clearAnnouncementPreview();renderAudienceOptions();status('announcementStatus','Comunicado publicado.','success');toast('Comunicado disponible para los destinatarios.');await loadAnnouncements();await loadMetrics();
   }catch(error){console.error(error);status('announcementStatus','No se pudo publicar el comunicado.','error')}
 }
 function targetsFor(item){return users.filter(user=>item.audiencia==='todos'||(item.audiencia==='sedes'&&item.sedes.includes(user.sede))||(item.audiencia==='roles'&&item.roles.includes(user.rol))||(item.audiencia==='usuarios'&&item.usuarios.includes(user.id)))}
@@ -101,7 +148,7 @@ async function init(){
   client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true}});const {data}=await client.auth.getSession();session=data.session;if(!session){location.replace('index.html');return}
   const {data:p,error}=await client.from('profiles').select('nombre,apellidos_nombres,dni,rol,sede,activo').eq('id',session.user.id).maybeSingle();if(error||!p?.activo){location.replace('index.html');return}profile=p;$('gdhUserLabel').textContent=`${p.apellidos_nombres||p.nombre} · ${p.dni?`DNI ${p.dni}`:p.rol}`;
   $('gdhManagementTab').hidden=!isManager();await loadUsers();await Promise.all([loadDocuments(),loadAnnouncements()]);
-  document.querySelectorAll('[data-gdh-tab]').forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.gdhTab)));$('refreshDocuments').addEventListener('click',loadDocuments);$('refreshAnnouncements').addEventListener('click',loadAnnouncements);$('refreshMetrics').addEventListener('click',loadMetrics);$('documentUploadForm').addEventListener('submit',uploadDocument);$('announcementForm').addEventListener('submit',publishAnnouncement);$('announcementAudience').addEventListener('change',renderAudienceOptions);$('closeViewer').addEventListener('click',()=>$('announcementViewer').hidden=true);
+  document.querySelectorAll('[data-gdh-tab]').forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.gdhTab)));$('refreshDocuments').addEventListener('click',loadDocuments);$('refreshAnnouncements').addEventListener('click',loadAnnouncements);$('refreshMetrics').addEventListener('click',loadMetrics);$('documentUploadForm').addEventListener('submit',uploadDocument);$('announcementForm').addEventListener('submit',publishAnnouncement);$('announcementFile').addEventListener('change',previewAnnouncementFile);$('announcementAudience').addEventListener('change',renderAudienceOptions);$('closeViewer').addEventListener('click',()=>$('announcementViewer').hidden=true);
   const applies=item=>item.audiencia==='todos'||(item.audiencia==='sedes'&&item.sedes.includes(profile.sede))||(item.audiencia==='roles'&&item.roles.includes(profile.rol))||(item.audiencia==='usuarios'&&item.usuarios.includes(session.user.id));
   const mandatory=announcements.find(item=>item.obligatorio&&applies(item)&&!readings.some(row=>row.comunicado_id===item.id&&row.user_id===session.user.id&&row.confirmado));if(mandatory)openAnnouncement(mandatory);
 }
