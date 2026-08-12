@@ -137,18 +137,49 @@ async function publishAnnouncement(event){
   }catch(error){console.error(error);status('announcementStatus','No se pudo publicar el comunicado.','error')}
 }
 function targetsFor(item){return users.filter(user=>item.audiencia==='todos'||(item.audiencia==='sedes'&&item.sedes.includes(user.sede))||(item.audiencia==='roles'&&item.roles.includes(user.rol))||(item.audiencia==='usuarios'&&item.usuarios.includes(user.id)))}
+function catalogLabel(catalog,value){return catalog.find(([key])=>key===value)?.[1]||String(value||'Sin asignar').replaceAll('_',' ')}
+function readingStatus(reading){
+  if(reading?.confirmado)return{label:'Confirmado',className:'confirmed',date:reading.confirmado_at||reading.visto_at};
+  if(reading)return{label:'Visto sin confirmar',className:'viewed',date:reading.visto_at};
+  return{label:'Pendiente',className:'pending',date:null};
+}
+function refreshPersonnelAnnouncementOptions(mandatory){
+  const select=$('personnelAnnouncementFilter'),previous=select.value;select.replaceChildren();
+  if(!mandatory.length){select.add(new Option('No hay publicaciones obligatorias',''));select.disabled=true;return}
+  select.disabled=false;mandatory.forEach(item=>select.add(new Option(`${item.titulo} · ${formatDate(item.created_at)}`,item.id)));
+  if(mandatory.some(item=>item.id===previous))select.value=previous;
+}
+function renderPersonnelStatus(){
+  const tbody=$('personnelStatusTableBody'),summary=$('personnelStatusSummary');tbody.replaceChildren();
+  const announcement=announcements.find(item=>item.id===$('personnelAnnouncementFilter').value&&item.obligatorio);
+  if(!announcement){const row=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=6;cell.className='empty-table-cell';cell.textContent='Selecciona una publicacion obligatoria.';row.append(cell);tbody.append(row);summary.textContent='';return}
+  const query=$('personnelStatusSearch').value.trim().toLocaleLowerCase('es');
+  const target=targetsFor(announcement).sort((a,b)=>String(a.apellidos_nombres||a.nombre).localeCompare(String(b.apellidos_nombres||b.nombre),'es'));
+  const visible=target.filter(user=>!query||[user.apellidos_nombres,user.nombre,user.dni,catalogLabel(SITES,user.sede),catalogLabel(ROLES,user.rol)].some(value=>String(value||'').toLocaleLowerCase('es').includes(query)));
+  const confirmed=target.filter(user=>readings.some(row=>row.comunicado_id===announcement.id&&row.user_id===user.id&&row.confirmado)).length;
+  summary.textContent=`${confirmed} de ${target.length} confirmaron`;
+  if(!visible.length){const row=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=6;cell.className='empty-table-cell';cell.textContent='No se encontraron colaboradores con ese filtro.';row.append(cell);tbody.append(row);return}
+  visible.forEach(user=>{
+    const reading=readings.find(row=>row.comunicado_id===announcement.id&&row.user_id===user.id),state=readingStatus(reading),row=document.createElement('tr');
+    const values=[user.apellidos_nombres||user.nombre||'Sin nombre',user.dni||'Pendiente',catalogLabel(SITES,user.sede),catalogLabel(ROLES,user.rol)];
+    values.forEach(value=>{const cell=document.createElement('td');cell.textContent=value;row.append(cell)});
+    const statusCell=document.createElement('td'),badge=document.createElement('span');badge.className=`reading-status ${state.className}`;badge.textContent=state.label;statusCell.append(badge);row.append(statusCell);
+    const dateCell=document.createElement('td');dateCell.textContent=state.date?formatDate(state.date):'Sin registro';row.append(dateCell);tbody.append(row);
+  });
+}
 async function loadMetrics(){
   if(!isManager())return;const [{data:items},{data:seen}]=await Promise.all([client.from('gdh_comunicados').select('*').order('created_at',{ascending:false}),client.from('gdh_lecturas').select('*')]);announcements=items||[];readings=seen||[];
-  const mandatory=announcements.filter(item=>item.obligatorio),totalTargets=mandatory.reduce((sum,item)=>sum+targetsFor(item).length,0),confirmed=mandatory.reduce((sum,item)=>sum+readings.filter(row=>row.comunicado_id===item.id&&row.confirmado).length,0);const pct=totalTargets?Math.round(confirmed/totalTargets*100):0;
+  const mandatory=announcements.filter(item=>item.obligatorio),totalTargets=mandatory.reduce((sum,item)=>sum+targetsFor(item).length,0),confirmed=mandatory.reduce((sum,item)=>{const targetIds=new Set(targetsFor(item).map(user=>user.id));return sum+readings.filter(row=>row.comunicado_id===item.id&&row.confirmado&&targetIds.has(row.user_id)).length},0);const pct=totalTargets?Math.round(confirmed/totalTargets*100):0;
   $('gdhMetrics').innerHTML=`<article class="metric-card"><span>Comunicados vigentes</span><strong>${announcements.length}</strong></article><article class="metric-card"><span>Lecturas obligatorias</span><strong>${totalTargets}</strong></article><article class="metric-card"><span>Confirmadas</span><strong>${confirmed}</strong></article><article class="metric-card"><span>Cumplimiento</span><strong>${pct}%</strong></article>`;
   const tbody=$('gdhMetricsTable');tbody.replaceChildren();mandatory.forEach(item=>{const target=targetsFor(item),done=readings.filter(row=>row.comunicado_id===item.id&&row.confirmado&&target.some(user=>user.id===row.user_id)).length;const tr=document.createElement('tr');tr.innerHTML=`<td>${esc(item.titulo)}</td><td>${target.length}</td><td>${done}</td><td>${Math.max(0,target.length-done)}</td><td>${target.length?Math.round(done/target.length*100):0}%</td>`;tbody.append(tr)});
+  refreshPersonnelAnnouncementOptions(mandatory);renderPersonnelStatus();
 }
 
 async function init(){
   client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true}});const {data}=await client.auth.getSession();session=data.session;if(!session){location.replace('index.html');return}
   const {data:p,error}=await client.from('profiles').select('nombre,apellidos_nombres,dni,rol,sede,activo').eq('id',session.user.id).maybeSingle();if(error||!p?.activo){location.replace('index.html');return}profile=p;$('gdhUserLabel').textContent=`${p.apellidos_nombres||p.nombre} · ${p.dni?`DNI ${p.dni}`:p.rol}`;
   $('gdhManagementTab').hidden=!isManager();await loadUsers();await Promise.all([loadDocuments(),loadAnnouncements()]);
-  document.querySelectorAll('[data-gdh-tab]').forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.gdhTab)));$('refreshDocuments').addEventListener('click',loadDocuments);$('refreshAnnouncements').addEventListener('click',loadAnnouncements);$('refreshMetrics').addEventListener('click',loadMetrics);$('documentUploadForm').addEventListener('submit',uploadDocument);$('announcementForm').addEventListener('submit',publishAnnouncement);$('announcementFile').addEventListener('change',previewAnnouncementFile);$('announcementAudience').addEventListener('change',renderAudienceOptions);$('closeViewer').addEventListener('click',()=>$('announcementViewer').hidden=true);
+  document.querySelectorAll('[data-gdh-tab]').forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.gdhTab)));$('refreshDocuments').addEventListener('click',loadDocuments);$('refreshAnnouncements').addEventListener('click',loadAnnouncements);$('refreshMetrics').addEventListener('click',loadMetrics);$('documentUploadForm').addEventListener('submit',uploadDocument);$('announcementForm').addEventListener('submit',publishAnnouncement);$('announcementFile').addEventListener('change',previewAnnouncementFile);$('announcementAudience').addEventListener('change',renderAudienceOptions);$('personnelAnnouncementFilter').addEventListener('change',renderPersonnelStatus);$('personnelStatusSearch').addEventListener('input',renderPersonnelStatus);$('closeViewer').addEventListener('click',()=>$('announcementViewer').hidden=true);
   const applies=item=>item.audiencia==='todos'||(item.audiencia==='sedes'&&item.sedes.includes(profile.sede))||(item.audiencia==='roles'&&item.roles.includes(profile.rol))||(item.audiencia==='usuarios'&&item.usuarios.includes(session.user.id));
   const mandatory=announcements.find(item=>item.obligatorio&&applies(item)&&!readings.some(row=>row.comunicado_id===item.id&&row.user_id===session.user.id&&row.confirmado));if(mandatory)openAnnouncement(mandatory);
 }

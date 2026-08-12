@@ -58,6 +58,63 @@
     overflow-wrap: anywhere;
 }
 
+.personnel-status-panel {
+    margin-top: 24px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+}
+
+.personnel-status-heading {
+    margin-bottom: 12px;
+}
+
+.personnel-status-summary {
+    padding: 8px 11px;
+    border-radius: 5px;
+    background: #e7f6ee;
+    color: #126642;
+    font-size: .85rem;
+}
+
+.personnel-status-filters {
+    display: grid;
+    grid-template-columns: minmax(240px, 1.4fr) minmax(210px, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.reading-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: .76rem;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.reading-status.confirmed {
+    background: #dff4e9;
+    color: #116a45;
+}
+
+.reading-status.viewed {
+    background: #fff0d8;
+    color: #8b5500;
+}
+
+.reading-status.pending {
+    background: #fbe4e2;
+    color: #a6322a;
+}
+
+.empty-table-cell {
+    padding: 24px;
+    color: var(--muted);
+    text-align: center;
+}
+
 @media (max-width: 480px) {
     .announcement-thumbnail {
         width: 64px;
@@ -67,5 +124,13 @@
 
     .announcement-media {
         max-height: 58vh;
+    }
+
+    .personnel-status-filters {
+        grid-template-columns: 1fr;
+    }
+
+    .personnel-status-heading {
+        align-items: flex-start;
     }
 }

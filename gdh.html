@@ -80,6 +80,26 @@
                 <div class="panel-heading"><div><p>Indicadores de lectura</p><h2>Seguimiento de comunicados</h2></div><button type="button" class="secondary-button" id="refreshMetrics">Actualizar</button></div>
                 <div class="metrics-grid" id="gdhMetrics"></div>
                 <div class="table-wrap"><table><thead><tr><th>Comunicado</th><th>Dirigido a</th><th>Confirmados</th><th>Pendientes</th><th>Cumplimiento</th></tr></thead><tbody id="gdhMetricsTable"></tbody></table></div>
+                <section class="personnel-status-panel" aria-labelledby="personnelStatusTitle">
+                    <div class="panel-heading personnel-status-heading">
+                        <div><p>Detalle individual</p><h2 id="personnelStatusTitle">Estado por colaborador</h2></div>
+                        <strong id="personnelStatusSummary" class="personnel-status-summary"></strong>
+                    </div>
+                    <div class="personnel-status-filters">
+                        <label>Publicacion obligatoria
+                            <select id="personnelAnnouncementFilter" aria-controls="personnelStatusTable"></select>
+                        </label>
+                        <label>Buscar persona
+                            <input id="personnelStatusSearch" type="search" placeholder="Nombre, DNI, sede o rol" aria-controls="personnelStatusTable">
+                        </label>
+                    </div>
+                    <div class="table-wrap">
+                        <table id="personnelStatusTable">
+                            <thead><tr><th>Colaborador</th><th>DNI</th><th>Sede</th><th>Rol</th><th>Estado</th><th>Fecha</th></tr></thead>
+                            <tbody id="personnelStatusTableBody"></tbody>
+                        </table>
+                    </div>
+                </section>
             </section>
         </section>
     </main>
