@@ -50,6 +50,7 @@
                         <label>Periodo<input id="documentPeriod" type="month"></label>
                     </div>
                     <label>Titulo<input id="documentTitle" type="text" maxlength="180" required placeholder="Ej. Boleta de julio 2026"></label>
+                    <label class="check-line"><input id="documentMandatory" type="checkbox"> Requiere visualizacion y confirmacion obligatoria</label>
                     <label>Archivo PDF o imagen<input id="documentFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" required></label>
                     <button class="primary-button" type="submit">Guardar en expediente</button>
                     <p class="form-status" id="documentUploadStatus" role="status"></p>
@@ -77,7 +78,7 @@
             </div>
 
             <section class="metrics-panel">
-                <div class="panel-heading"><div><p>Indicadores de lectura</p><h2>Seguimiento de comunicados</h2></div><button type="button" class="secondary-button" id="refreshMetrics">Actualizar</button></div>
+                <div class="panel-heading"><div><p>Indicadores de lectura</p><h2>Seguimiento obligatorio</h2></div><div class="heading-actions"><button type="button" class="secondary-button" id="exportComplianceExcel">Generar Excel</button><button type="button" class="secondary-button" id="refreshMetrics">Actualizar</button></div></div>
                 <div class="metrics-grid" id="gdhMetrics"></div>
                 <div class="table-wrap"><table><thead><tr><th>Comunicado</th><th>Dirigido a</th><th>Confirmados</th><th>Pendientes</th><th>Cumplimiento</th></tr></thead><tbody id="gdhMetricsTable"></tbody></table></div>
                 <section class="personnel-status-panel" aria-labelledby="personnelStatusTitle">
@@ -99,6 +100,16 @@
                             <tbody id="personnelStatusTableBody"></tbody>
                         </table>
                     </div>
+                    <div class="document-status-heading">
+                        <div><p>Expediente personal</p><h2>Documentos obligatorios por colaborador</h2></div>
+                        <label>Buscar documento o persona<input id="documentStatusSearch" type="search" placeholder="Nombre, DNI o documento" aria-controls="documentStatusTable"></label>
+                    </div>
+                    <div class="table-wrap">
+                        <table id="documentStatusTable">
+                            <thead><tr><th>Colaborador</th><th>DNI</th><th>Sede</th><th>Documento</th><th>Estado</th><th>Fecha</th></tr></thead>
+                            <tbody id="documentStatusTableBody"></tbody>
+                        </table>
+                    </div>
                 </section>
             </section>
         </section>
@@ -112,8 +123,18 @@
         </div>
     </div>
 
+    <div class="viewer" id="documentViewer" hidden>
+        <div class="viewer-card" role="dialog" aria-modal="true" aria-labelledby="documentViewerTitle">
+            <button class="viewer-close" id="closeDocumentViewer" type="button" aria-label="Cerrar">&times;</button>
+            <p id="documentViewerTag">Documento laboral</p><h2 id="documentViewerTitle"></h2>
+            <div id="documentViewerContent"></div>
+            <div class="viewer-actions" id="documentViewerActions"></div>
+        </div>
+    </div>
+
     <div id="gdhToast" class="toast" role="status" aria-live="polite" hidden></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="assets/xlsx.full.min.js"></script>
     <script src="gdh.js"></script>
 </body>
 </html>
