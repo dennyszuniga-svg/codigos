@@ -82,6 +82,55 @@
                 <div class="metrics-grid" id="gdhMetrics"></div>
                 <div class="table-wrap"><table><thead><tr><th>Comunicado</th><th>Dirigido a</th><th>Confirmados</th><th>Pendientes</th><th>Cumplimiento</th></tr></thead><tbody id="gdhMetricsTable"></tbody></table></div>
                 <section class="personnel-status-panel" aria-labelledby="personnelStatusTitle">
+                    <section class="report-builder" aria-labelledby="reportBuilderTitle">
+                        <div class="panel-heading report-builder-heading">
+                            <div><p>Reporte configurable</p><h2 id="reportBuilderTitle">Confirmaciones por sede y contenido</h2></div>
+                            <button type="button" class="primary-button" id="exportFilteredComplianceExcel">Generar Excel filtrado</button>
+                        </div>
+                        <p class="report-builder-help">Selecciona una o varias sedes y los comunicados o documentos que deseas comparar.</p>
+                        <div class="report-filter-grid">
+                            <fieldset class="report-filter-fieldset">
+                                <legend>Sedes</legend>
+                                <div id="reportSiteOptions" class="report-check-grid"></div>
+                            </fieldset>
+                            <div class="report-filter-controls">
+                                <label>Tipo de contenido
+                                    <select id="reportContentType">
+                                        <option value="todos">Comunicados y documentos</option>
+                                        <option value="comunicados">Solo comunicados</option>
+                                        <option value="documentos">Solo documentos</option>
+                                    </select>
+                                </label>
+                                <label>Estado
+                                    <select id="reportStatusFilter">
+                                        <option value="todos">Todos los estados</option>
+                                        <option value="pendientes">Solo pendientes</option>
+                                        <option value="confirmados">Solo confirmados</option>
+                                    </select>
+                                </label>
+                                <label>Buscar colaborador
+                                    <input id="reportPersonSearch" type="search" placeholder="Nombre, DNI o rol" aria-controls="filteredComplianceTable">
+                                </label>
+                            </div>
+                        </div>
+                        <div class="report-content-heading">
+                            <strong>Contenido obligatorio</strong>
+                            <div class="heading-actions">
+                                <button type="button" class="secondary-button compact-button" id="selectAllReportContent">Seleccionar todo</button>
+                                <button type="button" class="secondary-button compact-button" id="clearReportContent">Limpiar</button>
+                            </div>
+                        </div>
+                        <div id="reportContentOptions" class="report-content-options" aria-live="polite"></div>
+                        <div class="report-preview-heading">
+                            <strong id="filteredComplianceSummary">Selecciona contenido para generar el reporte.</strong>
+                        </div>
+                        <div class="table-wrap">
+                            <table id="filteredComplianceTable">
+                                <thead><tr><th>Colaborador</th><th>DNI</th><th>Sede</th><th>Contenido</th><th>Tipo</th><th>Estado</th><th>Fecha</th></tr></thead>
+                                <tbody id="filteredComplianceTableBody"></tbody>
+                            </table>
+                        </div>
+                    </section>
                     <div class="panel-heading personnel-status-heading">
                         <div><p>Detalle individual</p><h2 id="personnelStatusTitle">Estado por colaborador</h2></div>
                         <strong id="personnelStatusSummary" class="personnel-status-summary"></strong>

@@ -64,6 +64,116 @@
     border-top: 1px solid var(--line);
 }
 
+.report-builder {
+    margin-bottom: 26px;
+    padding-bottom: 26px;
+    border-bottom: 1px solid var(--line);
+}
+
+.report-builder-heading {
+    align-items: flex-end;
+}
+
+.report-builder-help {
+    margin: -4px 0 16px;
+    color: var(--muted);
+    font-size: .86rem;
+}
+
+.report-filter-grid {
+    display: grid;
+    grid-template-columns: minmax(280px, 1.2fr) minmax(240px, .8fr);
+    gap: 14px;
+}
+
+.report-filter-fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.report-filter-fieldset legend {
+    padding: 0 6px;
+    font-size: .85rem;
+    font-weight: 900;
+}
+
+.report-check-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.report-check-grid label,
+.report-content-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+    padding: 9px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: #fff;
+}
+
+.report-check-grid input,
+.report-content-option input {
+    width: 19px;
+    height: 19px;
+    flex: 0 0 19px;
+    margin: 0;
+}
+
+.report-filter-controls {
+    display: grid;
+    gap: 10px;
+}
+
+.report-content-heading,
+.report-preview-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 16px 0 9px;
+}
+
+.compact-button {
+    padding: 7px 10px;
+    font-size: .78rem;
+}
+
+.report-content-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    max-height: 260px;
+    overflow: auto;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--soft);
+}
+
+.report-content-option span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.report-content-option small {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.report-preview-heading strong {
+    color: var(--blue);
+    font-size: .88rem;
+}
+
 .personnel-status-heading {
     margin-bottom: 12px;
 }
@@ -187,5 +297,17 @@
 
     .document-status-heading {
         grid-template-columns: 1fr;
+    }
+
+    .report-filter-grid,
+    .report-check-grid,
+    .report-content-options {
+        grid-template-columns: 1fr;
+    }
+
+    .report-builder-heading,
+    .report-content-heading {
+        align-items: stretch;
+        flex-direction: column;
     }
 }

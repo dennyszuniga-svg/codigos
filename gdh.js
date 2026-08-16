@@ -7,7 +7,7 @@ const ANNOUNCEMENT_VIDEO_LIMIT=40*1024*1024;
 const ANNOUNCEMENT_FILE_LIMIT=20*1024*1024;
 const SITES=[['puruchuco','Real Plaza Puruchuco'],['salaverry','Real Plaza Salaverry'],['primavera','Real Plaza Primavera'],['civico','Real Plaza Civico'],['gama','GAMA']];
 const ROLES=[['anfitrion','Anfitrion'],['tecnico','Tecnico'],['charly','Charly'],['eco','ECO'],['supervisor','Supervisor'],['fortaleza','Fortaleza'],['admin','Administrador'],['jefe_operaciones','Jefe de operaciones'],['coordinador_operaciones','Coordinador de operaciones']];
-let client=null,session=null,profile=null,users=[],documents=[],documentReadings=[],announcements=[],readings=[],announcementPreviewUrl=null;
+let client=null,session=null,profile=null,users=[],documents=[],documentReadings=[],announcements=[],readings=[],announcementPreviewUrl=null,reportCatalog=[];
 
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
@@ -184,6 +184,76 @@ function renderDocumentStatus(){
   if(!rows.length){const row=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=6;cell.className='empty-table-cell';cell.textContent='No hay documentos obligatorios con ese filtro.';row.append(cell);tbody.append(row);return}
   rows.forEach(({doc,user})=>{const reading=documentReadings.find(item=>item.documento_id===doc.id&&item.user_id===user.id),state=readingStatus(reading),row=document.createElement('tr'),values=[user.apellidos_nombres||user.nombre||'Sin nombre',user.dni||'Pendiente',catalogLabel(SITES,user.sede),doc.titulo];values.forEach(value=>{const cell=document.createElement('td');cell.textContent=value;row.append(cell)});const statusCell=document.createElement('td'),badge=document.createElement('span');badge.className=`reading-status ${state.className}`;badge.textContent=state.label;statusCell.append(badge);row.append(statusCell);const dateCell=document.createElement('td');dateCell.textContent=state.date?formatDate(state.date):'Sin registro';row.append(dateCell);tbody.append(row)});
 }
+
+function normalizedReportText(value){
+  return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLocaleLowerCase('es');
+}
+function mandatoryReportCatalog(){
+  const items=announcements.filter(item=>item.obligatorio).map(item=>({id:`comunicado:${item.id}`,type:'Comunicado',title:item.titulo,date:item.created_at,item}));
+  const groups=new Map();
+  documents.filter(doc=>doc.obligatorio&&doc.user_id).forEach(doc=>{
+    const key=[doc.categoria,doc.titulo,doc.periodo||''].map(normalizedReportText).join('|');
+    if(!groups.has(key))groups.set(key,{id:`documento:${encodeURIComponent(key)}`,type:'Documento',title:doc.titulo,category:doc.categoria,period:doc.periodo||'',date:doc.created_at,documents:[]});
+    const group=groups.get(key);group.documents.push(doc);if(new Date(doc.created_at)>new Date(group.date))group.date=doc.created_at;
+  });
+  return items.concat([...groups.values()]).sort((a,b)=>new Date(b.date)-new Date(a.date));
+}
+function checkedValues(id){return new Set([...$(id).querySelectorAll('input[type="checkbox"]:checked')].map(input=>input.value))}
+function renderReportSites(){
+  const box=$('reportSiteOptions');if(box.children.length)return;
+  SITES.forEach(([value,label])=>{const row=document.createElement('label'),input=document.createElement('input'),text=document.createElement('span');input.type='checkbox';input.value=value;input.checked=true;input.addEventListener('change',renderFilteredCompliancePreview);text.textContent=label;row.append(input,text);box.append(row)});
+}
+function renderReportContentOptions(){
+  const box=$('reportContentOptions'),previous=checkedValues('reportContentOptions'),type=$('reportContentType').value;box.replaceChildren();reportCatalog=mandatoryReportCatalog();
+  const visible=reportCatalog.filter(item=>type==='todos'||(type==='comunicados'&&item.type==='Comunicado')||(type==='documentos'&&item.type==='Documento'));
+  if(!visible.length){const message=document.createElement('p');message.className='empty-state';message.textContent='No hay contenido obligatorio de este tipo.';box.append(message);renderFilteredCompliancePreview();return}
+  visible.forEach(item=>{const row=document.createElement('label'),input=document.createElement('input'),text=document.createElement('span'),meta=document.createElement('small');row.className='report-content-option';input.type='checkbox';input.value=item.id;input.checked=previous.has(item.id);input.addEventListener('change',renderFilteredCompliancePreview);text.textContent=item.title;meta.textContent=`${item.type}${item.period?` · ${item.period}`:''} · ${formatDate(item.date)}`;text.append(meta);row.append(input,text);box.append(row)});renderFilteredCompliancePreview();
+}
+function reportDetailRows(){
+  const sites=checkedValues('reportSiteOptions'),selected=checkedValues('reportContentOptions'),selectedItems=reportCatalog.filter(item=>selected.has(item.id)),siteUsers=users.filter(user=>sites.has(user.sede)),rows=[];
+  selectedItems.forEach(content=>{
+    if(content.type==='Comunicado'){
+      const targets=new Set(targetsFor(content.item).map(user=>user.id));
+      siteUsers.filter(user=>targets.has(user.id)).forEach(user=>{const reading=readings.find(row=>row.comunicado_id===content.item.id&&row.user_id===user.id);rows.push({user,content,state:readingStatus(reading)})});
+      return;
+    }
+    siteUsers.forEach(user=>{
+      const assigned=content.documents.filter(doc=>doc.user_id===user.id).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];if(!assigned)return;
+      const reading=documentReadings.find(row=>row.documento_id===assigned.id&&row.user_id===user.id);rows.push({user,content,document:assigned,state:readingStatus(reading)});
+    });
+  });
+  return rows;
+}
+function filteredReportRows(rows=reportDetailRows()){
+  const query=$('reportPersonSearch').value.trim().toLocaleLowerCase('es'),statusFilter=$('reportStatusFilter').value;
+  return rows.filter(row=>!query||[row.user.apellidos_nombres,row.user.nombre,row.user.dni,catalogLabel(ROLES,row.user.rol),catalogLabel(SITES,row.user.sede),row.content.title].some(value=>String(value||'').toLocaleLowerCase('es').includes(query))).filter(row=>statusFilter==='todos'||(statusFilter==='confirmados'&&row.state.label==='Confirmado')||(statusFilter==='pendientes'&&row.state.label!=='Confirmado'));
+}
+function renderFilteredCompliancePreview(){
+  const tbody=$('filteredComplianceTableBody'),summary=$('filteredComplianceSummary'),allRows=reportDetailRows(),visible=filteredReportRows(allRows);tbody.replaceChildren();
+  const confirmed=allRows.filter(row=>row.state.label==='Confirmado').length,pending=allRows.length-confirmed,pct=allRows.length?Math.round(confirmed/allRows.length*100):0;
+  summary.textContent=allRows.length?`${allRows.length} asignaciones · ${confirmed} confirmadas · ${pending} pendientes · ${pct}% de cumplimiento`:'Selecciona contenido y al menos una sede para generar el reporte.';
+  if(!visible.length){const row=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=7;cell.className='empty-table-cell';cell.textContent=allRows.length?'No hay resultados para el estado o búsqueda seleccionados.':'No hay asignaciones para la selección actual.';row.append(cell);tbody.append(row);return}
+  visible.sort((a,b)=>String(a.user.apellidos_nombres||a.user.nombre).localeCompare(String(b.user.apellidos_nombres||b.user.nombre),'es')).forEach(item=>{const row=document.createElement('tr'),values=[item.user.apellidos_nombres||item.user.nombre||'Sin nombre',item.user.dni||'Pendiente',catalogLabel(SITES,item.user.sede),item.content.title,item.content.type];values.forEach(value=>{const cell=document.createElement('td');cell.textContent=value;row.append(cell)});const statusCell=document.createElement('td'),badge=document.createElement('span');badge.className=`reading-status ${item.state.className}`;badge.textContent=item.state.label;statusCell.append(badge);row.append(statusCell);const dateCell=document.createElement('td');dateCell.textContent=item.state.date?formatDate(item.state.date):'Sin registro';row.append(dateCell);tbody.append(row)});
+}
+function selectVisibleReportContent(checked){
+  $('reportContentOptions').querySelectorAll('input[type="checkbox"]').forEach(input=>input.checked=checked);renderFilteredCompliancePreview();
+}
+function exportFilteredComplianceExcel(){
+  if(!window.XLSX){toast('No se pudo cargar el generador de Excel.');return}
+  const selected=checkedValues('reportContentOptions');if(!selected.size){toast('Selecciona al menos un comunicado o documento.');return}
+  if(!checkedValues('reportSiteOptions').size){toast('Selecciona al menos una sede.');return}
+  const allRows=reportDetailRows(),detailRows=filteredReportRows(allRows);if(!allRows.length){toast('No hay asignaciones para la seleccion actual.');return}
+  const sites=[...new Set(allRows.map(row=>row.user.sede))],summary=sites.map(site=>{const siteRows=allRows.filter(row=>row.user.sede===site),confirmed=siteRows.filter(row=>row.state.label==='Confirmado').length;return{Sede:catalogLabel(SITES,site),'Personal evaluado':new Set(siteRows.map(row=>row.user.id)).size,'Asignaciones obligatorias':siteRows.length,Confirmadas:confirmed,Pendientes:siteRows.length-confirmed,'Cumplimiento %':siteRows.length?Math.round(confirmed/siteRows.length*100):0}});
+  const detail=detailRows.map(row=>({'Apellidos y nombres':row.user.apellidos_nombres||row.user.nombre||'',DNI:row.user.dni||'',Sede:catalogLabel(SITES,row.user.sede),Rol:catalogLabel(ROLES,row.user.rol),Tipo:row.content.type,Contenido:row.content.title,Periodo:row.content.period||'',Estado:row.state.label,'Fecha de confirmacion':row.state.date?formatDate(row.state.date):''}));
+  const pending=allRows.filter(row=>row.state.label!=='Confirmado').map(row=>({'Apellidos y nombres':row.user.apellidos_nombres||row.user.nombre||'',DNI:row.user.dni||'',Sede:catalogLabel(SITES,row.user.sede),Rol:catalogLabel(ROLES,row.user.rol),Tipo:row.content.type,Contenido:row.content.title,Estado:row.state.label}));
+  const selectedItems=reportCatalog.filter(item=>selected.has(item.id)),userMap=new Map();allRows.forEach(row=>userMap.set(row.user.id,row.user));
+  const matrix=[...userMap.values()].sort((a,b)=>String(a.apellidos_nombres||a.nombre).localeCompare(String(b.apellidos_nombres||b.nombre),'es')).map(user=>{const base={'Apellidos y nombres':user.apellidos_nombres||user.nombre||'',DNI:user.dni||'',Sede:catalogLabel(SITES,user.sede),Rol:catalogLabel(ROLES,user.rol)};selectedItems.forEach((content,index)=>{const assignment=allRows.find(row=>row.user.id===user.id&&row.content.id===content.id);base[`${index+1}. ${content.type}: ${content.title}`]=assignment?assignment.state.label:'No asignado'});return base});
+  const workbook=XLSX.utils.book_new(),sheets=[['Resumen por sede',summary,[{wch:25},{wch:19},{wch:24},{wch:14},{wch:14},{wch:17}]],['Matriz por personal',matrix,[{wch:34},{wch:12},{wch:24},{wch:24},...selectedItems.map(()=>({wch:34}))]],['Detalle',detail,[{wch:34},{wch:12},{wch:24},{wch:24},{wch:14},{wch:42},{wch:12},{wch:22},{wch:24}]],['Pendientes',pending,[{wch:34},{wch:12},{wch:24},{wch:24},{wch:14},{wch:42},{wch:22}]]];
+  sheets.forEach(([name,data,widths])=>{const sheet=XLSX.utils.json_to_sheet(data);sheet['!cols']=widths;if(data.length)sheet['!autofilter']={ref:sheet['!ref']};XLSX.utils.book_append_sheet(workbook,sheet,name)});
+  XLSX.writeFile(workbook,`Confirmaciones_GDH_${new Date().toISOString().slice(0,10)}.xlsx`);toast('Reporte filtrado generado correctamente.');
+}
+function renderReportBuilder(){renderReportSites();renderReportContentOptions()}
+
 function buildComplianceRows(){
   const mandatoryAnnouncements=announcements.filter(item=>item.obligatorio),mandatoryDocuments=documents.filter(doc=>doc.obligatorio&&doc.user_id);
   return users.map(user=>{
@@ -204,14 +274,14 @@ async function loadMetrics(){
   const mandatory=announcements.filter(item=>item.obligatorio),totalTargets=mandatory.reduce((sum,item)=>sum+targetsFor(item).length,0),confirmed=mandatory.reduce((sum,item)=>{const targetIds=new Set(targetsFor(item).map(user=>user.id));return sum+readings.filter(row=>row.comunicado_id===item.id&&row.confirmado&&targetIds.has(row.user_id)).length},0),mandatoryDocs=documents.filter(doc=>doc.obligatorio&&doc.user_id),confirmedDocs=mandatoryDocs.filter(doc=>documentReadings.some(row=>row.documento_id===doc.id&&row.user_id===doc.user_id&&row.confirmado)).length,complianceRows=buildComplianceRows(),evaluated=complianceRows.filter(row=>row.assigned>0),fullCompliance=evaluated.filter(row=>row.pct===100).length;
   $('gdhMetrics').innerHTML=`<article class="metric-card"><span>Personal evaluado</span><strong>${evaluated.length}</strong></article><article class="metric-card"><span>Cumplen al 100%</span><strong>${fullCompliance}</strong></article><article class="metric-card"><span>Documentos confirmados</span><strong>${confirmedDocs}/${mandatoryDocs.length}</strong></article><article class="metric-card"><span>Comunicados confirmados</span><strong>${confirmed}/${totalTargets}</strong></article>`;
   const tbody=$('gdhMetricsTable');tbody.replaceChildren();mandatory.forEach(item=>{const target=targetsFor(item),done=readings.filter(row=>row.comunicado_id===item.id&&row.confirmado&&target.some(user=>user.id===row.user_id)).length;const tr=document.createElement('tr');tr.innerHTML=`<td>${esc(item.titulo)}</td><td>${target.length}</td><td>${done}</td><td>${Math.max(0,target.length-done)}</td><td>${target.length?Math.round(done/target.length*100):0}%</td>`;tbody.append(tr)});
-  refreshPersonnelAnnouncementOptions(mandatory);renderPersonnelStatus();renderDocumentStatus();
+  refreshPersonnelAnnouncementOptions(mandatory);renderPersonnelStatus();renderDocumentStatus();renderReportBuilder();
 }
 
 async function init(){
   client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true}});const {data}=await client.auth.getSession();session=data.session;if(!session){location.replace('index.html');return}
   const {data:p,error}=await client.from('profiles').select('nombre,apellidos_nombres,dni,rol,sede,activo').eq('id',session.user.id).maybeSingle();if(error||!p?.activo){location.replace('index.html');return}profile=p;$('gdhUserLabel').textContent=`${p.apellidos_nombres||p.nombre} · ${p.dni?`DNI ${p.dni}`:p.rol}`;
   $('gdhManagementTab').hidden=!isManager();await loadUsers();await Promise.all([loadDocuments(),loadAnnouncements()]);
-  document.querySelectorAll('[data-gdh-tab]').forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.gdhTab)));$('refreshDocuments').addEventListener('click',loadDocuments);$('refreshAnnouncements').addEventListener('click',loadAnnouncements);$('refreshMetrics').addEventListener('click',loadMetrics);$('exportComplianceExcel').addEventListener('click',exportComplianceExcel);$('documentUploadForm').addEventListener('submit',uploadDocument);$('announcementForm').addEventListener('submit',publishAnnouncement);$('announcementFile').addEventListener('change',previewAnnouncementFile);$('announcementAudience').addEventListener('change',renderAudienceOptions);$('personnelAnnouncementFilter').addEventListener('change',renderPersonnelStatus);$('personnelStatusSearch').addEventListener('input',renderPersonnelStatus);$('documentStatusSearch').addEventListener('input',renderDocumentStatus);$('closeViewer').addEventListener('click',()=>$('announcementViewer').hidden=true);$('closeDocumentViewer').addEventListener('click',()=>$('documentViewer').hidden=true);
+  document.querySelectorAll('[data-gdh-tab]').forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.gdhTab)));$('refreshDocuments').addEventListener('click',loadDocuments);$('refreshAnnouncements').addEventListener('click',loadAnnouncements);$('refreshMetrics').addEventListener('click',loadMetrics);$('exportComplianceExcel').addEventListener('click',exportComplianceExcel);$('exportFilteredComplianceExcel').addEventListener('click',exportFilteredComplianceExcel);$('selectAllReportContent').addEventListener('click',()=>selectVisibleReportContent(true));$('clearReportContent').addEventListener('click',()=>selectVisibleReportContent(false));$('reportContentType').addEventListener('change',renderReportContentOptions);$('reportStatusFilter').addEventListener('change',renderFilteredCompliancePreview);$('reportPersonSearch').addEventListener('input',renderFilteredCompliancePreview);$('documentUploadForm').addEventListener('submit',uploadDocument);$('announcementForm').addEventListener('submit',publishAnnouncement);$('announcementFile').addEventListener('change',previewAnnouncementFile);$('announcementAudience').addEventListener('change',renderAudienceOptions);$('personnelAnnouncementFilter').addEventListener('change',renderPersonnelStatus);$('personnelStatusSearch').addEventListener('input',renderPersonnelStatus);$('documentStatusSearch').addEventListener('input',renderDocumentStatus);$('closeViewer').addEventListener('click',()=>$('announcementViewer').hidden=true);$('closeDocumentViewer').addEventListener('click',()=>$('documentViewer').hidden=true);
   const applies=item=>item.audiencia==='todos'||(item.audiencia==='sedes'&&item.sedes.includes(profile.sede))||(item.audiencia==='roles'&&item.roles.includes(profile.rol))||(item.audiencia==='usuarios'&&item.usuarios.includes(session.user.id));
   const mandatory=announcements.find(item=>item.obligatorio&&applies(item)&&!readings.some(row=>row.comunicado_id===item.id&&row.user_id===session.user.id&&row.confirmado));if(mandatory)openAnnouncement(mandatory);
 }
