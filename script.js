@@ -9246,7 +9246,8 @@ function liberarVistaPreviaReporteria() {
     }
 }
 
-function seleccionarCapturaReporteria(archivosSeleccionados) {
+function seleccionarCapturaReporteria(archivosSeleccionados, opciones = {}) {
+    const { agregar = false } = opciones;
     const archivos = Array.from(archivosSeleccionados || []).filter(Boolean);
     if (!archivos.length) return;
     if (archivos.some(archivo => !archivo.type.startsWith('image/'))) {
@@ -9259,14 +9260,16 @@ function seleccionarCapturaReporteria(archivosSeleccionados) {
     }
 
     liberarVistaPreviaReporteria();
-    reporteCapturaActual.archivos = archivos;
-    reporteCapturaActual.urlVistaPrevia = URL.createObjectURL(archivos[0]);
+    reporteCapturaActual.archivos = agregar
+        ? [...reporteCapturaActual.archivos, ...archivos]
+        : archivos;
+    reporteCapturaActual.urlVistaPrevia = URL.createObjectURL(reporteCapturaActual.archivos[0]);
     reporteCapturaActual.filas = [];
     obtenerElemento('reportingPreviewImage').src = reporteCapturaActual.urlVistaPrevia;
-    obtenerElemento('reportingFileName').textContent = archivos.length === 1
-        ? (archivos[0].name || 'Foto tomada')
-        : `${archivos.length} capturas seleccionadas`;
-    const pesoTotal = archivos.reduce((total, archivo) => total + archivo.size, 0);
+    obtenerElemento('reportingFileName').textContent = reporteCapturaActual.archivos.length === 1
+        ? (reporteCapturaActual.archivos[0].name || 'Foto tomada')
+        : `${reporteCapturaActual.archivos.length} capturas seleccionadas`;
+    const pesoTotal = reporteCapturaActual.archivos.reduce((total, archivo) => total + archivo.size, 0);
     obtenerElemento('reportingFileMeta').textContent = `${(pesoTotal / 1024 / 1024).toFixed(2)} MB en total`;
     obtenerElemento('reportingPreview').hidden = false;
     obtenerElemento('processReportingImage').disabled = false;
@@ -9276,6 +9279,44 @@ function seleccionarCapturaReporteria(archivosSeleccionados) {
     obtenerElemento('reportingTableCard').hidden = true;
     actualizarProgresoReporteria(0, false);
     establecerEstadoReporteria('reportingOcrStatus', 'Captura lista para leer.', 'success');
+}
+
+async function pegarCapturaReporteria() {
+    if (!navigator.clipboard?.read) {
+        establecerEstadoReporteria('reportingOcrStatus', 'Este navegador no permite leer imagenes del portapapeles. Usa Elegir capturas.', 'error');
+        return;
+    }
+    try {
+        const elementos = await navigator.clipboard.read();
+        const archivos = [];
+        for (const elemento of elementos) {
+            const tipo = elemento.types.find(valor => valor.startsWith('image/'));
+            if (!tipo) continue;
+            const blob = await elemento.getType(tipo);
+            const extension = tipo.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+            archivos.push(new File([blob], `captura-portapapeles-${Date.now()}.${extension}`, { type: tipo }));
+        }
+        if (!archivos.length) throw new Error('El portapapeles no contiene una imagen.');
+        seleccionarCapturaReporteria(archivos, { agregar: true });
+        establecerEstadoReporteria('reportingOcrStatus', 'Captura pegada correctamente.', 'success');
+    } catch (error) {
+        const mensaje = error?.name === 'NotAllowedError'
+            ? 'No se autorizo el acceso al portapapeles. Usa Elegir capturas o vuelve a intentarlo.'
+            : (error.message || 'No se pudo pegar la captura.');
+        establecerEstadoReporteria('reportingOcrStatus', mensaje, 'error');
+    }
+}
+
+function manejarPegadoCapturaReporteria(evento) {
+    if (moduloActivo !== 'reporteria') return;
+    const archivos = Array.from(evento.clipboardData?.items || [])
+        .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+        .map(item => item.getAsFile())
+        .filter(Boolean);
+    if (!archivos.length) return;
+    evento.preventDefault();
+    seleccionarCapturaReporteria(archivos, { agregar: true });
+    establecerEstadoReporteria('reportingOcrStatus', 'Captura pegada correctamente.', 'success');
 }
 
 function cargarScriptReporteria(src) {
@@ -11916,7 +11957,8 @@ function configurarEventos() {
     });
     obtenerElemento('takeReportingPhoto')?.addEventListener('click', () => obtenerElemento('reportingCameraInput').click());
     obtenerElemento('chooseReportingImage')?.addEventListener('click', () => obtenerElemento('reportingGalleryInput').click());
-    obtenerElemento('reportingCameraInput')?.addEventListener('change', event => seleccionarCapturaReporteria(event.target.files));
+    obtenerElemento('pasteReportingImage')?.addEventListener('click', pegarCapturaReporteria);
+    obtenerElemento('reportingCameraInput')?.addEventListener('change', event => seleccionarCapturaReporteria(event.target.files, { agregar: true }));
     obtenerElemento('reportingGalleryInput')?.addEventListener('change', event => seleccionarCapturaReporteria(event.target.files));
     obtenerElemento('processReportingImage')?.addEventListener('click', procesarCapturaReporteria);
     obtenerElemento('buildReportingTable')?.addEventListener('click', convertirTextoReporteriaEnTabla);
@@ -11931,6 +11973,7 @@ function configurarEventos() {
     });
     obtenerElemento('exportReportingExcel')?.addEventListener('click', exportarExcelReporteria);
     obtenerElemento('clearReportingWorkspace')?.addEventListener('click', () => limpiarReporteria(true));
+    document.addEventListener('paste', manejarPegadoCapturaReporteria);
     obtenerElemento('operationsOccupancyZones')?.addEventListener('input', event => {
         const campo = event.target.closest('[data-occupancy-zone][data-occupancy-field]');
         if (campo) actualizarZonaOcupabilidadDesdeCampo(campo);
