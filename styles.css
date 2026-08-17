@@ -720,6 +720,33 @@ body.dark-theme .module-button-primary {
     gap: 9px;
 }
 
+.reporting-excel-button {
+    width: 100%;
+}
+
+.reporting-source-note {
+    margin-top: -5px;
+    font-size: 0.86rem;
+}
+
+.reporting-capture-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.reporting-capture-divider::before,
+.reporting-capture-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
 .reporting-preview {
     display: grid;
     grid-template-columns: 104px minmax(0, 1fr);

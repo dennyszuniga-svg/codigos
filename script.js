@@ -533,6 +533,7 @@ const TIPOS_REPORTERIA = {
 let reporteCapturaActual = {
     tipo: 'plumillas',
     archivos: [],
+    fuenteExcel: '',
     urlVistaPrevia: '',
     encabezados: [...TIPOS_REPORTERIA.plumillas.encabezados],
     filas: []
@@ -9226,6 +9227,7 @@ function actualizarProgresoReporteria(porcentaje, visible = true) {
 function seleccionarTipoReporteria(tipo) {
     if (!TIPOS_REPORTERIA[tipo]) return;
     reporteCapturaActual.tipo = tipo;
+    reporteCapturaActual.fuenteExcel = '';
     reporteCapturaActual.encabezados = TIPOS_REPORTERIA[tipo].encabezados
         ? [...TIPOS_REPORTERIA[tipo].encabezados]
         : [];
@@ -9260,6 +9262,7 @@ function seleccionarCapturaReporteria(archivosSeleccionados, opciones = {}) {
     }
 
     liberarVistaPreviaReporteria();
+    reporteCapturaActual.fuenteExcel = '';
     reporteCapturaActual.archivos = agregar
         ? [...reporteCapturaActual.archivos, ...archivos]
         : archivos;
@@ -9433,6 +9436,122 @@ async function procesarCapturaReporteria() {
 
 function limpiarLineaOcrReporteria(linea) {
     return String(linea || '').replace(/[|]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function normalizarTextoReporteria(valor) {
+    return String(valor ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toUpperCase();
+}
+
+function extraerPlacaYMotivoReporteria(valor) {
+    const texto = normalizarTextoReporteria(valor);
+    if (!texto) return { placa: '', motivo: '' };
+    const patrones = [
+        /\bPLACA\s*[:\-]?\s*([A-Z0-9?]{5,7})\b/,
+        /\b(?=[A-Z0-9?]{5,7}\b)(?=[A-Z0-9?]*[A-Z])(?=[A-Z0-9?]*\d)[A-Z0-9?]{5,7}\b/,
+        /[A-Z?]{3}\d{3}/,
+        /\d[A-Z?]{2}\d{3}/,
+        /\d{2}[A-Z?]\d{3}/,
+        /\b[A-Z?]{2}\d{3}\b/,
+        /\b\d{6,7}\b/
+    ];
+    let coincidencia = null;
+    let placa = '';
+    for (const patron of patrones) {
+        coincidencia = patron.exec(texto);
+        if (!coincidencia) continue;
+        placa = coincidencia[1] || coincidencia[0];
+        break;
+    }
+    if (!coincidencia) return { placa: '', motivo: texto };
+    const inicioRecorte = coincidencia[1]
+        ? coincidencia.index
+        : coincidencia.index + coincidencia[0].lastIndexOf(placa);
+    const longitudRecorte = coincidencia[1] ? coincidencia[0].length : placa.length;
+    const motivo = `${texto.slice(0, inicioRecorte)} ${texto.slice(inicioRecorte + longitudRecorte)}`
+        .replace(/\s*[-:;,]\s*/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return { placa, motivo };
+}
+
+function extraerOrdenesManualesDesdeMatriz(matriz) {
+    const filas = [];
+    (matriz || []).forEach(filaOriginal => {
+        const fila = Array.isArray(filaOriginal) ? filaOriginal.map(valor => String(valor ?? '').trim()) : [];
+        const normalizada = fila.map(normalizarTextoReporteria);
+        const indiceOrden = normalizada.findIndex(valor => /^2\s*\/\s*7\b/.test(valor) && valor.includes('POSICION BARRERA'));
+        if (indiceOrden < 0) return;
+
+        const fechaCompleta = fila.slice(0, indiceOrden + 1).find(valor => /\b\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\b/.test(valor)) || '';
+        const fecha = fechaCompleta.match(/\b\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\b/)?.[0] || '';
+        const indiceEquipo = normalizada.findIndex((valor, indice) => indice > indiceOrden && /PUMA\s*\d+\s*-\s*C\.?\s*[AB]/.test(valor));
+        const equipo = indiceEquipo >= 0
+            ? normalizada[indiceEquipo].match(/PUMA\s*(\d+)\s*-\s*C\.?\s*([AB])/) : null;
+        const inicioMotivo = indiceEquipo >= 0 ? indiceEquipo + 1 : indiceOrden + 1;
+        const motivoOriginal = fila
+            .slice(inicioMotivo)
+            .filter(Boolean)
+            .sort((a, b) => b.length - a.length)[0] || '';
+        const { placa, motivo } = extraerPlacaYMotivoReporteria(motivoOriginal);
+        filas.push([fecha, equipo ? `P${equipo[1]}.C${equipo[2]}` : '', placa, motivo]);
+    });
+    return filas;
+}
+
+async function cargarExcelReporteria(archivo) {
+    if (!archivo) return;
+    if (!window.XLSX) {
+        establecerEstadoReporteria('reportingOcrStatus', 'El lector de Excel no esta disponible.', 'error');
+        return;
+    }
+    if (!/\.(xls|xlsx)$/i.test(archivo.name || '')) {
+        establecerEstadoReporteria('reportingOcrStatus', 'Selecciona un archivo Excel .xls o .xlsx.', 'error');
+        return;
+    }
+    establecerEstadoReporteria('reportingOcrStatus', 'Leyendo el Excel original...', 'pending');
+    try {
+        const libro = XLSX.read(await archivo.arrayBuffer(), { type: 'array', cellDates: false });
+        const filas = libro.SheetNames.flatMap(nombre => XLSX.utils.sheet_to_json(libro.Sheets[nombre], {
+            header: 1,
+            raw: false,
+            defval: ''
+        }));
+        const ordenes = extraerOrdenesManualesDesdeMatriz(filas);
+        if (!ordenes.length) throw new Error('No se encontraron ordenes 2/7 - Posicion barrera en el archivo.');
+        reporteCapturaActual.tipo = 'plumillas';
+        liberarVistaPreviaReporteria();
+        reporteCapturaActual.archivos = [];
+        reporteCapturaActual.fuenteExcel = archivo.name;
+        reporteCapturaActual.encabezados = [...TIPOS_REPORTERIA.plumillas.encabezados];
+        reporteCapturaActual.filas = ordenes;
+        document.querySelectorAll('[data-reporting-type]').forEach(boton => {
+            const activo = boton.dataset.reportingType === 'plumillas';
+            boton.classList.toggle('is-active', activo);
+            boton.setAttribute('aria-pressed', String(activo));
+        });
+        obtenerElemento('reportingPreviewImage').removeAttribute('src');
+        obtenerElemento('reportingPreview').hidden = true;
+        obtenerElemento('processReportingImage').disabled = true;
+        obtenerElemento('reportingRawText').value = '';
+        obtenerElemento('reportingRawText').disabled = true;
+        obtenerElemento('buildReportingTable').disabled = true;
+        renderizarTablaReporteria();
+        obtenerElemento('reportingTableCard').hidden = false;
+        const pendientes = ordenes.filter(fila => !fila[2]).length;
+        const detallePendientes = pendientes ? ` ${pendientes} filas no traen una placa identificable y quedaron para revision.` : '';
+        establecerEstadoReporteria('reportingOcrStatus', `${archivo.name}: ${ordenes.length} ordenes manuales cargadas.${detallePendientes}`, 'success');
+        obtenerElemento('reportingTableCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (error) {
+        console.error('No se pudo leer el Excel de reporteria:', error);
+        establecerEstadoReporteria('reportingOcrStatus', error.message || 'No se pudo leer el archivo Excel.', 'error');
+    } finally {
+        obtenerElemento('reportingExcelInput').value = '';
+    }
 }
 
 function extraerOrdenesManuales(texto) {
@@ -9631,15 +9750,16 @@ async function exportarExcelReporteria() {
 }
 
 function limpiarReporteria(confirmar = true) {
-    if (confirmar && (reporteCapturaActual.archivos.length || obtenerElemento('reportingRawText').value)
+    if (confirmar && (reporteCapturaActual.archivos.length || reporteCapturaActual.fuenteExcel || obtenerElemento('reportingRawText').value)
         && !window.confirm('¿Seguro que deseas limpiar la captura y los datos del reporte?')) return;
     liberarVistaPreviaReporteria();
     reporteCapturaActual.archivos = [];
+    reporteCapturaActual.fuenteExcel = '';
     reporteCapturaActual.filas = [];
     reporteCapturaActual.encabezados = TIPOS_REPORTERIA[reporteCapturaActual.tipo].encabezados
         ? [...TIPOS_REPORTERIA[reporteCapturaActual.tipo].encabezados]
         : [];
-    ['reportingCameraInput', 'reportingGalleryInput'].forEach(id => { obtenerElemento(id).value = ''; });
+    ['reportingExcelInput', 'reportingCameraInput', 'reportingGalleryInput'].forEach(id => { obtenerElemento(id).value = ''; });
     obtenerElemento('reportingPreviewImage').removeAttribute('src');
     obtenerElemento('reportingPreview').hidden = true;
     obtenerElemento('processReportingImage').disabled = true;
@@ -11956,6 +12076,8 @@ function configurarEventos() {
         if (boton) seleccionarTipoReporteria(boton.dataset.reportingType);
     });
     obtenerElemento('takeReportingPhoto')?.addEventListener('click', () => obtenerElemento('reportingCameraInput').click());
+    obtenerElemento('chooseReportingExcel')?.addEventListener('click', () => obtenerElemento('reportingExcelInput').click());
+    obtenerElemento('reportingExcelInput')?.addEventListener('change', event => cargarExcelReporteria(event.target.files?.[0]));
     obtenerElemento('chooseReportingImage')?.addEventListener('click', () => obtenerElemento('reportingGalleryInput').click());
     obtenerElemento('pasteReportingImage')?.addEventListener('click', pegarCapturaReporteria);
     obtenerElemento('reportingCameraInput')?.addEventListener('change', event => seleccionarCapturaReporteria(event.target.files, { agregar: true }));

@@ -1060,11 +1060,15 @@
                         <section class="reporting-capture-card" aria-labelledby="reportingCaptureTitle">
                             <div>
                                 <p class="eyebrow">Paso 1</p>
-                                <h3 id="reportingCaptureTitle">Cargar captura</h3>
-                                <p>Procura que el texto esté recto, completo y con buena iluminación.</p>
+                                <h3 id="reportingCaptureTitle">Cargar archivo o captura</h3>
+                                <p>Usa el Excel original para obtener todas las filas. Las capturas quedan como alternativa.</p>
                             </div>
+                            <input id="reportingExcelInput" class="visually-hidden" type="file" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
                             <input id="reportingCameraInput" class="visually-hidden" type="file" accept="image/*" capture="environment">
                             <input id="reportingGalleryInput" class="visually-hidden" type="file" accept="image/*" multiple>
+                            <button class="finish-btn reporting-excel-button" id="chooseReportingExcel" type="button">Cargar Excel original</button>
+                            <p class="reporting-source-note">Recomendado: filtra automáticamente solo las órdenes 2/7 - Posición barrera.</p>
+                            <div class="reporting-capture-divider" aria-hidden="true"><span>o usar capturas</span></div>
                             <div class="reporting-file-actions">
                                 <button class="finish-btn" id="takeReportingPhoto" type="button">Tomar foto</button>
                                 <button class="clear-btn" id="chooseReportingImage" type="button">Elegir capturas</button>
