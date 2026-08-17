@@ -3591,6 +3591,108 @@ async function aplicarFormatoVisualOcupabilidad(buffer) {
     return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', compression: 'DEFLATE' });
 }
 
+function cargarImagenOcupabilidad(src) {
+    return new Promise((resolve, reject) => {
+        const imagen = new Image();
+        imagen.onload = () => resolve(imagen);
+        imagen.onerror = reject;
+        imagen.src = src;
+    });
+}
+
+function dibujarCeldaOcupabilidad(ctx, x, y, ancho, alto, fondo, texto, color = '#000000', tamano = 27) {
+    ctx.fillStyle = fondo;
+    ctx.fillRect(x, y, ancho, alto);
+    ctx.strokeStyle = '#111111';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, ancho, alto);
+    ctx.fillStyle = color;
+    ctx.font = `700 ${tamano}px Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(texto), x + ancho / 2, y + alto / 2, ancho - 14);
+}
+
+async function crearImagenCorteOcupabilidad(zonas, hora, fechaTexto) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1100;
+    canvas.height = 860;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(0, 0, canvas.width, 72);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 34px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('60% SE ABRE EL SIGUIENTE SOTANO', canvas.width / 2, 36);
+
+    try {
+        const logo = await cargarImagenOcupabilidad('assets/urbapark-logo.png');
+        const maxAncho = 500;
+        const maxAlto = 160;
+        const escala = Math.min(maxAncho / logo.naturalWidth, maxAlto / logo.naturalHeight);
+        const ancho = logo.naturalWidth * escala;
+        const alto = logo.naturalHeight * escala;
+        ctx.drawImage(logo, 18, 92 + (maxAlto - alto) / 2, ancho, alto);
+    } catch (error) {
+        ctx.fillStyle = '#ef4b1b';
+        ctx.font = '800 50px Arial, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('UrbaPark', 40, 165);
+    }
+
+    dibujarCeldaOcupabilidad(ctx, 570, 105, 235, 55, '#000000', fechaTexto, '#ffffff', 27);
+    const horaGeneracion = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    dibujarCeldaOcupabilidad(ctx, 805, 105, 275, 55, '#000000', horaGeneracion, '#ffffff', 27);
+
+    const x = 20;
+    const yTabla = 270;
+    const altos = 58;
+    const anchos = [350, 205, 190, 175, 140];
+    const posiciones = anchos.reduce((lista, ancho, indice) => {
+        lista.push(indice ? lista[indice - 1] + anchos[indice - 1] : x);
+        return lista;
+    }, []);
+    ['OCUPABILIDAD ' + hora, 'OCUPADOS', 'DISPO.', 'TOT.', '%'].forEach((texto, indice) => {
+        dibujarCeldaOcupabilidad(ctx, posiciones[indice], yTabla, anchos[indice], altos, '#000000', texto, '#ffffff', indice ? 25 : 24);
+    });
+
+    const autos = zonas.filter(zona => zona.tipo === 'vehiculos');
+    autos.forEach((zona, indice) => {
+        const y = yTabla + altos * (indice + 1);
+        const colorTexto = zona.id === 'parking-vip' ? '#ffffff' : '#000000';
+        dibujarCeldaOcupabilidad(ctx, posiciones[0], y, anchos[0], altos, zona.color, zona.nombre.toUpperCase(), colorTexto, 27);
+        dibujarCeldaOcupabilidad(ctx, posiciones[1], y, anchos[1], altos, '#ff0000', zona.ocupados, '#ffffff', 28);
+        dibujarCeldaOcupabilidad(ctx, posiciones[2], y, anchos[2], altos, '#92d050', zona.libres, '#000000', 28);
+        dibujarCeldaOcupabilidad(ctx, posiciones[3], y, anchos[3], altos, '#000000', zona.capacidad, '#ffffff', 28);
+        dibujarCeldaOcupabilidad(ctx, posiciones[4], y, anchos[4], altos, '#ffffff', `${Math.round(zona.ocupados / zona.capacidad * 100)}%`, '#000000', 28);
+    });
+    const totales = calcularTotalesOcupabilidad(zonas);
+    const yTotal = yTabla + altos * 6;
+    dibujarCeldaOcupabilidad(ctx, posiciones[0], yTotal, anchos[0], altos, '#000000', 'TOTAL', '#ffffff', 28);
+    dibujarCeldaOcupabilidad(ctx, posiciones[1], yTotal, anchos[1], altos, '#ff0000', totales.ocupados, '#ffffff', 28);
+    dibujarCeldaOcupabilidad(ctx, posiciones[2], yTotal, anchos[2], altos, '#92d050', totales.libres, '#000000', 28);
+    dibujarCeldaOcupabilidad(ctx, posiciones[3], yTotal, anchos[3], altos, '#000000', totales.capacidad, '#ffffff', 28);
+    dibujarCeldaOcupabilidad(ctx, posiciones[4], yTotal, anchos[4], altos, '#ffffff', `${Math.round(totales.ocupados / totales.capacidad * 100)}%`, '#000000', 28);
+
+    const movilidad = [zonas.find(zona => zona.id === 'bicicletas'), zonas.find(zona => zona.id === 'motos')];
+    movilidad.forEach((zona, indice) => {
+        const y = yTotal + altos + 22 + altos * indice;
+        dibujarCeldaOcupabilidad(ctx, posiciones[0], y, anchos[0], altos, '#000000', zona.nombre.toUpperCase(), '#ffffff', 28);
+        dibujarCeldaOcupabilidad(ctx, posiciones[1], y, anchos[1], altos, '#ff0000', zona.ocupados, '#ffffff', 28);
+        dibujarCeldaOcupabilidad(ctx, posiciones[2], y, anchos[2], altos, '#92d050', zona.libres, '#000000', 28);
+        dibujarCeldaOcupabilidad(ctx, posiciones[3], y, anchos[3], altos, '#000000', zona.capacidad, '#ffffff', 28);
+        dibujarCeldaOcupabilidad(ctx, posiciones[4], y, anchos[4], altos, '#ffffff', `${Math.round(zona.ocupados / zona.capacidad * 100)}%`, '#000000', 28);
+    });
+
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('No se pudo crear la imagen.')), 'image/png', 0.96);
+    });
+}
+
 async function exportarCorteOcupabilidadExcel(horaSeleccionada = '', compartir = false) {
     const estado = obtenerElemento('operationsOccupancyStatus');
     const hora = typeof horaSeleccionada === 'string' && horaSeleccionada ? horaSeleccionada : horaCorteOcupabilidad();
@@ -3614,6 +3716,45 @@ async function exportarCorteOcupabilidadExcel(horaSeleccionada = '', compartir =
     const fecha = new Date(`${fechaLocalISO()}T12:00:00`);
     const fechaTexto = fecha.toLocaleDateString('es-PE');
     const horaTexto = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    if (compartir) {
+        estado.textContent = 'Preparando la imagen para WhatsApp...';
+        estado.dataset.status = 'info';
+        try {
+            const imagen = await crearImagenCorteOcupabilidad(zonas, hora, fechaTexto);
+            const nombreImagen = `Ocupabilidad-Salaverry-${fechaLocalISO()}-${hora.replace(':', '')}.png`;
+            const imagenCompartible = new File([imagen], nombreImagen, { type: 'image/png' });
+            if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [imagenCompartible] }))) {
+                const enlace = document.createElement('a');
+                const url = URL.createObjectURL(imagen);
+                enlace.href = url;
+                enlace.download = nombreImagen;
+                document.body.appendChild(enlace);
+                enlace.click();
+                enlace.remove();
+                window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+                estado.textContent = 'Imagen descargada. Compartela desde WhatsApp en este dispositivo.';
+                estado.dataset.status = 'success';
+                return;
+            }
+            await navigator.share({
+                files: [imagenCompartible],
+                title: `Ocupabilidad Salaverry ${hora}`,
+                text: `Ocupabilidad Real Plaza Salaverry - ${fechaTexto} ${hora}`
+            });
+            estado.textContent = `Imagen del corte ${hora} compartida.`;
+            estado.dataset.status = 'success';
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                estado.textContent = 'Se cancelo el envio por WhatsApp.';
+                estado.dataset.status = 'info';
+            } else {
+                console.error('No se pudo compartir la imagen:', error);
+                estado.textContent = 'No se pudo preparar la imagen. Intenta nuevamente.';
+                estado.dataset.status = 'error';
+            }
+        }
+        return;
+    }
     const filas = [
         ['60% SE ABRE EL SIGUIENTE SOTANO', '', '', '', ''],
         ['', '', '', '', ''],
@@ -3643,24 +3784,6 @@ async function exportarCorteOcupabilidadExcel(horaSeleccionada = '', compartir =
     try {
         const archivo = await aplicarFormatoVisualOcupabilidad(buffer);
         const nombreArchivo = `Ocupabilidad-Salaverry-${fechaLocalISO()}-${hora.replace(':', '')}.xlsx`;
-        if (compartir) {
-            const archivoCompartible = new File([archivo], nombreArchivo, {
-                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            });
-            if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [archivoCompartible] }))) {
-                estado.textContent = 'Este dispositivo no permite adjuntar el Excel directamente. Descargalo y compartelo desde WhatsApp.';
-                estado.dataset.status = 'error';
-                return;
-            }
-            await navigator.share({
-                files: [archivoCompartible],
-                title: `Ocupabilidad Salaverry ${hora}`,
-                text: `Reporte de ocupabilidad de Real Plaza Salaverry - ${fechaTexto} ${hora}`
-            });
-            estado.textContent = `Excel del corte ${hora} compartido.`;
-            estado.dataset.status = 'success';
-            return;
-        }
         const enlace = document.createElement('a');
         const url = URL.createObjectURL(archivo);
         enlace.href = url;
