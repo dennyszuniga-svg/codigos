@@ -4420,7 +4420,8 @@ body.dark-theme .repeated-failure-item { background: #341b1b; color: #ffd7cf; bo
 }
 
 .operations-checklist-panel,
-.operations-dashboard-panel {
+.operations-dashboard-panel,
+.operations-occupancy-panel {
     margin: 16px 0;
     padding: 18px;
     border: 1px solid #cfd9e2;
@@ -4428,6 +4429,199 @@ body.dark-theme .repeated-failure-item { background: #341b1b; color: #ffd7cf; bo
     border-radius: 7px;
     background: #fff;
 }
+
+.operations-occupancy-toolbar {
+    display: grid;
+    grid-template-columns: minmax(190px, 1.4fr) minmax(145px, 0.8fr) minmax(130px, 0.7fr) auto auto;
+    align-items: end;
+    gap: 9px;
+    margin: 16px 0;
+}
+
+.operations-occupancy-toolbar label,
+.operations-occupancy-note {
+    display: grid;
+    gap: 5px;
+    color: #263b4d;
+    font-weight: 800;
+}
+
+.operations-occupancy-toolbar input,
+.operations-occupancy-toolbar select,
+.operations-occupancy-note textarea { width: 100%; }
+
+.operations-occupancy-summary {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    margin: 14px 0;
+}
+
+.operations-occupancy-summary article {
+    padding: 12px;
+    border: 1px solid #d3dee6;
+    border-top: 4px solid #1596cf;
+    background: #f7fafc;
+}
+
+.operations-occupancy-summary article:nth-child(4) { border-top-color: #168453; }
+.operations-occupancy-summary article:nth-child(5) { border-top-color: #ef4b1b; }
+.operations-occupancy-summary span { display: block; color: #5b6d7c; font-size: 0.76rem; font-weight: 750; }
+.operations-occupancy-summary strong { display: block; margin-top: 5px; color: #172c3d; font-size: 1.3rem; }
+
+.operations-occupancy-table-wrap {
+    overflow-x: auto;
+    border: 1px solid #d4dee6;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.operations-occupancy-table { min-width: 1120px; }
+.occupancy-zone-row {
+    display: grid;
+    grid-template-columns: minmax(150px, 1.2fr) repeat(5, minmax(92px, 0.65fr)) minmax(210px, 1.5fr) 42px;
+    align-items: end;
+    gap: 8px;
+    padding: 10px;
+    border-bottom: 1px solid #e1e8ed;
+}
+.occupancy-zone-row:last-child { border-bottom: 0; }
+.occupancy-zone-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    align-items: center;
+    color: #42596a;
+    background: #edf3f6;
+    font-size: 0.76rem;
+    font-weight: 850;
+}
+.occupancy-zone-field { display: grid; gap: 4px; min-width: 0; }
+.occupancy-zone-field > span { display: none; color: #526878; font-size: 0.74rem; font-weight: 800; }
+.occupancy-zone-field input,
+.occupancy-zone-field textarea { width: 100%; min-width: 0; }
+.occupancy-zone-field textarea { min-height: 43px; resize: vertical; }
+.occupancy-zone-remove {
+    width: 42px;
+    height: 42px;
+    border: 1px solid #e0a59f;
+    border-radius: 5px;
+    color: #a82d24;
+    background: #fff1ef;
+    font-size: 1.3rem;
+    font-weight: 900;
+    cursor: pointer;
+}
+.occupancy-zone-remove:disabled { opacity: 0.35; cursor: not-allowed; }
+.occupancy-zone-remove:focus-visible { outline: 3px solid #8bd4f3; outline-offset: 2px; }
+
+.operations-occupancy-actions {
+    display: grid;
+    grid-template-columns: auto minmax(280px, 1fr) auto;
+    align-items: end;
+    gap: 10px;
+    margin-top: 12px;
+}
+.operations-occupancy-history-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 22px 0 10px;
+}
+.operations-occupancy-history-heading h3,
+.operations-occupancy-history-heading p { margin: 0; }
+.operations-occupancy-history-heading p { margin-top: 3px; color: #627584; font-size: 0.82rem; }
+.operations-occupancy-history-heading > strong { color: #14784e; }
+.operations-occupancy-history {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 8px;
+}
+.occupancy-history-item {
+    display: grid;
+    gap: 3px;
+    padding: 12px;
+    border: 1px solid #d3dee6;
+    border-left: 4px solid #1596cf;
+    border-radius: 5px;
+    color: #243749;
+    background: #fff;
+    cursor: pointer;
+    text-align: left;
+}
+.occupancy-history-item:hover { border-color: #1596cf; background: #f1f9fc; }
+.occupancy-history-item:focus-visible { outline: 3px solid #8bd4f3; outline-offset: 2px; }
+.occupancy-history-item strong { font-size: 1.05rem; }
+.occupancy-history-item span { color: #536a7a; font-size: 0.82rem; }
+.occupancy-history-item small { color: #6d7d89; }
+
+.operations-occupancy-table {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+    gap: 10px;
+    min-width: 0;
+    padding: 10px;
+}
+.occupancy-hour-status {
+    margin: 10px 0;
+    padding: 11px 13px;
+    border-left: 4px solid #e39a16;
+    color: #714c08;
+    background: #fff8e8;
+    font-weight: 800;
+}
+.occupancy-hour-status.is-complete {
+    border-left-color: #168453;
+    color: #11633f;
+    background: #eaf8f0;
+}
+.occupancy-zone-card {
+    display: grid;
+    gap: 11px;
+    min-width: 0;
+    padding: 13px;
+    border: 1px solid #d5dfe6;
+    border-top: 6px solid var(--occupancy-zone-color, #1596cf);
+    border-radius: 6px;
+    background: #fff;
+}
+.occupancy-zone-card-heading,
+.occupancy-zone-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.occupancy-zone-card-heading > div { display: grid; gap: 2px; }
+.occupancy-zone-card-heading strong { color: #172c3d; font-size: 1.05rem; }
+.occupancy-zone-card-heading span:not(.occupancy-zone-state),
+.occupancy-zone-card-footer small { color: #617483; }
+.occupancy-zone-state {
+    padding: 5px 8px;
+    border: 1px solid #e6bd68;
+    border-radius: 999px;
+    color: #72500b;
+    background: #fff6df;
+    font-size: 0.72rem;
+    font-weight: 850;
+}
+.occupancy-zone-state.is-complete {
+    border-color: #8ed2af;
+    color: #10643f;
+    background: #e9f8f0;
+}
+.occupancy-zone-card-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+.occupancy-zone-card .occupancy-zone-field > span { display: block; }
+.occupancy-zone-card .occupancy-zone-field input,
+.occupancy-zone-card .occupancy-zone-field textarea { min-height: 44px; }
+.occupancy-zone-notes { grid-column: 1 / -1; }
+.occupancy-zone-card-footer small { max-width: 62%; line-height: 1.35; }
+.occupancy-zone-card-footer button { flex: 0 0 auto; }
 
 body.operations-subwindow-open { overflow: hidden; }
 body.operations-subwindow-open .bottom-nav { display: none !important; }
@@ -4712,6 +4906,7 @@ body.dark-theme .operations-shift-window[data-status="cerrado"] { background: #3
 
 body.dark-theme .operations-checklist-panel,
 body.dark-theme .operations-dashboard-panel,
+body.dark-theme .operations-occupancy-panel,
 body.dark-theme .operations-checklist-section,
 body.dark-theme .operations-status-option {
     border-color: #435365;
@@ -4750,10 +4945,31 @@ body.dark-theme .operations-evidence-empty { color: #bdcad5; }
 body.dark-theme .operations-executive-summary span,
 body.dark-theme .operations-benchmark article span,
 body.dark-theme .operations-analysis-list article span { color: #bdcad5; }
+body.dark-theme .operations-occupancy-toolbar label,
+body.dark-theme .operations-occupancy-note,
+body.dark-theme .operations-occupancy-summary strong,
+body.dark-theme .operations-occupancy-history-heading h3 { color: #eef5fb; }
+body.dark-theme .operations-occupancy-summary article,
+body.dark-theme .operations-occupancy-table-wrap,
+body.dark-theme .occupancy-history-item { border-color: #435365; color: #eef5fb; background: #172231; }
+body.dark-theme .occupancy-zone-header { color: #dbe8f1; background: #111b27; }
+body.dark-theme .occupancy-zone-row { border-color: #344456; }
+body.dark-theme .operations-occupancy-summary span,
+body.dark-theme .operations-occupancy-history-heading p,
+body.dark-theme .occupancy-history-item span,
+body.dark-theme .occupancy-history-item small { color: #bdcad5; }
+body.dark-theme .occupancy-history-item:hover { border-color: #46b5e4; background: #1d3040; }
+body.dark-theme .occupancy-hour-status { color: #ffe2a0; background: #3b301a; }
+body.dark-theme .occupancy-hour-status.is-complete { color: #b7efd2; background: #173b2b; }
+body.dark-theme .occupancy-zone-card { border-color: #435365; background: #172231; }
+body.dark-theme .occupancy-zone-card-heading strong { color: #f2f7fb; }
+body.dark-theme .occupancy-zone-card-heading span:not(.occupancy-zone-state),
+body.dark-theme .occupancy-zone-card-footer small { color: #c1ced8; }
 
 @media (max-width: 760px) {
     .operations-checklist-panel,
-    .operations-dashboard-panel { margin: 8px 0; padding: 12px; }
+    .operations-dashboard-panel,
+    .operations-occupancy-panel { margin: 8px 0; padding: 12px; }
     .operations-subwindow-active { inset: 0; width: 100%; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; padding: 12px 12px 84px; }
     .operations-main-actions,
     .operations-main-actions button { width: 100%; }
@@ -4773,6 +4989,28 @@ body.dark-theme .operations-analysis-list article span { color: #bdcad5; }
     .operations-evidence-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .operations-evidence-actions,
     .operations-evidence-actions label { width: 100%; }
+    .operations-occupancy-toolbar { grid-template-columns: 1fr 1fr; }
+    .operations-occupancy-toolbar button { width: 100%; }
+    .operations-occupancy-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .operations-occupancy-summary article:last-child { grid-column: 1 / -1; }
+    .operations-occupancy-actions { grid-template-columns: 1fr; }
+    .operations-occupancy-actions button { width: 100%; }
+    .operations-occupancy-table { min-width: 0; }
+    .occupancy-zone-header { display: none; }
+    .occupancy-zone-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: end;
+        gap: 9px;
+        padding: 13px;
+    }
+    .occupancy-zone-field > span { display: block; }
+    .occupancy-zone-nombre,
+    .occupancy-zone-detalleVulnerables { grid-column: 1 / -1; }
+    .occupancy-zone-remove { grid-column: 2; justify-self: end; }
+    .operations-occupancy-table { grid-template-columns: 1fr; padding: 7px; }
+    .occupancy-zone-card-footer { align-items: stretch; flex-direction: column; }
+    .occupancy-zone-card-footer small { max-width: none; }
+    .occupancy-zone-card-footer button { width: 100%; }
 }
 
 @media (max-width: 420px) {
@@ -4784,4 +5022,8 @@ body.dark-theme .operations-analysis-list article span { color: #bdcad5; }
     .operations-executive-summary { grid-template-columns: 1fr; }
     .operations-benchmark article,
     .operations-analysis-list article { grid-template-columns: 1fr; }
+    .operations-occupancy-toolbar,
+    .operations-occupancy-summary { grid-template-columns: 1fr; }
+    .operations-occupancy-summary article:last-child { grid-column: auto; }
+    .operations-occupancy-history-heading { align-items: flex-start; flex-direction: column; }
 }

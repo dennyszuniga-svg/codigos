@@ -839,12 +839,49 @@
                     <h2 id="moduleOperacionesTitle">Operaciones</h2>
                     <p>Ejecuta controles operativos, consulta sus resultados y administra los activos de cada sede.</p>
                     <div class="operations-main-actions">
+                        <button class="finish-btn" id="openOperationsOccupancy" type="button" aria-expanded="false" aria-controls="operationsOccupancyPanel">Ocupabilidad por hora</button>
                         <button class="finish-btn" id="openOperationsChecklist" type="button" aria-expanded="false" aria-controls="operationsChecklistPanel">Nuevo checklist operativo</button>
                         <button class="clear-btn" id="openOperationsDashboard" type="button" aria-expanded="false" aria-controls="operationsDashboardPanel">Historial y KPI</button>
                         <button class="clear-btn" id="openOperationsGeneralReport" type="button" aria-expanded="false" aria-controls="operationsGeneralReportPanel" hidden>Informe gerencial multisede</button>
                         <button class="clear-btn operations-assets-open" id="openOperationsAssets" type="button" aria-expanded="false" aria-controls="operationsAssetsPanel">Activos de operaciones</button>
                     </div>
                 </div>
+                <section class="operations-occupancy-panel" id="operationsOccupancyPanel" aria-labelledby="operationsOccupancyTitle" tabindex="-1" hidden>
+                    <div class="section-heading operations-checklist-heading">
+                        <div>
+                            <p class="eyebrow">Control diario por zonas</p>
+                            <h2 id="operationsOccupancyTitle">Ocupabilidad del estacionamiento</h2>
+                            <p>Cada anfitrion reporta su zona durante la hora actual. Fortaleza recibe el consolidado y el Excel listo.</p>
+                        </div>
+                        <button class="modal-close" id="closeOperationsOccupancy" type="button" aria-label="Cerrar ocupabilidad" title="Cerrar">&times;</button>
+                    </div>
+                    <div class="operations-occupancy-toolbar">
+                        <label>Sede<select id="operationsOccupancySite" required></select></label>
+                        <label>Fecha<input id="operationsOccupancyDate" type="date" readonly required></label>
+                        <label>Hora activa<input id="operationsOccupancyTime" type="time" step="3600" readonly required></label>
+                        <button class="clear-btn" id="loadOperationsOccupancy" type="button">Actualizar</button>
+                        <button class="clear-btn" id="exportOperationsOccupancyExcel" type="button">Descargar Excel del dia</button>
+                    </div>
+                    <div class="operations-occupancy-summary" aria-label="Resumen del corte actual">
+                        <article><span>Zonas reportadas</span><strong id="occupancyZonesReported">0/7</strong></article>
+                        <article><span>Autos ocupados</span><strong id="occupancyTotalOccupied">0</strong></article>
+                        <article><span>Autos disponibles</span><strong id="occupancyTotalAvailable">1,749</strong></article>
+                        <article><span>Ocupabilidad vehicular</span><strong id="occupancyRate">0%</strong></article>
+                        <article><span>Bicicletas / motos</span><strong id="occupancyMobilityTotal">0 / 0</strong></article>
+                    </div>
+                    <div class="occupancy-hour-status" id="operationsOccupancyHourStatus" role="status" aria-live="polite"></div>
+                    <div class="operations-occupancy-form">
+                        <div class="operations-occupancy-table-wrap">
+                            <div class="operations-occupancy-table" id="operationsOccupancyZones" role="table" aria-label="Conteo por zonas"></div>
+                        </div>
+                    </div>
+                    <div class="operations-occupancy-history-heading">
+                        <div><h3>Cortes del dia</h3><p>Se conservan solo durante la jornada actual.</p></div>
+                        <strong id="operationsOccupancyDailyAverage">Promedio diario: 0%</strong>
+                    </div>
+                    <div class="operations-occupancy-history" id="operationsOccupancyHistory" aria-live="polite"></div>
+                    <p class="auth-status" id="operationsOccupancyStatus" role="status" aria-live="polite"></p>
+                </section>
                 <section class="operations-checklist-panel" id="operationsChecklistPanel" aria-labelledby="operationsChecklistTitle" tabindex="-1" hidden>
                     <div class="section-heading operations-checklist-heading">
                         <div>
