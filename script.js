@@ -516,6 +516,27 @@ let temporizadorVentanaChecklistOperaciones = null;
 let registroOcupabilidadDiaria = null;
 let zonasOcupabilidadActual = [];
 let temporizadorBorradorOcupabilidad = null;
+const TIPOS_REPORTERIA = {
+    plumillas: {
+        nombre: 'Reporte de ordenes manuales',
+        tituloExcel: 'REPORTE DE ORDENES MANUALES',
+        encabezados: ['FECHA', 'PUMA', 'PLACA', 'MOTIVO'],
+        anchos: [14, 13, 14, 72]
+    },
+    tickets: {
+        nombre: 'Tickets abiertos',
+        tituloExcel: 'REPORTE DE TICKETS ABIERTOS',
+        encabezados: null,
+        anchos: []
+    }
+};
+let reporteCapturaActual = {
+    tipo: 'plumillas',
+    archivos: [],
+    urlVistaPrevia: '',
+    encabezados: [...TIPOS_REPORTERIA.plumillas.encabezados],
+    filas: []
+};
 let sedeActivaPorModulo = {
     mantenimiento: 'puruchuco',
     caja: 'gama',
@@ -9184,6 +9205,412 @@ function renderizarCodigos() {
     });
 }
 
+function establecerEstadoReporteria(id, mensaje, tipo = '') {
+    const estado = obtenerElemento(id);
+    if (!estado) return;
+    estado.textContent = mensaje;
+    if (tipo) estado.dataset.status = tipo;
+    else delete estado.dataset.status;
+}
+
+function actualizarProgresoReporteria(porcentaje, visible = true) {
+    const progreso = obtenerElemento('reportingProgress');
+    const barra = obtenerElemento('reportingProgressBar');
+    const valor = Math.max(0, Math.min(100, Math.round(Number(porcentaje) || 0)));
+    if (!progreso || !barra) return;
+    progreso.hidden = !visible;
+    progreso.setAttribute('aria-valuenow', String(valor));
+    barra.style.width = `${valor}%`;
+}
+
+function seleccionarTipoReporteria(tipo) {
+    if (!TIPOS_REPORTERIA[tipo]) return;
+    reporteCapturaActual.tipo = tipo;
+    reporteCapturaActual.encabezados = TIPOS_REPORTERIA[tipo].encabezados
+        ? [...TIPOS_REPORTERIA[tipo].encabezados]
+        : [];
+    reporteCapturaActual.filas = [];
+    document.querySelectorAll('[data-reporting-type]').forEach(boton => {
+        const activo = boton.dataset.reportingType === tipo;
+        boton.classList.toggle('is-active', activo);
+        boton.setAttribute('aria-pressed', String(activo));
+    });
+    obtenerElemento('reportingTableCard').hidden = true;
+    establecerEstadoReporteria('reportingExportStatus', '');
+}
+
+function liberarVistaPreviaReporteria() {
+    if (reporteCapturaActual.urlVistaPrevia) {
+        URL.revokeObjectURL(reporteCapturaActual.urlVistaPrevia);
+        reporteCapturaActual.urlVistaPrevia = '';
+    }
+}
+
+function seleccionarCapturaReporteria(archivosSeleccionados) {
+    const archivos = Array.from(archivosSeleccionados || []).filter(Boolean);
+    if (!archivos.length) return;
+    if (archivos.some(archivo => !archivo.type.startsWith('image/'))) {
+        establecerEstadoReporteria('reportingOcrStatus', 'Selecciona una imagen valida.', 'error');
+        return;
+    }
+    if (archivos.some(archivo => archivo.size > 18 * 1024 * 1024)) {
+        establecerEstadoReporteria('reportingOcrStatus', 'Una imagen supera 18 MB. Usa capturas mas livianas.', 'error');
+        return;
+    }
+
+    liberarVistaPreviaReporteria();
+    reporteCapturaActual.archivos = archivos;
+    reporteCapturaActual.urlVistaPrevia = URL.createObjectURL(archivos[0]);
+    reporteCapturaActual.filas = [];
+    obtenerElemento('reportingPreviewImage').src = reporteCapturaActual.urlVistaPrevia;
+    obtenerElemento('reportingFileName').textContent = archivos.length === 1
+        ? (archivos[0].name || 'Foto tomada')
+        : `${archivos.length} capturas seleccionadas`;
+    const pesoTotal = archivos.reduce((total, archivo) => total + archivo.size, 0);
+    obtenerElemento('reportingFileMeta').textContent = `${(pesoTotal / 1024 / 1024).toFixed(2)} MB en total`;
+    obtenerElemento('reportingPreview').hidden = false;
+    obtenerElemento('processReportingImage').disabled = false;
+    obtenerElemento('reportingRawText').value = '';
+    obtenerElemento('reportingRawText').disabled = true;
+    obtenerElemento('buildReportingTable').disabled = true;
+    obtenerElemento('reportingTableCard').hidden = true;
+    actualizarProgresoReporteria(0, false);
+    establecerEstadoReporteria('reportingOcrStatus', 'Captura lista para leer.', 'success');
+}
+
+function cargarScriptReporteria(src) {
+    return new Promise((resolver, rechazar) => {
+        const existente = document.querySelector(`script[src="${src}"]`);
+        if (existente) {
+            if (window.Tesseract) resolver();
+            else existente.addEventListener('load', resolver, { once: true });
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.addEventListener('load', resolver, { once: true });
+        script.addEventListener('error', () => rechazar(new Error('No se pudo cargar el lector OCR.')), { once: true });
+        document.head.appendChild(script);
+    });
+}
+
+async function asegurarLectorOcrReporteria() {
+    if (window.Tesseract?.createWorker) return;
+    await cargarScriptReporteria('https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js');
+    if (!window.Tesseract?.createWorker) throw new Error('El lector OCR no esta disponible.');
+}
+
+function cargarImagenReporteria(archivo) {
+    return new Promise((resolver, rechazar) => {
+        const imagen = new Image();
+        const url = URL.createObjectURL(archivo);
+        imagen.onload = () => {
+            URL.revokeObjectURL(url);
+            resolver(imagen);
+        };
+        imagen.onerror = () => {
+            URL.revokeObjectURL(url);
+            rechazar(new Error('No se pudo preparar la captura.'));
+        };
+        imagen.src = url;
+    });
+}
+
+async function prepararCapturaParaOcr(archivo) {
+    const imagen = await cargarImagenReporteria(archivo);
+    const escala = Math.min(2.2, Math.max(1, 1800 / imagen.naturalWidth));
+    const ancho = Math.min(2600, Math.round(imagen.naturalWidth * escala));
+    const alto = Math.round(imagen.naturalHeight * (ancho / imagen.naturalWidth));
+    const lienzo = document.createElement('canvas');
+    lienzo.width = ancho;
+    lienzo.height = alto;
+    const contexto = lienzo.getContext('2d', { willReadFrequently: true });
+    contexto.fillStyle = '#ffffff';
+    contexto.fillRect(0, 0, ancho, alto);
+    contexto.drawImage(imagen, 0, 0, ancho, alto);
+    const pixels = contexto.getImageData(0, 0, ancho, alto);
+    for (let indice = 0; indice < pixels.data.length; indice += 4) {
+        const gris = (pixels.data[indice] * 0.299) + (pixels.data[indice + 1] * 0.587) + (pixels.data[indice + 2] * 0.114);
+        const contraste = Math.max(0, Math.min(255, ((gris - 128) * 1.28) + 128));
+        pixels.data[indice] = contraste;
+        pixels.data[indice + 1] = contraste;
+        pixels.data[indice + 2] = contraste;
+    }
+    contexto.putImageData(pixels, 0, 0);
+    return new Promise((resolver, rechazar) => lienzo.toBlob(
+        blob => blob ? resolver(blob) : rechazar(new Error('No se pudo optimizar la captura.')),
+        'image/jpeg',
+        0.92
+    ));
+}
+
+async function procesarCapturaReporteria() {
+    if (!reporteCapturaActual.archivos.length) return;
+    const boton = obtenerElemento('processReportingImage');
+    boton.disabled = true;
+    actualizarProgresoReporteria(2, true);
+    establecerEstadoReporteria('reportingOcrStatus', 'Preparando la captura...', 'pending');
+    let worker = null;
+    try {
+        await asegurarLectorOcrReporteria();
+        worker = await window.Tesseract.createWorker(['spa', 'eng'], 1, {
+            logger: mensaje => {
+                const porcentaje = mensaje.progress == null ? 8 : 8 + (mensaje.progress * 90);
+                actualizarProgresoReporteria(porcentaje, true);
+                if (mensaje.status === 'recognizing text') {
+                    establecerEstadoReporteria('reportingOcrStatus', `Leyendo texto... ${Math.round(mensaje.progress * 100)}%`, 'pending');
+                }
+            }
+        });
+        const textos = [];
+        for (let indice = 0; indice < reporteCapturaActual.archivos.length; indice += 1) {
+            establecerEstadoReporteria('reportingOcrStatus', `Leyendo captura ${indice + 1} de ${reporteCapturaActual.archivos.length}...`, 'pending');
+            const captura = await prepararCapturaParaOcr(reporteCapturaActual.archivos[indice]);
+            const resultado = await worker.recognize(captura, { rotateAuto: true });
+            const textoCaptura = String(resultado?.data?.text || '').trim();
+            if (textoCaptura) textos.push(textoCaptura);
+        }
+        const texto = textos.join('\n').trim();
+        if (!texto) throw new Error('No se detecto texto. Prueba con una captura mas nitida o recortada.');
+        const campo = obtenerElemento('reportingRawText');
+        campo.value = texto;
+        campo.disabled = false;
+        obtenerElemento('buildReportingTable').disabled = false;
+        actualizarProgresoReporteria(100, true);
+        establecerEstadoReporteria('reportingOcrStatus', 'Lectura terminada. Revisa el texto antes de crear la tabla.', 'success');
+        campo.focus({ preventScroll: true });
+    } catch (error) {
+        console.error('No se pudo leer la captura de reporteria:', error);
+        actualizarProgresoReporteria(0, false);
+        establecerEstadoReporteria('reportingOcrStatus', error.message || 'No se pudo leer la captura.', 'error');
+    } finally {
+        if (worker) await worker.terminate().catch(() => {});
+        boton.disabled = false;
+    }
+}
+
+function limpiarLineaOcrReporteria(linea) {
+    return String(linea || '').replace(/[|]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function extraerOrdenesManuales(texto) {
+    const filas = [];
+    String(texto).split(/\r?\n/).map(limpiarLineaOcrReporteria).filter(Boolean).forEach(linea => {
+        const mayuscula = linea.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+        if (mayuscula.includes('REPORTE DE ORDENES') || mayuscula.includes('TURNO APERTURA')
+            || (mayuscula.includes('FECHA') && mayuscula.includes('PLACA') && mayuscula.includes('MOTIVO'))) return;
+        if (!/POSICI[O0]N\s+BARRERA/.test(mayuscula)) return;
+        const fecha = linea.match(/\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\b/)?.[1];
+        const equipo = mayuscula.match(/PUMA\s*(\d+)\s*[- ]?\s*C\s*[- ]?\s*([AB])\b/)
+            || mayuscula.match(/PUMA\s*(\d+)\s*[- ]?\s*C([AB])\b/);
+        if (!fecha || !equipo) return;
+        const cola = linea.slice(equipo.index + equipo[0].length).trim();
+        const placa = cola.match(/^[-:;,\s]*([A-Z][A-Z0-9]{2}\d{3})/i);
+        if (!placa) return;
+        const motivo = cola.slice(placa.index + placa[0].length).replace(/^[-:;,\s]+/, '').trim();
+        filas.push([fecha, `P${equipo[1]}.C${equipo[2]}`, placa[1].toUpperCase(), motivo]);
+    });
+    return filas;
+}
+
+function extraerTablaGenerica(texto) {
+    const filas = String(texto).split(/\r?\n/)
+        .map(linea => linea.trim())
+        .filter(Boolean)
+        .map(linea => linea.split(/\t|\s{2,}|\s*\|\s*/).map(valor => valor.trim()).filter(Boolean));
+    if (!filas.length) return { encabezados: ['DATO'], filas: [] };
+    const columnas = Math.max(...filas.map(fila => fila.length));
+    if (columnas === 1) return { encabezados: ['TEXTO DETECTADO'], filas };
+    const primera = filas.shift();
+    const encabezados = Array.from({ length: columnas }, (_, indice) => primera[indice] || `COLUMNA ${indice + 1}`);
+    return { encabezados, filas: filas.map(fila => Array.from({ length: columnas }, (_, indice) => fila[indice] || '')) };
+}
+
+function convertirTextoReporteriaEnTabla() {
+    const texto = obtenerElemento('reportingRawText').value.trim();
+    if (!texto) {
+        establecerEstadoReporteria('reportingOcrStatus', 'No hay texto para convertir.', 'error');
+        return;
+    }
+    if (reporteCapturaActual.tipo === 'plumillas') {
+        reporteCapturaActual.encabezados = [...TIPOS_REPORTERIA.plumillas.encabezados];
+        reporteCapturaActual.filas = extraerOrdenesManuales(texto);
+        if (!reporteCapturaActual.filas.length) {
+            reporteCapturaActual.filas = [['', '', '', texto.replace(/\s+/g, ' ').trim()]];
+            establecerEstadoReporteria('reportingOcrStatus', 'No se separaron filas con seguridad. Dejamos el texto en Motivo para que puedas corregirlo.', 'pending');
+        }
+    } else {
+        const tabla = extraerTablaGenerica(texto);
+        reporteCapturaActual.encabezados = tabla.encabezados;
+        reporteCapturaActual.filas = tabla.filas;
+    }
+    renderizarTablaReporteria();
+    obtenerElemento('reportingTableCard').hidden = false;
+    obtenerElemento('reportingTableCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function crearCampoTablaReporteria(valor, fila, columna, encabezado = false) {
+    const campo = document.createElement('input');
+    campo.type = 'text';
+    campo.value = valor || '';
+    campo.dataset.reportingRow = String(fila);
+    campo.dataset.reportingColumn = String(columna);
+    if (encabezado) campo.dataset.reportingHeader = 'true';
+    campo.setAttribute('aria-label', encabezado ? `Nombre de columna ${columna + 1}` : `Fila ${fila + 1}, columna ${columna + 1}`);
+    return campo;
+}
+
+function renderizarTablaReporteria() {
+    const cabecera = obtenerElemento('reportingTableHead');
+    const cuerpo = obtenerElemento('reportingTableBody');
+    limpiarElemento(cabecera);
+    limpiarElemento(cuerpo);
+    const filaCabecera = document.createElement('tr');
+    const numero = document.createElement('th');
+    numero.className = 'reporting-row-number';
+    numero.scope = 'col';
+    numero.textContent = '#';
+    filaCabecera.appendChild(numero);
+    reporteCapturaActual.encabezados.forEach((encabezado, indice) => {
+        const celda = document.createElement('th');
+        celda.scope = 'col';
+        celda.appendChild(crearCampoTablaReporteria(encabezado, -1, indice, true));
+        filaCabecera.appendChild(celda);
+    });
+    const accion = document.createElement('th');
+    accion.className = 'reporting-row-action';
+    accion.scope = 'col';
+    accion.textContent = 'Quitar';
+    filaCabecera.appendChild(accion);
+    cabecera.appendChild(filaCabecera);
+
+    reporteCapturaActual.filas.forEach((fila, indiceFila) => {
+        const tr = document.createElement('tr');
+        const indice = document.createElement('td');
+        indice.className = 'reporting-row-number';
+        indice.textContent = String(indiceFila + 1);
+        tr.appendChild(indice);
+        reporteCapturaActual.encabezados.forEach((_, indiceColumna) => {
+            const celda = document.createElement('td');
+            celda.appendChild(crearCampoTablaReporteria(fila[indiceColumna] || '', indiceFila, indiceColumna));
+            tr.appendChild(celda);
+        });
+        const celdaAccion = document.createElement('td');
+        celdaAccion.className = 'reporting-row-action';
+        const eliminar = document.createElement('button');
+        eliminar.type = 'button';
+        eliminar.className = 'reporting-delete-row';
+        eliminar.dataset.deleteReportingRow = String(indiceFila);
+        eliminar.setAttribute('aria-label', `Eliminar fila ${indiceFila + 1}`);
+        eliminar.title = 'Eliminar fila';
+        eliminar.textContent = '×';
+        celdaAccion.appendChild(eliminar);
+        tr.appendChild(celdaAccion);
+        cuerpo.appendChild(tr);
+    });
+}
+
+function agregarFilaReporteria() {
+    reporteCapturaActual.filas.push(reporteCapturaActual.encabezados.map(() => ''));
+    renderizarTablaReporteria();
+    obtenerElemento('reportingTableBody').querySelector('tr:last-child input')?.focus();
+}
+
+function actualizarDatoTablaReporteria(campo) {
+    const columna = Number(campo.dataset.reportingColumn);
+    if (campo.dataset.reportingHeader) {
+        reporteCapturaActual.encabezados[columna] = campo.value.trim() || `COLUMNA ${columna + 1}`;
+        return;
+    }
+    const fila = Number(campo.dataset.reportingRow);
+    if (reporteCapturaActual.filas[fila]) reporteCapturaActual.filas[fila][columna] = campo.value;
+}
+
+function eliminarFilaReporteria(indice) {
+    reporteCapturaActual.filas.splice(Number(indice), 1);
+    renderizarTablaReporteria();
+}
+
+async function aplicarFormatoExcelReporteria(buffer, filas, columnas) {
+    if (!window.JSZip) return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const zip = await window.JSZip.loadAsync(buffer);
+    const estilos = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="4"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="15"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><sz val="10"/><name val="Calibri"/></font></fonts>
+<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF92D050"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFC6E0B4"/></patternFill></fill></fills>
+<borders count="2"><border/><border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+    zip.file('xl/styles.xml', estilos);
+    let hojaXml = await zip.file('xl/worksheets/sheet1.xml').async('string');
+    hojaXml = asignarEstiloCeldaXml(hojaXml, 'A1', 1);
+    for (let columna = 0; columna < columnas; columna += 1) {
+        const letra = XLSX.utils.encode_col(columna);
+        hojaXml = asignarEstiloCeldaXml(hojaXml, `${letra}2`, 2);
+        for (let fila = 3; fila <= filas + 2; fila += 1) hojaXml = asignarEstiloCeldaXml(hojaXml, `${letra}${fila}`, 3);
+    }
+    zip.file('xl/worksheets/sheet1.xml', hojaXml);
+    return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', compression: 'DEFLATE' });
+}
+
+async function exportarExcelReporteria() {
+    if (!window.XLSX || !reporteCapturaActual.filas.length) {
+        establecerEstadoReporteria('reportingExportStatus', 'Agrega al menos una fila antes de generar el Excel.', 'error');
+        return;
+    }
+    const configuracion = TIPOS_REPORTERIA[reporteCapturaActual.tipo];
+    const encabezados = reporteCapturaActual.encabezados.map(valor => valor.trim());
+    const filas = reporteCapturaActual.filas
+        .map(fila => encabezados.map((_, indice) => String(fila[indice] || '').trim()))
+        .filter(fila => fila.some(Boolean));
+    if (!filas.length) {
+        establecerEstadoReporteria('reportingExportStatus', 'La tabla no contiene datos.', 'error');
+        return;
+    }
+    const matriz = [[configuracion.tituloExcel, ...encabezados.slice(1).map(() => '')], encabezados, ...filas];
+    const hoja = XLSX.utils.aoa_to_sheet(matriz);
+    hoja['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: encabezados.length - 1 } }];
+    hoja['!cols'] = encabezados.map((_, indice) => ({ wch: configuracion.anchos[indice] || (indice === encabezados.length - 1 ? 48 : 20) }));
+    hoja['!rows'] = [{ hpt: 24 }, { hpt: 22 }, ...filas.map(() => ({ hpt: 20 }))];
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, 'Reporte');
+    libro.Props = {
+        Title: configuracion.tituloExcel,
+        Subject: configuracion.nombre,
+        Author: perfilActual?.nombre || 'UrbaPark',
+        CreatedDate: new Date()
+    };
+    const buffer = XLSX.write(libro, { bookType: 'xlsx', type: 'array', compression: true });
+    const blob = await aplicarFormatoExcelReporteria(buffer, filas.length, encabezados.length);
+    const nombre = `${configuracion.nombre.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')}-${fechaLocalISO()}.xlsx`;
+    descargarBlob(blob, nombre);
+    establecerEstadoReporteria('reportingExportStatus', `Excel generado con ${filas.length} registros.`, 'success');
+}
+
+function limpiarReporteria(confirmar = true) {
+    if (confirmar && (reporteCapturaActual.archivos.length || obtenerElemento('reportingRawText').value)
+        && !window.confirm('¿Seguro que deseas limpiar la captura y los datos del reporte?')) return;
+    liberarVistaPreviaReporteria();
+    reporteCapturaActual.archivos = [];
+    reporteCapturaActual.filas = [];
+    reporteCapturaActual.encabezados = TIPOS_REPORTERIA[reporteCapturaActual.tipo].encabezados
+        ? [...TIPOS_REPORTERIA[reporteCapturaActual.tipo].encabezados]
+        : [];
+    ['reportingCameraInput', 'reportingGalleryInput'].forEach(id => { obtenerElemento(id).value = ''; });
+    obtenerElemento('reportingPreviewImage').removeAttribute('src');
+    obtenerElemento('reportingPreview').hidden = true;
+    obtenerElemento('processReportingImage').disabled = true;
+    obtenerElemento('reportingRawText').value = '';
+    obtenerElemento('reportingRawText').disabled = true;
+    obtenerElemento('buildReportingTable').disabled = true;
+    obtenerElemento('reportingTableCard').hidden = true;
+    actualizarProgresoReporteria(0, false);
+    establecerEstadoReporteria('reportingOcrStatus', '');
+    establecerEstadoReporteria('reportingExportStatus', '');
+}
+
 function asegurarControlesVentanaModulo(seccion) {
     if (seccion.querySelector('.module-window-close')) {
         return;
@@ -11483,6 +11910,27 @@ function configurarEventos() {
     obtenerElemento('loadOperationsOccupancy')?.addEventListener('click', cargarOcupabilidadDiaria);
     obtenerElemento('exportOperationsOccupancyExcel')?.addEventListener('click', () => exportarCorteOcupabilidadExcel());
     obtenerElemento('shareOperationsOccupancyWhatsApp')?.addEventListener('click', () => exportarCorteOcupabilidadExcel('', true));
+    obtenerElemento('reportingTypeSelector')?.addEventListener('click', event => {
+        const boton = event.target.closest('[data-reporting-type]');
+        if (boton) seleccionarTipoReporteria(boton.dataset.reportingType);
+    });
+    obtenerElemento('takeReportingPhoto')?.addEventListener('click', () => obtenerElemento('reportingCameraInput').click());
+    obtenerElemento('chooseReportingImage')?.addEventListener('click', () => obtenerElemento('reportingGalleryInput').click());
+    obtenerElemento('reportingCameraInput')?.addEventListener('change', event => seleccionarCapturaReporteria(event.target.files));
+    obtenerElemento('reportingGalleryInput')?.addEventListener('change', event => seleccionarCapturaReporteria(event.target.files));
+    obtenerElemento('processReportingImage')?.addEventListener('click', procesarCapturaReporteria);
+    obtenerElemento('buildReportingTable')?.addEventListener('click', convertirTextoReporteriaEnTabla);
+    obtenerElemento('addReportingRow')?.addEventListener('click', agregarFilaReporteria);
+    obtenerElemento('reportingTableCard')?.addEventListener('input', event => {
+        const campo = event.target.closest('[data-reporting-column]');
+        if (campo) actualizarDatoTablaReporteria(campo);
+    });
+    obtenerElemento('reportingTableCard')?.addEventListener('click', event => {
+        const eliminar = event.target.closest('[data-delete-reporting-row]');
+        if (eliminar) eliminarFilaReporteria(eliminar.dataset.deleteReportingRow);
+    });
+    obtenerElemento('exportReportingExcel')?.addEventListener('click', exportarExcelReporteria);
+    obtenerElemento('clearReportingWorkspace')?.addEventListener('click', () => limpiarReporteria(true));
     obtenerElemento('operationsOccupancyZones')?.addEventListener('input', event => {
         const campo = event.target.closest('[data-occupancy-zone][data-occupancy-field]');
         if (campo) actualizarZonaOcupabilidadDesdeCampo(campo);

@@ -113,6 +113,15 @@
                         </span>
                         <span class="module-copy"><strong>Operaciones</strong><small data-module-count="operaciones">0 guias</small></span>
                     </button>
+                    <button class="module-button" type="button" data-module="reporteria">
+                        <span class="module-icon module-icon-reporting" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" focusable="false">
+                                <path d="M12 8h40v48H12z"/>
+                                <path d="M20 20h24M20 29h16M20 46V36M30 46V32M40 46V25"/>
+                            </svg>
+                        </span>
+                        <span class="module-copy"><strong>Reporteria</strong><small>Capturas a Excel</small></span>
+                    </button>
                     <button class="module-button" type="button" data-module="caja">
                         <span class="module-icon module-icon-cash" aria-hidden="true">
                             <svg viewBox="0 0 64 64" focusable="false">
@@ -1023,6 +1032,91 @@
                     <div class="operations-assets-list" id="operationsAssetsList" aria-live="polite"></div>
                 </section>
                 <div id="dynamicGuides-operaciones" class="dynamic-guides" aria-label="Guias agregadas de operaciones"></div>
+            </section>
+
+            <section id="module-reporteria" class="module-content" aria-labelledby="moduleReporteriaTitle" hidden>
+                <div class="reporting-workspace">
+                    <div class="section-heading reporting-heading">
+                        <div>
+                            <p class="eyebrow">Captura a Excel</p>
+                            <h2 id="moduleReporteriaTitle">Reporteria operativa</h2>
+                            <p>Sube una captura, revisa los datos reconocidos y genera el archivo Excel.</p>
+                        </div>
+                    </div>
+
+                    <fieldset class="reporting-type-selector" id="reportingTypeSelector">
+                        <legend>Tipo de reporte</legend>
+                        <button class="reporting-type-button is-active" type="button" data-reporting-type="plumillas" aria-pressed="true">
+                            <span class="reporting-type-icon" aria-hidden="true">P</span>
+                            <span><strong>Ordenes manuales</strong><small>Solo aperturas por posicion de barrera</small></span>
+                        </button>
+                        <button class="reporting-type-button" type="button" data-reporting-type="tickets" aria-pressed="false">
+                            <span class="reporting-type-icon" aria-hidden="true">T</span>
+                            <span><strong>Tickets abiertos</strong><small>Incidencias pendientes y seguimiento</small></span>
+                        </button>
+                    </fieldset>
+
+                    <div class="reporting-capture-grid">
+                        <section class="reporting-capture-card" aria-labelledby="reportingCaptureTitle">
+                            <div>
+                                <p class="eyebrow">Paso 1</p>
+                                <h3 id="reportingCaptureTitle">Cargar captura</h3>
+                                <p>Procura que el texto esté recto, completo y con buena iluminación.</p>
+                            </div>
+                            <input id="reportingCameraInput" class="visually-hidden" type="file" accept="image/*" capture="environment">
+                            <input id="reportingGalleryInput" class="visually-hidden" type="file" accept="image/*" multiple>
+                            <div class="reporting-file-actions">
+                                <button class="finish-btn" id="takeReportingPhoto" type="button">Tomar foto</button>
+                                <button class="clear-btn" id="chooseReportingImage" type="button">Elegir capturas</button>
+                            </div>
+                            <div class="reporting-preview" id="reportingPreview" hidden>
+                                <img id="reportingPreviewImage" alt="Vista previa de la captura seleccionada">
+                                <div>
+                                    <strong id="reportingFileName">Captura seleccionada</strong>
+                                    <small id="reportingFileMeta"></small>
+                                </div>
+                            </div>
+                            <button class="finish-btn" id="processReportingImage" type="button" disabled>Leer captura</button>
+                            <div class="reporting-progress" id="reportingProgress" role="progressbar" aria-label="Progreso de lectura" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+                                <span id="reportingProgressBar"></span>
+                            </div>
+                            <p class="auth-status" id="reportingOcrStatus" role="status" aria-live="polite"></p>
+                        </section>
+
+                        <section class="reporting-review-card" aria-labelledby="reportingReviewTitle">
+                            <div>
+                                <p class="eyebrow">Paso 2</p>
+                                <h3 id="reportingReviewTitle">Revisar lectura</h3>
+                                <p>Corrige aquí cualquier palabra o cifra antes de convertirla en tabla.</p>
+                            </div>
+                            <label for="reportingRawText">Texto reconocido</label>
+                            <textarea id="reportingRawText" rows="12" placeholder="El texto reconocido aparecerá aquí. También puedes pegar datos separados por tabulaciones." disabled></textarea>
+                            <button class="clear-btn" id="buildReportingTable" type="button" disabled>Convertir a tabla</button>
+                        </section>
+                    </div>
+
+                    <section class="reporting-table-card" id="reportingTableCard" aria-labelledby="reportingTableTitle" hidden>
+                        <div class="reporting-table-heading">
+                            <div>
+                                <p class="eyebrow">Paso 3</p>
+                                <h3 id="reportingTableTitle">Validar tabla</h3>
+                                <p>Puedes editar cada celda, agregar filas o eliminar datos antes de descargar.</p>
+                            </div>
+                            <button class="clear-btn" id="addReportingRow" type="button">Agregar fila</button>
+                        </div>
+                        <div class="reporting-table-wrap">
+                            <table class="reporting-table">
+                                <thead id="reportingTableHead"></thead>
+                                <tbody id="reportingTableBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="reporting-export-actions">
+                            <button class="finish-btn" id="exportReportingExcel" type="button">Generar Excel</button>
+                            <button class="clear-btn" id="clearReportingWorkspace" type="button">Limpiar reporte</button>
+                        </div>
+                        <p class="auth-status" id="reportingExportStatus" role="status" aria-live="polite"></p>
+                    </section>
+                </div>
             </section>
 
             <section id="module-caja" class="module-content" aria-labelledby="moduleCajaTitle" hidden>
