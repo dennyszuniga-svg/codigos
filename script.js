@@ -3401,6 +3401,12 @@ function renderizarHistorialOcupabilidad() {
             crearTextoElemento('span', `${porcentaje.toFixed(1)}% de ocupabilidad`),
             crearTextoElemento('small', `${totales.ocupados} autos ocupados`)
         );
+        const exportar = document.createElement('button');
+        exportar.type = 'button';
+        exportar.className = 'clear-btn occupancy-history-export';
+        exportar.dataset.exportOccupancyHour = corte.hora;
+        exportar.textContent = `Excel ${corte.hora}`;
+        elemento.appendChild(exportar);
         contenedor.appendChild(elemento);
     });
     obtenerElemento('operationsOccupancyDailyAverage').textContent = `Promedio diario: ${(suma / cortes.length).toFixed(1)}%`;
@@ -3481,6 +3487,168 @@ function exportarOcupabilidadDiariaExcel() {
     XLSX.writeFile(libro, `Ocupabilidad-Salaverry-${fechaLocalISO()}.xlsx`, { compression: true });
     estado.textContent = 'Excel diario generado con todos los aportes disponibles.';
     estado.dataset.status = 'success';
+}
+
+function xmlSeguroOcupabilidad(valor) {
+    return String(valor).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+function asignarEstiloCeldaXml(xml, referencia, estilo) {
+    const patron = new RegExp(`<c r="${referencia}"(?: s="\\d+")?`, 'g');
+    return xml.replace(patron, `<c r="${referencia}" s="${estilo}"`);
+}
+
+async function aplicarFormatoVisualOcupabilidad(buffer) {
+    if (!window.JSZip) return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const zip = await window.JSZip.loadAsync(buffer);
+    const estilos = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="5">
+<font><sz val="11"/><name val="Calibri"/><family val="2"/></font>
+<font><b/><sz val="19"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+<font><b/><sz val="14"/><color rgb="FF000000"/><name val="Calibri"/></font>
+<font><b/><sz val="14"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+<font><b/><sz val="16"/><color rgb="FFF04B1A"/><name val="Calibri"/></font>
+</fonts>
+<fills count="10">
+<fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFFF0000"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF000000"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF2F75B5"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFFFC000"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF92D050"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF19A7D8"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFF4F7F9"/><bgColor indexed="64"/></patternFill></fill>
+</fills>
+<borders count="2"><border/><border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="14">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="4" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="5" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="6" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="7" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="6" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="9" fontId="2" fillId="8" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="3" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="4" fillId="8" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="4" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+    zip.file('xl/styles.xml', estilos);
+
+    let hojaXml = await zip.file('xl/worksheets/sheet1.xml').async('string');
+    const estilosPorCelda = {};
+    ['A1', 'B1', 'C1', 'D1', 'E1'].forEach(celda => { estilosPorCelda[celda] = 1; });
+    ['A7', 'B7', 'C7', 'D7', 'E7'].forEach(celda => { estilosPorCelda[celda] = 2; });
+    Object.assign(estilosPorCelda, { A8: 3, A9: 4, A10: 5, A11: 6, A12: 13, A13: 9, A15: 9, A16: 9,
+        C3: 11, D3: 11, E3: 11, A3: 12 });
+    for (let fila = 8; fila <= 13; fila += 1) {
+        estilosPorCelda[`B${fila}`] = 7;
+        estilosPorCelda[`C${fila}`] = 8;
+        estilosPorCelda[`D${fila}`] = 9;
+        estilosPorCelda[`E${fila}`] = 10;
+    }
+    for (const fila of [15, 16]) {
+        estilosPorCelda[`B${fila}`] = 7;
+        estilosPorCelda[`C${fila}`] = 8;
+        estilosPorCelda[`D${fila}`] = 9;
+        estilosPorCelda[`E${fila}`] = 10;
+    }
+    Object.entries(estilosPorCelda).forEach(([celda, estilo]) => { hojaXml = asignarEstiloCeldaXml(hojaXml, celda, estilo); });
+
+    try {
+        const logo = await fetch('assets/urbapark-logo.png').then(respuesta => respuesta.arrayBuffer());
+        zip.file('xl/media/image1.png', logo);
+        zip.file('xl/drawings/drawing1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><xdr:twoCellAnchor editAs="oneCell"><xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>2</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>2</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>5</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="1" name="UrbaPark"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:twoCellAnchor></xdr:wsDr>`);
+        zip.file('xl/drawings/_rels/drawing1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/></Relationships>`);
+        zip.file('xl/worksheets/_rels/sheet1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>`);
+        if (!hojaXml.includes('xmlns:r=')) hojaXml = hojaXml.replace('<worksheet ', '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ');
+        hojaXml = hojaXml.replace('</worksheet>', '<drawing r:id="rId1"/></worksheet>');
+        let tipos = await zip.file('[Content_Types].xml').async('string');
+        if (!tipos.includes('Extension="png"')) tipos = tipos.replace('</Types>', '<Default Extension="png" ContentType="image/png"/></Types>');
+        if (!tipos.includes('/xl/drawings/drawing1.xml')) tipos = tipos.replace('</Types>', '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>');
+        zip.file('[Content_Types].xml', tipos);
+    } catch (error) {
+        console.warn('El Excel se genero sin el logo:', error);
+    }
+    zip.file('xl/worksheets/sheet1.xml', hojaXml);
+    return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', compression: 'DEFLATE' });
+}
+
+async function exportarCorteOcupabilidadExcel(horaSeleccionada = '') {
+    const estado = obtenerElemento('operationsOccupancyStatus');
+    const hora = typeof horaSeleccionada === 'string' && horaSeleccionada ? horaSeleccionada : horaCorteOcupabilidad();
+    const corte = (registroOcupabilidadDiaria?.cortes || []).find(item => item.hora === hora);
+    const reportadas = corte?.zonas || [];
+    const faltantes = ZONAS_OCUPABILIDAD_SALAVERRY.filter(config => !reportadas.some(zona => zona.id === config.id));
+    if (!window.XLSX) {
+        estado.textContent = 'No se pudo cargar el generador de Excel.';
+        estado.dataset.status = 'error';
+        return;
+    }
+    if (!corte || faltantes.length) {
+        estado.textContent = `Completa las 7 zonas antes de generar el Excel. Faltan: ${faltantes.map(zona => zona.nombre).join(', ') || 'todas'}.`;
+        estado.dataset.status = 'error';
+        return;
+    }
+    const zonas = ZONAS_OCUPABILIDAD_SALAVERRY.map(config => zonaOcupabilidadCompleta(config, reportadas.find(zona => zona.id === config.id)));
+    const autos = zonas.filter(zona => zona.tipo === 'vehiculos');
+    const bicicletas = zonas.find(zona => zona.id === 'bicicletas');
+    const motos = zonas.find(zona => zona.id === 'motos');
+    const fecha = new Date(`${fechaLocalISO()}T12:00:00`);
+    const fechaTexto = fecha.toLocaleDateString('es-PE');
+    const horaTexto = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    const filas = [
+        ['60% SE ABRE EL SIGUIENTE SOTANO', '', '', '', ''],
+        ['', '', '', '', ''],
+        ['UrbaPark', '', fechaTexto, horaTexto, ''],
+        ['', '', '', '', ''], ['', '', '', '', ''], ['', '', '', '', ''],
+        [`OCUPABILIDAD ${hora}`, 'OCUPADOS', 'DISPO.', 'TOT.', '%'],
+        ...autos.map(zona => [zona.nombre.toUpperCase(), zona.ocupados, zona.libres, zona.capacidad, { f: `IFERROR(B${autos.indexOf(zona) + 8}/D${autos.indexOf(zona) + 8},0)`, v: zona.ocupados / zona.capacidad }]),
+        ['TOTAL', { f: 'SUM(B8:B12)', v: autos.reduce((suma, zona) => suma + zona.ocupados, 0) },
+            { f: 'SUM(C8:C12)', v: autos.reduce((suma, zona) => suma + zona.libres, 0) },
+            { f: 'SUM(D8:D12)', v: autos.reduce((suma, zona) => suma + zona.capacidad, 0) },
+            { f: 'IFERROR(B13/D13,0)', v: autos.reduce((suma, zona) => suma + zona.ocupados, 0) / 1749 }],
+        ['', '', '', '', ''],
+        ['BICICLETAS', bicicletas.ocupados, bicicletas.libres, bicicletas.capacidad, { f: 'IFERROR(B15/D15,0)', v: bicicletas.ocupados / bicicletas.capacidad }],
+        ['MOTOS', motos.ocupados, motos.libres, motos.capacidad, { f: 'IFERROR(B16/D16,0)', v: motos.ocupados / motos.capacidad }]
+    ];
+    const hoja = XLSX.utils.aoa_to_sheet(filas);
+    hoja['!merges'] = [XLSX.utils.decode_range('A1:E1'), XLSX.utils.decode_range('A3:B5'), XLSX.utils.decode_range('D3:E3')];
+    hoja['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 16 }, { wch: 15 }, { wch: 13 }];
+    hoja['!rows'] = [{ hpt: 34 }, { hpt: 8 }, { hpt: 28 }, { hpt: 24 }, { hpt: 24 }, { hpt: 9 }, { hpt: 28 },
+        { hpt: 27 }, { hpt: 27 }, { hpt: 27 }, { hpt: 27 }, { hpt: 27 }, { hpt: 29 }, { hpt: 12 }, { hpt: 27 }, { hpt: 27 }];
+    hoja['!ref'] = 'A1:E16';
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, `Ocupabilidad ${hora.replace(':', '')}`);
+    const buffer = XLSX.write(libro, { bookType: 'xlsx', type: 'array', compression: true });
+    estado.textContent = 'Preparando el Excel de la hora...';
+    estado.dataset.status = 'info';
+    try {
+        const archivo = await aplicarFormatoVisualOcupabilidad(buffer);
+        const enlace = document.createElement('a');
+        const url = URL.createObjectURL(archivo);
+        enlace.href = url;
+        enlace.download = `Ocupabilidad-Salaverry-${fechaLocalISO()}-${hora.replace(':', '')}.xlsx`;
+        document.body.appendChild(enlace);
+        enlace.click();
+        enlace.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        estado.textContent = `Excel del corte ${hora} generado correctamente.`;
+        estado.dataset.status = 'success';
+    } catch (error) {
+        console.error('No se pudo generar el Excel horario:', error);
+        estado.textContent = 'No se pudo terminar el Excel horario. Intenta nuevamente.';
+        estado.dataset.status = 'error';
+    }
 }
 
 function obtenerSeccionesChecklistOperaciones(sede = obtenerSedeChecklistOperaciones()) {
@@ -11157,7 +11325,7 @@ function configurarEventos() {
     obtenerElemento('openOperationsOccupancy')?.addEventListener('click', () => establecerPanelOcupabilidadOperaciones(true));
     obtenerElemento('closeOperationsOccupancy')?.addEventListener('click', cerrarPanelOcupabilidadOperaciones);
     obtenerElemento('loadOperationsOccupancy')?.addEventListener('click', cargarOcupabilidadDiaria);
-    obtenerElemento('exportOperationsOccupancyExcel')?.addEventListener('click', exportarOcupabilidadDiariaExcel);
+    obtenerElemento('exportOperationsOccupancyExcel')?.addEventListener('click', () => exportarCorteOcupabilidadExcel());
     obtenerElemento('operationsOccupancyZones')?.addEventListener('input', event => {
         const campo = event.target.closest('[data-occupancy-zone][data-occupancy-field]');
         if (campo) actualizarZonaOcupabilidadDesdeCampo(campo);
@@ -11165,6 +11333,10 @@ function configurarEventos() {
     obtenerElemento('operationsOccupancyZones')?.addEventListener('click', event => {
         const guardar = event.target.closest('[data-save-occupancy-zone]');
         if (guardar) guardarZonaOcupabilidad(guardar.dataset.saveOccupancyZone);
+    });
+    obtenerElemento('operationsOccupancyHistory')?.addEventListener('click', event => {
+        const exportar = event.target.closest('[data-export-occupancy-hour]');
+        if (exportar) exportarCorteOcupabilidadExcel(exportar.dataset.exportOccupancyHour);
     });
     obtenerElemento('openOperationsChecklist')?.addEventListener('click', () => establecerPanelChecklistOperaciones(true));
     obtenerElemento('closeOperationsChecklist')?.addEventListener('click', cerrarPanelChecklistOperaciones);

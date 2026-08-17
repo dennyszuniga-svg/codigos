@@ -4555,6 +4555,7 @@ body.dark-theme .repeated-failure-item { background: #341b1b; color: #ffd7cf; bo
 .occupancy-history-item strong { font-size: 1.05rem; }
 .occupancy-history-item span { color: #536a7a; font-size: 0.82rem; }
 .occupancy-history-item small { color: #6d7d89; }
+.occupancy-history-export { width: 100%; margin-top: 7px; }
 
 .operations-occupancy-table {
     display: grid;
