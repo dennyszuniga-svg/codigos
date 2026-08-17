@@ -4432,7 +4432,7 @@ body.dark-theme .repeated-failure-item { background: #341b1b; color: #ffd7cf; bo
 
 .operations-occupancy-toolbar {
     display: grid;
-    grid-template-columns: minmax(190px, 1.4fr) minmax(145px, 0.8fr) minmax(130px, 0.7fr) auto auto;
+    grid-template-columns: minmax(190px, 1.4fr) minmax(145px, 0.8fr) minmax(130px, 0.7fr) auto auto auto;
     align-items: end;
     gap: 9px;
     margin: 16px 0;
@@ -4556,6 +4556,8 @@ body.dark-theme .repeated-failure-item { background: #341b1b; color: #ffd7cf; bo
 .occupancy-history-item span { color: #536a7a; font-size: 0.82rem; }
 .occupancy-history-item small { color: #6d7d89; }
 .occupancy-history-export { width: 100%; margin-top: 7px; }
+.occupancy-history-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 7px; }
+.occupancy-history-actions button { width: 100%; min-width: 0; padding-inline: 8px; }
 
 .operations-occupancy-table {
     display: grid;

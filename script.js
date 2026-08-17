@@ -3401,12 +3401,20 @@ function renderizarHistorialOcupabilidad() {
             crearTextoElemento('span', `${porcentaje.toFixed(1)}% de ocupabilidad`),
             crearTextoElemento('small', `${totales.ocupados} autos ocupados`)
         );
+        const acciones = document.createElement('div');
         const exportar = document.createElement('button');
+        const compartir = document.createElement('button');
+        acciones.className = 'occupancy-history-actions';
         exportar.type = 'button';
-        exportar.className = 'clear-btn occupancy-history-export';
+        exportar.className = 'clear-btn';
         exportar.dataset.exportOccupancyHour = corte.hora;
         exportar.textContent = `Excel ${corte.hora}`;
-        elemento.appendChild(exportar);
+        compartir.type = 'button';
+        compartir.className = 'finish-btn';
+        compartir.dataset.shareOccupancyHour = corte.hora;
+        compartir.textContent = 'Compartir';
+        acciones.append(exportar, compartir);
+        elemento.appendChild(acciones);
         contenedor.appendChild(elemento);
     });
     obtenerElemento('operationsOccupancyDailyAverage').textContent = `Promedio diario: ${(suma / cortes.length).toFixed(1)}%`;
@@ -3583,7 +3591,7 @@ async function aplicarFormatoVisualOcupabilidad(buffer) {
     return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', compression: 'DEFLATE' });
 }
 
-async function exportarCorteOcupabilidadExcel(horaSeleccionada = '') {
+async function exportarCorteOcupabilidadExcel(horaSeleccionada = '', compartir = false) {
     const estado = obtenerElemento('operationsOccupancyStatus');
     const hora = typeof horaSeleccionada === 'string' && horaSeleccionada ? horaSeleccionada : horaCorteOcupabilidad();
     const corte = (registroOcupabilidadDiaria?.cortes || []).find(item => item.hora === hora);
@@ -3634,10 +3642,29 @@ async function exportarCorteOcupabilidadExcel(horaSeleccionada = '') {
     estado.dataset.status = 'info';
     try {
         const archivo = await aplicarFormatoVisualOcupabilidad(buffer);
+        const nombreArchivo = `Ocupabilidad-Salaverry-${fechaLocalISO()}-${hora.replace(':', '')}.xlsx`;
+        if (compartir) {
+            const archivoCompartible = new File([archivo], nombreArchivo, {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            });
+            if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [archivoCompartible] }))) {
+                estado.textContent = 'Este dispositivo no permite adjuntar el Excel directamente. Descargalo y compartelo desde WhatsApp.';
+                estado.dataset.status = 'error';
+                return;
+            }
+            await navigator.share({
+                files: [archivoCompartible],
+                title: `Ocupabilidad Salaverry ${hora}`,
+                text: `Reporte de ocupabilidad de Real Plaza Salaverry - ${fechaTexto} ${hora}`
+            });
+            estado.textContent = `Excel del corte ${hora} compartido.`;
+            estado.dataset.status = 'success';
+            return;
+        }
         const enlace = document.createElement('a');
         const url = URL.createObjectURL(archivo);
         enlace.href = url;
-        enlace.download = `Ocupabilidad-Salaverry-${fechaLocalISO()}-${hora.replace(':', '')}.xlsx`;
+        enlace.download = nombreArchivo;
         document.body.appendChild(enlace);
         enlace.click();
         enlace.remove();
@@ -3645,6 +3672,11 @@ async function exportarCorteOcupabilidadExcel(horaSeleccionada = '') {
         estado.textContent = `Excel del corte ${hora} generado correctamente.`;
         estado.dataset.status = 'success';
     } catch (error) {
+        if (error?.name === 'AbortError') {
+            estado.textContent = 'Se cancelo el envio por WhatsApp.';
+            estado.dataset.status = 'info';
+            return;
+        }
         console.error('No se pudo generar el Excel horario:', error);
         estado.textContent = 'No se pudo terminar el Excel horario. Intenta nuevamente.';
         estado.dataset.status = 'error';
@@ -11326,6 +11358,7 @@ function configurarEventos() {
     obtenerElemento('closeOperationsOccupancy')?.addEventListener('click', cerrarPanelOcupabilidadOperaciones);
     obtenerElemento('loadOperationsOccupancy')?.addEventListener('click', cargarOcupabilidadDiaria);
     obtenerElemento('exportOperationsOccupancyExcel')?.addEventListener('click', () => exportarCorteOcupabilidadExcel());
+    obtenerElemento('shareOperationsOccupancyWhatsApp')?.addEventListener('click', () => exportarCorteOcupabilidadExcel('', true));
     obtenerElemento('operationsOccupancyZones')?.addEventListener('input', event => {
         const campo = event.target.closest('[data-occupancy-zone][data-occupancy-field]');
         if (campo) actualizarZonaOcupabilidadDesdeCampo(campo);
@@ -11337,6 +11370,8 @@ function configurarEventos() {
     obtenerElemento('operationsOccupancyHistory')?.addEventListener('click', event => {
         const exportar = event.target.closest('[data-export-occupancy-hour]');
         if (exportar) exportarCorteOcupabilidadExcel(exportar.dataset.exportOccupancyHour);
+        const compartir = event.target.closest('[data-share-occupancy-hour]');
+        if (compartir) exportarCorteOcupabilidadExcel(compartir.dataset.shareOccupancyHour, true);
     });
     obtenerElemento('openOperationsChecklist')?.addEventListener('click', () => establecerPanelChecklistOperaciones(true));
     obtenerElemento('closeOperationsChecklist')?.addEventListener('click', cerrarPanelChecklistOperaciones);
