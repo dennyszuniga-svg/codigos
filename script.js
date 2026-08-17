@@ -3591,15 +3591,6 @@ async function aplicarFormatoVisualOcupabilidad(buffer) {
     return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', compression: 'DEFLATE' });
 }
 
-function cargarImagenOcupabilidad(src) {
-    return new Promise((resolve, reject) => {
-        const imagen = new Image();
-        imagen.onload = () => resolve(imagen);
-        imagen.onerror = reject;
-        imagen.src = src;
-    });
-}
-
 function dibujarCeldaOcupabilidad(ctx, x, y, ancho, alto, fondo, texto, color = '#000000', tamano = 27) {
     ctx.fillStyle = fondo;
     ctx.fillRect(x, y, ancho, alto);
@@ -3613,7 +3604,16 @@ function dibujarCeldaOcupabilidad(ctx, x, y, ancho, alto, fondo, texto, color = 
     ctx.fillText(String(texto), x + ancho / 2, y + alto / 2, ancho - 14);
 }
 
-async function crearImagenCorteOcupabilidad(zonas, hora, fechaTexto) {
+function convertirCanvasABlobSincrono(canvas) {
+    const dataUrl = canvas.toDataURL('image/png', 0.96);
+    const base64 = dataUrl.split(',')[1];
+    const binario = atob(base64);
+    const bytes = new Uint8Array(binario.length);
+    for (let indice = 0; indice < binario.length; indice += 1) bytes[indice] = binario.charCodeAt(indice);
+    return new Blob([bytes], { type: 'image/png' });
+}
+
+function crearImagenCorteOcupabilidad(zonas, hora, fechaTexto) {
     const canvas = document.createElement('canvas');
     canvas.width = 1100;
     canvas.height = 860;
@@ -3629,15 +3629,15 @@ async function crearImagenCorteOcupabilidad(zonas, hora, fechaTexto) {
     ctx.textBaseline = 'middle';
     ctx.fillText('60% SE ABRE EL SIGUIENTE SOTANO', canvas.width / 2, 36);
 
-    try {
-        const logo = await cargarImagenOcupabilidad('assets/urbapark-logo.png');
+    const logo = document.querySelector('img[src*="urbapark-logo.png"]');
+    if (logo?.complete && logo.naturalWidth) {
         const maxAncho = 500;
         const maxAlto = 160;
         const escala = Math.min(maxAncho / logo.naturalWidth, maxAlto / logo.naturalHeight);
         const ancho = logo.naturalWidth * escala;
         const alto = logo.naturalHeight * escala;
         ctx.drawImage(logo, 18, 92 + (maxAlto - alto) / 2, ancho, alto);
-    } catch (error) {
+    } else {
         ctx.fillStyle = '#ef4b1b';
         ctx.font = '800 50px Arial, sans-serif';
         ctx.textAlign = 'left';
@@ -3688,9 +3688,7 @@ async function crearImagenCorteOcupabilidad(zonas, hora, fechaTexto) {
         dibujarCeldaOcupabilidad(ctx, posiciones[4], y, anchos[4], altos, '#ffffff', `${Math.round(zona.ocupados / zona.capacidad * 100)}%`, '#000000', 28);
     });
 
-    return new Promise((resolve, reject) => {
-        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('No se pudo crear la imagen.')), 'image/png', 0.96);
-    });
+    return convertirCanvasABlobSincrono(canvas);
 }
 
 async function exportarCorteOcupabilidadExcel(horaSeleccionada = '', compartir = false) {
@@ -3720,7 +3718,7 @@ async function exportarCorteOcupabilidadExcel(horaSeleccionada = '', compartir =
         estado.textContent = 'Preparando la imagen para WhatsApp...';
         estado.dataset.status = 'info';
         try {
-            const imagen = await crearImagenCorteOcupabilidad(zonas, hora, fechaTexto);
+            const imagen = crearImagenCorteOcupabilidad(zonas, hora, fechaTexto);
             const nombreImagen = `Ocupabilidad-Salaverry-${fechaLocalISO()}-${hora.replace(':', '')}.png`;
             const imagenCompartible = new File([imagen], nombreImagen, { type: 'image/png' });
             if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [imagenCompartible] }))) {
@@ -3732,7 +3730,7 @@ async function exportarCorteOcupabilidadExcel(horaSeleccionada = '', compartir =
                 enlace.click();
                 enlace.remove();
                 window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-                estado.textContent = 'Imagen descargada. Compartela desde WhatsApp en este dispositivo.';
+                estado.textContent = 'Este dispositivo no permite adjuntar desde la app. La imagen se descargo para enviarla desde WhatsApp.';
                 estado.dataset.status = 'success';
                 return;
             }
@@ -3747,6 +3745,9 @@ async function exportarCorteOcupabilidadExcel(horaSeleccionada = '', compartir =
             if (error?.name === 'AbortError') {
                 estado.textContent = 'Se cancelo el envio por WhatsApp.';
                 estado.dataset.status = 'info';
+            } else if (error?.name === 'NotAllowedError') {
+                estado.textContent = 'Android bloqueo el menu de compartir. Cierra y vuelve a abrir la app para aplicar la actualizacion.';
+                estado.dataset.status = 'error';
             } else {
                 console.error('No se pudo compartir la imagen:', error);
                 estado.textContent = 'No se pudo preparar la imagen. Intenta nuevamente.';
