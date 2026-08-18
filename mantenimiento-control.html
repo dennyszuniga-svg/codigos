@@ -193,6 +193,10 @@
                 <label class="inventory-location">Ubicación<input id="inventoryLocation" type="text" maxlength="160" placeholder="Almacén, estante o módulo"></label>
                 <label>Proveedor<input id="inventorySupplier" type="text" maxlength="160"></label>
                 <label>Contacto proveedor<input id="inventorySupplierContact" type="text" maxlength="160"></label>
+                <label class="inventory-serials-input">Números de serie opcionales
+                    <textarea id="inventorySerialNumbers" rows="4" maxlength="4000" placeholder="Uno por línea o separados por coma. No escribas ****."></textarea>
+                    <small>Para cargarlos al crear el repuesto selecciona un solo almacén. Después podrás agregarlos o corregirlos desde cada registro.</small>
+                </label>
                 <div class="inventory-form-actions">
                     <button type="submit">Guardar repuesto</button>
                     <button class="secondary-button" id="cancelInventoryForm" type="button">Cancelar</button>
@@ -241,6 +245,11 @@
                     <label id="movementDestinationGroup" hidden>Destino<select id="movementDestination"><option value="general">Almacén general</option><option value="civico">Cívico</option><option value="salaverry">Salaverry</option><option value="primavera">Primavera</option><option value="puruchuco">Puruchuco</option><option value="gama">GAMA</option></select></label>
                     <label id="movementUseSiteGroup" hidden>Sede donde se usó<select id="movementUseSite"><option value="civico">Cívico</option><option value="salaverry">Salaverry</option><option value="primavera">Primavera</option><option value="puruchuco">Puruchuco</option><option value="gama">GAMA</option></select></label>
                     <label id="movementEquipmentGroup" hidden>Equipo / trabajo<input id="movementEquipment" type="text" maxlength="160" placeholder="Ej. SALIDA 1 o instalación de tope"></label>
+                    <fieldset id="movementSerialGroup" class="movement-serial-group" hidden>
+                        <legend>Números de serie</legend>
+                        <div id="movementSerialOptions" class="movement-serial-options"></div>
+                        <small id="movementSerialHelp">Selecciona las unidades utilizadas.</small>
+                    </fieldset>
                     <label>Observación<input id="movementNote" type="text" maxlength="500"></label>
                     <button type="submit">Registrar movimiento</button>
                 </form>
@@ -250,6 +259,26 @@
             </article>
         </section>
     </main>
+
+    <dialog id="serialDialog" class="serial-dialog" aria-labelledby="serialDialogTitle">
+        <div class="serial-dialog-header">
+            <div>
+                <p>NÚMEROS DE SERIE</p>
+                <h2 id="serialDialogTitle">Administrar series</h2>
+                <small id="serialDialogSubtitle"></small>
+            </div>
+            <button id="closeSerialDialog" type="button" class="secondary-button" aria-label="Cerrar">×</button>
+        </div>
+        <form id="serialForm" class="serial-form">
+            <input id="serialEditId" type="hidden">
+            <input id="serialStockId" type="hidden">
+            <label>Número de serie<input id="serialNumber" type="text" maxlength="120" autocomplete="off" required></label>
+            <button id="saveSerialNumber" type="submit">Guardar NS</button>
+            <button id="cancelSerialEdit" type="button" class="secondary-button" hidden>Cancelar edición</button>
+        </form>
+        <p id="serialStatus" class="status" role="status" aria-live="polite"></p>
+        <div id="serialList" class="record-list"></div>
+    </dialog>
 
     <section class="access-message" id="accessMessage">
         <h1>Verificando acceso</h1>

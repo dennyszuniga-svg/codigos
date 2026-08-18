@@ -18,6 +18,7 @@ let inventory = [];
 let inventoryMovements = [];
 let inventoryPygRows = [];
 let meyparPending = [];
+let inventorySerials = [];
 
 const byId = id => document.getElementById(id);
 const clear = element => { while (element?.firstChild) element.firstChild.remove(); };
@@ -235,13 +236,13 @@ async function loadData() {
         .eq('sede', site).order('fecha_guardado', { ascending: false }).limit(500);
     if (!isSuperior()) reportsQuery = reportsQuery.eq('creado_por', session.user.id);
 
-    const [reportsResult, inventoryResult, movementsResult, pygResult, meyparResult] = await Promise.all([
+    const [reportsResult, inventoryResult, movementsResult, pygResult, meyparResult, serialsResult] = await Promise.all([
         reportsQuery,
         isSuperior()
             ? client.rpc('listar_inventario_consolidado')
             : Promise.resolve({ data: [], error: null }),
         isSuperior()
-            ? client.from('movimientos_stock_repuestos').select('id,tipo,cantidad,ubicacion_origen,ubicacion_destino,sede_consumo,equipo_detalle,observacion,numero_informe,moneda,costo_unitario_sin_igv,costo_total_sin_igv,costo_total_con_igv,created_at,catalogo_repuestos(codigo,nombre,unidad)').gte('created_at', `${start}T00:00:00`).lt('created_at', `${end}T00:00:00`).order('created_at', { ascending: false }).limit(2000)
+            ? client.from('movimientos_stock_repuestos').select('id,tipo,cantidad,ubicacion_origen,ubicacion_destino,sede_consumo,equipo_detalle,observacion,numero_informe,moneda,costo_unitario_sin_igv,costo_total_sin_igv,costo_total_con_igv,numeros_serie,created_at,catalogo_repuestos(codigo,nombre,unidad)').gte('created_at', `${start}T00:00:00`).lt('created_at', `${end}T00:00:00`).order('created_at', { ascending: false }).limit(2000)
             : Promise.resolve({ data: [], error: null }),
         isSuperior()
             ? client.rpc('listar_pyg_inventario_mes', { mes_arg: month })
@@ -251,10 +252,15 @@ async function loadData() {
                 .select('id,repuesto_id,cantidad,fecha_estimada,referencia,observacion,estado,created_at,catalogo_repuestos(codigo,nombre,unidad)')
                 .neq('estado', 'recibido')
                 .order('created_at', { ascending: false })
+            : Promise.resolve({ data: [], error: null }),
+        isSuperior()
+            ? client.from('series_repuestos')
+                .select('id,repuesto_id,stock_id,numero_serie,estado,ubicacion_sede,sede_uso,equipo_uso,observacion,usado_at,created_at')
+                .order('numero_serie', { ascending: true })
             : Promise.resolve({ data: [], error: null })
     ]);
 
-    const error = reportsResult.error || inventoryResult.error || movementsResult.error || pygResult.error || meyparResult.error;
+    const error = reportsResult.error || inventoryResult.error || movementsResult.error || pygResult.error || meyparResult.error || serialsResult.error;
     if (error) {
         setStatus('No se pudo cargar toda la información. Actualiza e inténtalo nuevamente.', 'error');
         console.warn('Centro de control:', error);
@@ -265,6 +271,7 @@ async function loadData() {
     inventoryMovements = movementsResult.data || [];
     inventoryPygRows = pygResult.data || [];
     meyparPending = meyparResult.data || [];
+    inventorySerials = serialsResult.data || [];
     configureTechnicianFilter();
     syncManualEquipmentSuggestions();
     renderAll();
@@ -453,7 +460,27 @@ function renderInventory() {
         currency.append(new Option('Soles (S/)', 'PEN'), new Option('Dólares (US$)', 'USD'));
         currency.value = item.moneda || 'PEN'; currency.dataset.costCurrency = item.repuesto_id;
         button.type = 'button'; button.textContent = 'Actualizar costo'; button.dataset.updateCost = item.repuesto_id;
-        label.appendChild(input); currencyLabel.appendChild(currency); editor.append(label, currencyLabel, button); row.appendChild(editor); list.appendChild(row);
+        label.appendChild(input); currencyLabel.appendChild(currency); editor.append(label, currencyLabel, button);
+
+        const serialSummary = document.createElement('div');
+        const serialCopy = document.createElement('span');
+        const serialButton = document.createElement('button');
+        const locationSerials = inventorySerials.filter(serial =>
+            serial.repuesto_id === item.repuesto_id
+            && serial.ubicacion_sede === item.ubicacion_sede
+        );
+        const availableSerials = locationSerials.filter(serial => serial.estado === 'disponible');
+        serialSummary.className = 'inventory-serial-summary';
+        serialCopy.textContent = availableSerials.length
+            ? `NS disponibles: ${availableSerials.map(serial => serial.numero_serie).join(', ')}`
+            : 'Sin números de serie registrados';
+        serialButton.type = 'button';
+        serialButton.className = 'secondary-button';
+        serialButton.textContent = 'Administrar NS';
+        serialButton.dataset.manageSerials = item.id;
+        serialSummary.append(serialCopy, serialButton);
+        row.append(editor, serialSummary);
+        list.appendChild(row);
     });
     renderInventoryMovements();
     renderInventoryPyg();
@@ -639,8 +666,152 @@ function renderInventoryMovements() {
     if (!inventoryMovements.length) { list.appendChild(empty('Todavía no hay movimientos registrados.')); return; }
     inventoryMovements.slice(0, 20).forEach(item => list.appendChild(record(
         `${item.tipo.toUpperCase()} - ${item.catalogo_repuestos?.codigo || ''} - ${item.catalogo_repuestos?.nombre || ''}`,
-        `${item.cantidad} ${item.catalogo_repuestos?.unidad || 'unidad'} - ${siteName(item.ubicacion_origen)}${item.ubicacion_destino ? ` → ${siteName(item.ubicacion_destino)}` : ''} - Sin IGV ${formatMoney(item.costo_total_sin_igv, item.moneda)} - Con IGV ${formatMoney(item.costo_total_con_igv, item.moneda)} - ${new Date(item.created_at).toLocaleString('es-PE')} - ${item.observacion || 'Sin observación'}`
+        `${item.cantidad} ${item.catalogo_repuestos?.unidad || 'unidad'} - ${siteName(item.ubicacion_origen)}${item.ubicacion_destino ? ` → ${siteName(item.ubicacion_destino)}` : ''}${item.numeros_serie?.length ? ` - NS: ${item.numeros_serie.join(', ')}` : ''} - Sin IGV ${formatMoney(item.costo_total_sin_igv, item.moneda)} - Con IGV ${formatMoney(item.costo_total_con_igv, item.moneda)} - ${new Date(item.created_at).toLocaleString('es-PE')} - ${item.observacion || 'Sin observación'}`
     )));
+}
+
+function parseSerialNumbers(value) {
+    return [...new Set(String(value || '')
+        .split(/[\n,;]+/)
+        .map(serial => serial.trim().toUpperCase())
+        .filter(serial => serial && !['*', '****', 'SIN SERIE'].includes(serial))
+    )];
+}
+
+function serialsForStock(stockItem) {
+    if (!stockItem) return [];
+    return inventorySerials.filter(serial =>
+        serial.repuesto_id === stockItem.repuesto_id
+        && serial.ubicacion_sede === stockItem.ubicacion_sede
+    );
+}
+
+function resetSerialForm() {
+    byId('serialForm').reset();
+    byId('serialEditId').value = '';
+    byId('serialNumber').value = '';
+    byId('saveSerialNumber').textContent = 'Guardar NS';
+    byId('cancelSerialEdit').hidden = true;
+}
+
+function renderSerialDialog() {
+    const stockItem = inventory.find(item => item.id === byId('serialStockId').value);
+    const list = byId('serialList');
+    clear(list);
+    if (!stockItem) return;
+    const rows = serialsForStock(stockItem);
+    if (!rows.length) {
+        list.appendChild(empty('Este repuesto todavía no tiene números de serie.'));
+        return;
+    }
+    rows.forEach(serial => {
+        const used = serial.estado === 'utilizado';
+        const row = record(
+            `NS ${serial.numero_serie}`,
+            used
+                ? `Utilizado${serial.equipo_uso ? ` en ${serial.equipo_uso}` : ''}${serial.sede_uso ? ` - ${siteName(serial.sede_uso)}` : ''}${serial.usado_at ? ` - ${new Date(serial.usado_at).toLocaleString('es-PE')}` : ''}`
+                : `Disponible en ${siteName(serial.ubicacion_sede)}`,
+            `serial-record${used ? ' used' : ''}`
+        );
+        if (!used) {
+            const actions = document.createElement('div');
+            const editButton = document.createElement('button');
+            const deleteButton = document.createElement('button');
+            actions.className = 'serial-record-actions';
+            editButton.type = 'button'; editButton.textContent = 'Editar NS'; editButton.dataset.editSerial = serial.id;
+            deleteButton.type = 'button'; deleteButton.textContent = 'Eliminar NS'; deleteButton.className = 'secondary-button'; deleteButton.dataset.deleteSerial = serial.id;
+            actions.append(editButton, deleteButton);
+            row.appendChild(actions);
+        }
+        list.appendChild(row);
+    });
+}
+
+function openSerialDialog(stockId) {
+    const stockItem = inventory.find(item => item.id === stockId);
+    if (!stockItem) return;
+    resetSerialForm();
+    byId('serialStockId').value = stockId;
+    byId('serialDialogTitle').textContent = stockItem.nombre;
+    byId('serialDialogSubtitle').textContent = `${stockItem.codigo} - ${siteName(stockItem.ubicacion_sede)} - Stock ${stockItem.stock}`;
+    byId('serialStatus').textContent = '';
+    renderSerialDialog();
+    byId('serialDialog').showModal();
+    byId('serialNumber').focus();
+}
+
+async function saveSerialNumber(event) {
+    event.preventDefault();
+    const status = byId('serialStatus');
+    const payload = {
+        stock_id_arg: byId('serialStockId').value,
+        numero_serie_arg: byId('serialNumber').value.trim(),
+        serie_id_arg: byId('serialEditId').value || null
+    };
+    status.textContent = 'Guardando número de serie...';
+    const { error } = await client.rpc('guardar_serie_repuesto', payload);
+    if (error) {
+        status.textContent = error.message?.includes('duplicate')
+            ? 'Ese número de serie ya está registrado.'
+            : error.message || 'No se pudo guardar el número de serie.';
+        status.dataset.state = 'error';
+        return;
+    }
+    resetSerialForm();
+    await loadData();
+    status.textContent = 'Número de serie guardado.';
+    status.dataset.state = 'success';
+    renderSerialDialog();
+}
+
+function startSerialEdit(id) {
+    const serial = inventorySerials.find(item => item.id === id && item.estado === 'disponible');
+    if (!serial) return;
+    byId('serialEditId').value = serial.id;
+    byId('serialNumber').value = serial.numero_serie;
+    byId('saveSerialNumber').textContent = 'Actualizar NS';
+    byId('cancelSerialEdit').hidden = false;
+    byId('serialNumber').focus();
+}
+
+async function deleteSerialNumber(id) {
+    if (!window.confirm('¿Eliminar este número de serie?')) return;
+    const { error } = await client.rpc('eliminar_serie_repuesto', { serie_id_arg: id });
+    if (error) {
+        byId('serialStatus').textContent = error.message || 'No se pudo eliminar el número de serie.';
+        byId('serialStatus').dataset.state = 'error';
+        return;
+    }
+    await loadData();
+    renderSerialDialog();
+}
+
+function updateMovementSerialOptions() {
+    const group = byId('movementSerialGroup');
+    const options = byId('movementSerialOptions');
+    const type = byId('movementType').value;
+    const stockItem = inventory.find(item => item.id === byId('movementItem').value);
+    clear(options);
+    if (!stockItem || !['salida', 'transferencia'].includes(type)) {
+        group.hidden = true;
+        return;
+    }
+    const available = serialsForStock(stockItem).filter(serial => serial.estado === 'disponible');
+    if (!available.length) {
+        group.hidden = true;
+        return;
+    }
+    available.forEach(serial => {
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        const copy = document.createElement('span');
+        checkbox.type = 'checkbox'; checkbox.name = 'movementSerials'; checkbox.value = serial.id;
+        copy.textContent = serial.numero_serie;
+        label.append(checkbox, copy);
+        options.appendChild(label);
+    });
+    byId('movementSerialHelp').textContent = `${available.length} NS disponibles. Selecciona los correspondientes a las unidades que salen.`;
+    group.hidden = false;
 }
 
 function showInventoryForm(show) {
@@ -659,6 +830,7 @@ function resetInventoryForm() {
     byId('inventoryUnit').value = 'unidad';
     byId('inventoryUnitCost').value = '0';
     byId('inventoryCurrency').value = 'PEN';
+    byId('inventorySerialNumbers').value = '';
     byId('inventoryFormStatus').textContent = '';
 }
 
@@ -668,6 +840,7 @@ async function saveInventoryItem(event) {
     const status = byId('inventoryFormStatus');
     const submit = event.currentTarget.querySelector('button[type="submit"]');
     const warehouses = [...event.currentTarget.querySelectorAll('input[name="inventoryWarehouses"]:checked')].map(input => input.value);
+    const serialNumbers = parseSerialNumbers(byId('inventorySerialNumbers').value);
     const payload = {
         codigo_arg: byId('inventoryCode').value.trim().toUpperCase(),
         nombre_arg: byId('inventoryName').value.trim(),
@@ -687,6 +860,16 @@ async function saveInventoryItem(event) {
         status.textContent = 'Completa el código, las cantidades y selecciona al menos un almacén.';
         return;
     }
+    if (serialNumbers.length && warehouses.length !== 1) {
+        status.textContent = 'Para cargar números de serie al crear el repuesto selecciona un solo almacén.';
+        status.dataset.state = 'error';
+        return;
+    }
+    if (serialNumbers.length > payload.stock_arg) {
+        status.textContent = 'La cantidad de números de serie no puede superar el stock inicial.';
+        status.dataset.state = 'error';
+        return;
+    }
     submit.disabled = true;
     status.textContent = 'Guardando repuesto...';
     const { error } = await client.rpc('guardar_stock_repuesto_multiples', payload);
@@ -695,6 +878,27 @@ async function saveInventoryItem(event) {
         console.warn('No se pudo guardar el repuesto:', error);
         status.textContent = 'No se pudo guardar el repuesto.';
         return;
+    }
+    if (serialNumbers.length) {
+        const { data: catalogItem, error: catalogError } = await client.from('catalogo_repuestos')
+            .select('id').eq('codigo', payload.codigo_arg).single();
+        const { data: stockItem, error: stockError } = catalogError
+            ? { data: null, error: catalogError }
+            : await client.from('stock_repuestos').select('id')
+                .eq('repuesto_id', catalogItem.id).eq('ubicacion_sede', warehouses[0]).single();
+        const { error: serialError } = stockError
+            ? { error: stockError }
+            : await client.rpc('guardar_series_repuesto_lote', {
+                stock_id_arg: stockItem.id,
+                numeros_arg: serialNumbers
+            });
+        if (serialError) {
+            console.warn('Repuesto guardado sin series:', serialError);
+            status.textContent = 'El repuesto se guardó, pero no se pudieron cargar sus números de serie.';
+            status.dataset.state = 'error';
+            await loadData();
+            return;
+        }
     }
     resetInventoryForm();
     showInventoryForm(false);
@@ -706,6 +910,8 @@ async function saveInventoryMovement(event) {
     event.preventDefault();
     if (!isSuperior()) return;
     const status = byId('movementStatus');
+    const selectedSerials = [...event.currentTarget.querySelectorAll('input[name="movementSerials"]:checked')]
+        .map(input => input.value);
     const payload = {
         stock_id_arg: byId('movementItem').value,
         tipo_arg: byId('movementType').value,
@@ -713,7 +919,8 @@ async function saveInventoryMovement(event) {
         destino_arg: byId('movementType').value === 'transferencia' ? byId('movementDestination').value : null,
         sede_consumo_arg: byId('movementType').value === 'salida' ? byId('movementUseSite').value : null,
         equipo_arg: byId('movementType').value === 'salida' ? byId('movementEquipment').value.trim() : null,
-        observacion_arg: byId('movementNote').value.trim()
+        observacion_arg: byId('movementNote').value.trim(),
+        series_ids_arg: selectedSerials
     };
     if (!payload.stock_id_arg || !Number.isFinite(payload.cantidad_arg) || payload.cantidad_arg <= 0) {
         status.textContent = 'Selecciona un repuesto e ingresa una cantidad válida.';
@@ -723,10 +930,22 @@ async function saveInventoryMovement(event) {
         status.textContent = 'Para una salida indica la sede de uso y el equipo o trabajo realizado.';
         return;
     }
+    const availableSerials = inventorySerials.filter(serial =>
+        serial.stock_id === payload.stock_id_arg && serial.estado === 'disponible'
+    );
+    const expectedSerials = Math.min(Math.floor(payload.cantidad_arg), availableSerials.length);
+    if (payload.tipo_arg === 'salida' && expectedSerials > 0 && selectedSerials.length < expectedSerials) {
+        status.textContent = `Selecciona ${expectedSerials} número${expectedSerials === 1 ? '' : 's'} de serie para esta salida.`;
+        status.dataset.state = 'error';
+        return;
+    }
     status.textContent = 'Registrando movimiento...';
-    const { error } = await client.rpc('registrar_movimiento_stock', payload);
+    const { error } = await client.rpc('registrar_movimiento_stock_con_series', payload);
     if (error) {
-        status.textContent = error.message?.includes('Stock insuficiente') ? 'No existe stock suficiente para esa salida.' : 'No se pudo registrar el movimiento.';
+        status.textContent = error.message?.includes('Stock insuficiente')
+            ? 'No existe stock suficiente para esa salida.'
+            : error.message || 'No se pudo registrar el movimiento.';
+        status.dataset.state = 'error';
         return;
     }
     event.currentTarget.reset();
@@ -739,6 +958,7 @@ function updateMovementFields(type) {
     byId('movementDestinationGroup').hidden = type !== 'transferencia';
     byId('movementUseSiteGroup').hidden = type !== 'salida';
     byId('movementEquipmentGroup').hidden = type !== 'salida';
+    updateMovementSerialOptions();
 }
 
 async function updateInventoryCost(button) {
@@ -1170,10 +1390,10 @@ function exportInventoryPygCsv() {
     const rows = inventoryPygRows;
     if (!rows.length) { setStatus('No hay consumos de inventario para exportar en el mes seleccionado.', 'warning'); return; }
     const table = [[
-        'Mes', 'Fecha', 'Sede de consumo', 'Equipo codigo', 'Equipo', 'Tipo', 'Informe', 'Codigo', 'Repuesto', 'Cantidad', 'Unidad', 'Moneda', 'Costo unitario sin IGV', 'Subtotal sin IGV', 'IGV 18%', 'Total con IGV', 'Observacion'
+        'Mes', 'Fecha', 'Sede de consumo', 'Equipo codigo', 'Equipo', 'Tipo', 'Informe', 'Codigo', 'Repuesto', 'Cantidad', 'Unidad', 'Numero(s) de serie', 'Moneda', 'Costo unitario sin IGV', 'Subtotal sin IGV', 'IGV 18%', 'Total con IGV', 'Observacion'
     ], ...rows.map(item => [
         monthValue(), new Date(item.fecha).toLocaleString('es-PE'), siteName(item.sede_consumo), item.equipo_codigo || '', item.equipo_nombre || '', item.tipo,
-        item.numero_informe || '', item.codigo, item.repuesto, item.cantidad, item.unidad, item.moneda, item.costo_unitario_sin_igv,
+        item.numero_informe || '', item.codigo, item.repuesto, item.cantidad, item.unidad, item.numeros_serie?.join(', ') || '', item.moneda, item.costo_unitario_sin_igv,
         item.costo_total_sin_igv, item.igv, item.costo_total_con_igv, item.observacion || ''
     ])];
     const blob = new Blob([`\ufeff${table.map(row => row.map(csvCell).join(',')).join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
@@ -1213,8 +1433,10 @@ function configureEvents() {
     byId('historyEquipment').addEventListener('change', renderHistory);
     byId('inventoryFilter').addEventListener('input', renderInventory);
     byId('inventoryList').addEventListener('click', event => {
-        const button = event.target.closest('button[data-update-cost]');
-        if (button) updateInventoryCost(button);
+        const costButton = event.target.closest('button[data-update-cost]');
+        const serialButton = event.target.closest('button[data-manage-serials]');
+        if (costButton) updateInventoryCost(costButton);
+        if (serialButton) openSerialDialog(serialButton.dataset.manageSerials);
     });
     byId('toggleInventoryForm').addEventListener('click', event => showInventoryForm(event.currentTarget.getAttribute('aria-expanded') !== 'true'));
     byId('cancelInventoryForm').addEventListener('click', () => { resetInventoryForm(); showInventoryForm(false); });
@@ -1232,6 +1454,17 @@ function configureEvents() {
     });
     byId('inventoryMovementForm').addEventListener('submit', saveInventoryMovement);
     byId('movementType').addEventListener('change', event => updateMovementFields(event.target.value));
+    byId('movementItem').addEventListener('change', updateMovementSerialOptions);
+    byId('movementQuantity').addEventListener('input', updateMovementSerialOptions);
+    byId('serialForm').addEventListener('submit', saveSerialNumber);
+    byId('closeSerialDialog').addEventListener('click', () => byId('serialDialog').close());
+    byId('cancelSerialEdit').addEventListener('click', resetSerialForm);
+    byId('serialList').addEventListener('click', event => {
+        const editButton = event.target.closest('button[data-edit-serial]');
+        const deleteButton = event.target.closest('button[data-delete-serial]');
+        if (editButton) startSerialEdit(editButton.dataset.editSerial);
+        if (deleteButton) deleteSerialNumber(deleteButton.dataset.deleteSerial);
+    });
     byId('exportGeneralCsv').addEventListener('click', exportGeneralCsv);
     byId('exportMaintenanceMonthlyPptx').addEventListener('click', exportMaintenanceMonthlyPptx);
     byId('exportInventoryPyg').addEventListener('click', exportInventoryPygCsv);
