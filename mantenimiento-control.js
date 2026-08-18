@@ -1386,21 +1386,235 @@ function exportGeneralCsv() {
     document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(link.href);
 }
 
-function exportInventoryPygCsv() {
-    const rows = inventoryPygRows;
-    if (!rows.length) { setStatus('No hay consumos de inventario para exportar en el mes seleccionado.', 'warning'); return; }
-    const table = [[
-        'Mes', 'Fecha', 'Sede de consumo', 'Equipo codigo', 'Equipo', 'Tipo', 'Informe', 'Codigo', 'Repuesto', 'Cantidad', 'Unidad', 'Numero(s) de serie', 'Moneda', 'Costo unitario sin IGV', 'Subtotal sin IGV', 'IGV 18%', 'Total con IGV', 'Observacion'
-    ], ...rows.map(item => [
-        monthValue(), new Date(item.fecha).toLocaleString('es-PE'), siteName(item.sede_consumo), item.equipo_codigo || '', item.equipo_nombre || '', item.tipo,
-        item.numero_informe || '', item.codigo, item.repuesto, item.cantidad, item.unidad, item.numeros_serie?.join(', ') || '', item.moneda, item.costo_unitario_sin_igv,
-        item.costo_total_sin_igv, item.igv, item.costo_total_con_igv, item.observacion || ''
-    ])];
-    const blob = new Blob([`\ufeff${table.map(row => row.map(csvCell).join(',')).join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `URBAPARK-PyG-repuestos-${monthValue()}.csv`;
-    document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(link.href);
+function inventoryMonthLabel() {
+    const [year, month] = monthValue().split('-').map(Number);
+    return new Intl.DateTimeFormat('es-PE', { month: 'long', year: 'numeric' })
+        .format(new Date(year, month - 1, 1));
+}
+
+function inventoryUseDetail(rows) {
+    if (!rows.length) return '';
+    const name = String(rows[0].repuesto || '').toLowerCase();
+    const isRecyclerInnerWheel = name.includes('rueda interior') && name.includes('cabezal reciclador');
+    const quantitiesByEquipment = new Map();
+    rows.forEach(item => {
+        const equipment = item.equipo_codigo || item.equipo_nombre || 'Trabajo general';
+        quantitiesByEquipment.set(equipment, (quantitiesByEquipment.get(equipment) || 0) + Number(item.cantidad || 0));
+    });
+    const equipmentDetail = [...quantitiesByEquipment]
+        .map(([equipment, quantity]) => `${equipment}: ${quantity} ${rows[0].unidad || 'unidad'}`)
+        .join('; ');
+    if (isRecyclerInnerWheel) {
+        return `Uso en mantenimiento preventivo de cabezal de billetero. ${equipmentDetail}`;
+    }
+    const notes = [...new Set(rows.map(item => String(item.observacion || '').trim()).filter(Boolean))];
+    return [notes.join('; '), equipmentDetail].filter(Boolean).join(' - ');
+}
+
+function applyWorksheetStyle(sheet, range, style) {
+    for (let row = range.s.r; row <= range.e.r; row += 1) {
+        for (let column = range.s.c; column <= range.e.c; column += 1) {
+            const address = XLSX.utils.encode_cell({ r: row, c: column });
+            if (!sheet[address]) sheet[address] = { t: 's', v: '' };
+            sheet[address].s = style;
+        }
+    }
+}
+
+function assignInventoryXmlStyle(xml, reference, style) {
+    const pattern = new RegExp(`<c r="${reference}"(?: s="\\d+")?`, 'g');
+    return xml.replace(pattern, `<c r="${reference}" s="${style}"`);
+}
+
+async function formatInventoryMonthlyWorkbook(buffer, body, summaryRows) {
+    if (!window.JSZip) return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const zip = await window.JSZip.loadAsync(buffer);
+    const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="2"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00"/><numFmt numFmtId="165" formatCode="S/ #,##0.00"/></numFmts>
+<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts>
+<fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF245887"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFF200"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF5F7FA"/></patternFill></fill></fills>
+<borders count="2"><border/><border><left style="thin"><color rgb="FF7A8796"/></left><right style="thin"><color rgb="FF7A8796"/></right><top style="thin"><color rgb="FF7A8796"/></top><bottom style="thin"><color rgb="FF7A8796"/></bottom></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="11">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="165" fontId="0" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="165" fontId="0" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf>
+</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+    zip.file('xl/styles.xml', styles);
+
+    let stockXml = await zip.file('xl/worksheets/sheet1.xml').async('string');
+    for (let row = 1; row <= 2; row += 1) {
+        for (let column = 0; column <= 10; column += 1) {
+            stockXml = assignInventoryXmlStyle(stockXml, `${XLSX.utils.encode_col(column)}${row}`, 1);
+        }
+    }
+    body.forEach((data, index) => {
+        const row = index + 3;
+        const used = Number(data[3]) > 0;
+        const regularStyle = used ? 4 : (index % 2 ? 3 : 2);
+        const currency = data[11] === 'PEN' ? 'PEN' : 'USD';
+        const currencyStyle = currency === 'PEN'
+            ? (used ? 9 : (index % 2 ? 10 : 8))
+            : (used ? 6 : (index % 2 ? 7 : 5));
+        for (let column = 0; column <= 4; column += 1) stockXml = assignInventoryXmlStyle(stockXml, `${XLSX.utils.encode_col(column)}${row}`, regularStyle);
+        for (let column = 5; column <= 10; column += 1) stockXml = assignInventoryXmlStyle(stockXml, `${XLSX.utils.encode_col(column)}${row}`, currencyStyle);
+    });
+    zip.file('xl/worksheets/sheet1.xml', stockXml);
+
+    let summaryXml = await zip.file('xl/worksheets/sheet2.xml').async('string');
+    for (let column = 0; column <= 3; column += 1) summaryXml = assignInventoryXmlStyle(summaryXml, `${XLSX.utils.encode_col(column)}1`, 1);
+    summaryRows.slice(1).forEach((data, index) => {
+        const row = index + 2;
+        const regularStyle = index % 2 ? 3 : 2;
+        for (let column = 0; column <= 2; column += 1) summaryXml = assignInventoryXmlStyle(summaryXml, `${XLSX.utils.encode_col(column)}${row}`, regularStyle);
+        summaryXml = assignInventoryXmlStyle(summaryXml, `D${row}`, data[1] === 'PEN' ? (index % 2 ? 10 : 8) : (index % 2 ? 7 : 5));
+    });
+    zip.file('xl/worksheets/sheet2.xml', summaryXml);
+    return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', compression: 'DEFLATE' });
+}
+
+async function exportInventoryMonthlyXlsx() {
+    if (!window.XLSX) {
+        setStatus('No se pudo cargar el generador de Excel. Actualiza la app e inténtalo nuevamente.', 'error');
+        return;
+    }
+    if (!inventory.length) {
+        setStatus('No hay repuestos cargados para generar el Excel mensual.', 'warning');
+        return;
+    }
+
+    const monthLabel = inventoryMonthLabel();
+    const siteColumns = ['salaverry', 'civico', 'primavera', 'puruchuco', 'gama'];
+    const usageByPart = new Map();
+    inventoryPygRows.forEach(item => {
+        const key = item.codigo || item.repuesto;
+        if (!usageByPart.has(key)) usageByPart.set(key, []);
+        usageByPart.get(key).push(item);
+    });
+
+    const stockByPart = new Map();
+    inventory.forEach(item => {
+        const key = item.codigo || item.repuesto_id || item.nombre;
+        const current = stockByPart.get(key);
+        const totalStock = Number(item.stock_total ?? item.stock ?? 0);
+        if (!current) {
+            stockByPart.set(key, { ...item, totalStock });
+        } else {
+            current.totalStock = Math.max(current.totalStock, totalStock);
+        }
+    });
+
+    const headers = [
+        ['Artículo', 'Nombre', 'Cantidad de existencias actual', `Cant. usada ${monthLabel}`, `Detalle de uso ${monthLabel}`, 'Costo x und. sin IGV', 'Costo total x sede sin IGV', '', '', '', ''],
+        ['', '', '', '', '', '', 'Salaverry', 'Cívico', 'Primavera', 'Puruchuco', 'GAMA']
+    ];
+    const body = [...stockByPart.values()]
+        .sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || ''), 'es'))
+        .map(item => {
+            const uses = usageByPart.get(item.codigo) || [];
+            const quantityUsed = uses.reduce((sum, row) => sum + Number(row.cantidad || 0), 0);
+            const currency = item.moneda || uses[0]?.moneda || 'USD';
+            const unitCost = Number(item.costo_unitario_sin_igv ?? uses[0]?.costo_unitario_sin_igv ?? 0);
+            return [
+                item.codigo || '', item.nombre || '', item.totalStock, quantityUsed, inventoryUseDetail(uses),
+                unitCost, ...siteColumns.map(site => uses
+                    .filter(row => row.sede_consumo === site)
+                    .reduce((sum, row) => sum + Number(row.costo_total_sin_igv || 0), 0)),
+                currency
+            ];
+        });
+
+    const sheetRows = [...headers, ...body.map(row => row.slice(0, 11))];
+    const sheet = XLSX.utils.aoa_to_sheet(sheetRows);
+    sheet['!merges'] = [
+        ...[0, 1, 2, 3, 4, 5].map(column => ({ s: { r: 0, c: column }, e: { r: 1, c: column } })),
+        { s: { r: 0, c: 6 }, e: { r: 0, c: 10 } }
+    ];
+    sheet['!cols'] = [
+        { wch: 18 }, { wch: 43 }, { wch: 16 }, { wch: 16 }, { wch: 54 }, { wch: 18 },
+        { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }
+    ];
+    sheet['!rows'] = [{ hpt: 34 }, { hpt: 26 }, ...body.map(() => ({ hpt: 38 }))];
+    sheet['!freeze'] = { xSplit: 2, ySplit: 2, topLeftCell: 'C3', activePane: 'bottomRight', state: 'frozen' };
+
+    const border = {
+        top: { style: 'thin', color: { rgb: '7A8796' } }, bottom: { style: 'thin', color: { rgb: '7A8796' } },
+        left: { style: 'thin', color: { rgb: '7A8796' } }, right: { style: 'thin', color: { rgb: '7A8796' } }
+    };
+    const headerStyle = {
+        font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '245887' } },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border
+    };
+    applyWorksheetStyle(sheet, { s: { r: 0, c: 0 }, e: { r: 1, c: 10 } }, headerStyle);
+    body.forEach((row, index) => {
+        const excelRow = index + 2;
+        const used = Number(row[3]) > 0;
+        const rowStyle = {
+            fill: { fgColor: { rgb: used ? 'FFF200' : (index % 2 ? 'F5F7FA' : 'FFFFFF') } },
+            alignment: { vertical: 'center', wrapText: true }, border
+        };
+        applyWorksheetStyle(sheet, { s: { r: excelRow, c: 0 }, e: { r: excelRow, c: 10 } }, rowStyle);
+        ['C', 'D'].forEach(column => { sheet[`${column}${excelRow + 1}`].z = '#,##0.00'; });
+        ['F', 'G', 'H', 'I', 'J', 'K'].forEach(column => { sheet[`${column}${excelRow + 1}`].z = '"$"#,##0.00'; });
+    });
+
+    const summaryRows = [['Sede', 'Moneda', 'Unidades consumidas', 'Gasto mensual sin IGV']];
+    siteColumns.forEach(site => {
+        ['PEN', 'USD'].forEach(currency => {
+            const rows = inventoryPygRows.filter(item => item.sede_consumo === site && (item.moneda || 'USD') === currency);
+            if (!rows.length) return;
+            summaryRows.push([
+                siteName(site), currency,
+                rows.reduce((sum, item) => sum + Number(item.cantidad || 0), 0),
+                rows.reduce((sum, item) => sum + Number(item.costo_total_sin_igv || 0), 0)
+            ]);
+        });
+    });
+    if (summaryRows.length === 1) summaryRows.push(['Sin consumos en el mes', '', 0, 0]);
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+    summarySheet['!cols'] = [{ wch: 27 }, { wch: 12 }, { wch: 22 }, { wch: 25 }];
+    summarySheet['!autofilter'] = { ref: `A1:D${summaryRows.length}` };
+    applyWorksheetStyle(summarySheet, { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }, headerStyle);
+    summaryRows.slice(1).forEach((row, index) => {
+        const excelRow = index + 2;
+        summarySheet[`C${excelRow}`].z = '#,##0.00';
+        summarySheet[`D${excelRow}`].z = row[1] === 'PEN' ? 'S/ #,##0.00' : '"$"#,##0.00';
+        applyWorksheetStyle(summarySheet, { s: { r: index + 1, c: 0 }, e: { r: index + 1, c: 3 } }, {
+            fill: { fgColor: { rgb: index % 2 ? 'F5F7FA' : 'FFFFFF' } }, border,
+            alignment: { vertical: 'center' }
+        });
+    });
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Stock y gastos');
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumen por sede');
+    workbook.Props = { Title: `Stock y gastos ${monthLabel}`, Subject: 'Inventario mensual de repuestos UrbaPark', Author: 'UrbaPark' };
+    try {
+        setStatus(`Generando Excel mensual de ${monthLabel}...`);
+        const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', compression: true });
+        const blob = await formatInventoryMonthlyWorkbook(buffer, body, summaryRows);
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `URBAPARK-Stock-y-gastos-${monthValue()}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+        setStatus(`Excel mensual de ${monthLabel} generado correctamente.`, 'success');
+    } catch (error) {
+        console.warn('No se pudo generar el Excel mensual de inventario:', error);
+        setStatus('No se pudo generar el Excel mensual. Actualiza la app e inténtalo nuevamente.', 'error');
+    }
 }
 
 function renderAll() {
@@ -1467,7 +1681,7 @@ function configureEvents() {
     });
     byId('exportGeneralCsv').addEventListener('click', exportGeneralCsv);
     byId('exportMaintenanceMonthlyPptx').addEventListener('click', exportMaintenanceMonthlyPptx);
-    byId('exportInventoryPyg').addEventListener('click', exportInventoryPygCsv);
+    byId('exportInventoryPyg').addEventListener('click', exportInventoryMonthlyXlsx);
     byId('exportGeneralPdf').addEventListener('click', () => window.print());
     document.querySelector('.control-tabs').addEventListener('click', event => {
         const button = event.target.closest('button[data-control-tab]');

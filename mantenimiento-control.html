@@ -7,6 +7,7 @@
     <title>URBAPARK - Centro de control</title>
     <link rel="stylesheet" href="mantenimiento-control.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script src="assets/xlsx.full.min.js" defer></script>
     <script src="assets/jszip.min.js" defer></script>
     <script src="assets/pptxgen.min.js" defer></script>
     <script src="mantenimiento-control.js" defer></script>
@@ -230,7 +231,7 @@
             <article class="data-panel inventory-pyg-panel">
                 <div class="section-row">
                     <div><h3>PyG mensual de repuestos</h3><p class="section-help">Detalle por fecha, componente, equipo y sede con valores sin IGV, IGV 18% y total. Las transferencias no generan gasto.</p></div>
-                    <button id="exportInventoryPyg" type="button">Exportar PyG CSV</button>
+                    <button id="exportInventoryPyg" type="button">Generar Excel mensual</button>
                 </div>
                 <div id="inventoryPygSummary" class="metric-grid"></div>
                 <div id="inventoryPygBySite" class="record-list"></div>
