@@ -15,7 +15,7 @@
     <header class="gdh-header">
         <a class="icon-button" href="index.html" aria-label="Volver al inicio" title="Volver">&#8592;</a>
         <img src="assets/urbapark-logo.png" alt="UrbaPark" width="220" height="50">
-        <div><span>Gestion de personas</span><strong id="gdhUserLabel">Cargando...</strong></div>
+        <div><span>Gestión de personas</span><strong id="gdhUserLabel">Cargando...</strong></div>
     </header>
 
     <main class="gdh-shell">
@@ -30,17 +30,17 @@
             <button type="button" data-gdh-tab="comunicados">Comunicados</button>
             <button type="button" data-gdh-tab="expedientes" id="gdhFilesTab" hidden>Expedientes</button>
             <button type="button" data-gdh-tab="evaluaciones" id="gdhEvaluationsTab">Evaluación</button>
-            <button type="button" data-gdh-tab="gestion" id="gdhManagementTab" hidden>Gestion GDH</button>
+            <button type="button" data-gdh-tab="gestion" id="gdhManagementTab" hidden>Gestión GDH</button>
         </nav>
 
         <section class="gdh-panel" data-gdh-panel="documentos">
-            <div class="panel-heading"><div><p>Archivo personal</p><h2>Historico de documentos</h2></div><button type="button" class="secondary-button" id="refreshDocuments">Actualizar</button></div>
+            <div class="panel-heading"><div><p>Archivo personal</p><h2>Histórico de documentos</h2></div><button type="button" class="secondary-button" id="refreshDocuments">Actualizar</button></div>
             <p class="privacy-note">Solo tu cuenta y el personal autorizado de GDH pueden consultar estos archivos.</p>
             <div class="card-list" id="myDocumentsList" aria-live="polite"></div>
         </section>
 
         <section class="gdh-panel" data-gdh-panel="comunicados" hidden>
-            <div class="panel-heading"><div><p>Informacion oficial</p><h2>Comunicados y anuncios</h2></div><button type="button" class="secondary-button" id="refreshAnnouncements">Actualizar</button></div>
+            <div class="panel-heading"><div><p>Información oficial</p><h2>Comunicados y anuncios</h2></div><button type="button" class="secondary-button" id="refreshAnnouncements">Actualizar</button></div>
             <div class="card-list" id="announcementsList" aria-live="polite"></div>
         </section>
 
@@ -92,11 +92,11 @@
                     <p>Expediente digital</p><h2>Cargar documento</h2>
                     <label>Colaborador<select id="documentUser" required></select></label>
                     <div class="form-grid">
-                        <label>Categoria<select id="documentCategory" required><option value="reclutamiento">Reclutamiento y seleccion</option><option value="datos_personales">Datos personales</option><option value="familiares">Familiares directos</option><option value="experiencia">Experiencia laboral</option><option value="formacion">Formacion y capacitacion</option><option value="ingreso">Documentos de ingreso</option><option value="contrato">Contrato y anexos</option><option value="organizacional">Documentos organizacionales</option><option value="politica">Politicas y reglamentos</option><option value="sst">Seguridad y salud en el trabajo</option><option value="desempeno">Evaluacion de desempeno</option><option value="disciplinario">Gestion disciplinaria</option><option value="boleta">Boleta</option><option value="formulario">Formulario firmado</option><option value="constancia">Constancia</option><option value="otro">Otro</option></select></label>
+                        <label>Categoría<select id="documentCategory" required><option value="reclutamiento">Reclutamiento y selección</option><option value="datos_personales">Datos personales</option><option value="familiares">Familiares directos</option><option value="experiencia">Experiencia laboral</option><option value="formacion">Formación y capacitación</option><option value="ingreso">Documentos de ingreso</option><option value="contrato">Contrato y anexos</option><option value="organizacional">Documentos organizacionales</option><option value="politica">Políticas y reglamentos</option><option value="sst">Seguridad y salud en el trabajo</option><option value="desempeno">Evaluación de desempeño</option><option value="disciplinario">Gestión disciplinaria</option><option value="boleta">Boleta</option><option value="formulario">Formulario firmado</option><option value="constancia">Constancia</option><option value="otro">Otro</option></select></label>
                         <label>Periodo<input id="documentPeriod" type="month"></label>
                     </div>
                     <label>Titulo<input id="documentTitle" type="text" maxlength="180" required placeholder="Ej. Boleta de julio 2026"></label>
-                    <label class="check-line"><input id="documentMandatory" type="checkbox"> Requiere visualizacion y confirmacion obligatoria</label>
+                    <label class="check-line"><input id="documentMandatory" type="checkbox"> Requiere visualización y confirmación obligatoria</label>
                     <label>Archivo PDF o imagen<input id="documentFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" required></label>
                     <button class="primary-button" type="submit">Guardar en expediente</button>
                     <p class="form-status" id="documentUploadStatus" role="status"></p>
@@ -110,7 +110,7 @@
                         <label>Audiencia<select id="announcementAudience"><option value="todos">Todos los usuarios</option><option value="sedes">Sedes seleccionadas</option><option value="roles">Roles seleccionados</option><option value="usuarios">Personas seleccionadas</option></select></label>
                         <label>Vigente hasta<input id="announcementExpiry" type="datetime-local"></label>
                     </div>
-                    <label class="check-line"><input id="announcementMandatory" type="checkbox"> Requiere confirmacion obligatoria</label>
+                    <label class="check-line"><input id="announcementMandatory" type="checkbox"> Requiere confirmación obligatoria</label>
                     <div id="announcementAudienceOptions" class="option-grid" hidden></div>
                     <label>Enlace opcional<input id="announcementLink" type="url" placeholder="https://..."></label>
                     <label>Imagen, video o PDF (opcional)

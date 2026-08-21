@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#1474a8">
-    <meta name="description" content="Sistema operativo UrbaPark para activar, seguir y reportar codigos de emergencia.">
+    <meta name="description" content="Sistema operativo UrbaPark para activar, seguir y reportar códigos de emergencia.">
     <title>URBAPARK</title>
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
@@ -17,12 +17,12 @@
             <img class="auth-logo" src="assets/urbapark-logo.png" alt="UrbaPark" width="475" height="106">
             <p class="eyebrow">Acceso operativo</p>
             <h1 id="authTitle">Ingresar al sistema</h1>
-            <p>Usa tu DNI y contrasena para ingresar a tu informacion y herramientas asignadas.</p>
+            <p>Usa tu DNI y contraseña para ingresar a tu información y herramientas asignadas.</p>
             <form id="authForm" class="auth-form">
                 <label for="authEmail">DNI</label>
                 <input id="authEmail" type="text" autocomplete="username" placeholder="DNI (o usuario anterior)" maxlength="80" required>
-                <label for="authPassword">Contrasena</label>
-                <input id="authPassword" type="password" autocomplete="current-password" placeholder="Contrasena" required>
+                <label for="authPassword">Contraseña</label>
+                <input id="authPassword" type="password" autocomplete="current-password" placeholder="Contraseña" required>
                 <button class="finish-btn" type="submit" id="authSubmit" disabled>Conectando...</button>
             </form>
             <p id="authStatus" class="auth-status" role="status" aria-live="polite">Conectando con Supabase...</p>
@@ -45,10 +45,10 @@
                 <div>
                     <p class="eyebrow">Panel operativo</p>
                     <h1>Centro de Apoyo UrbaPark</h1>
-                    <p>Guias rapidas, procedimientos y codigos para consulta operativa</p>
+                    <p>Guías rápidas, procedimientos y códigos para consulta operativa</p>
                 </div>
             </div>
-            <div class="session-card" aria-label="Sesion activa">
+            <div class="session-card" aria-label="Sesión activa">
                 <div class="session-meta">
                     <span id="syncStatus" class="status-chip">Sincronizando</span>
                     <span id="authUserLabel" class="session-user">Usuario conectado</span>
@@ -77,22 +77,22 @@
         <main>
             <section class="global-search-panel" id="globalSearchPanel" aria-labelledby="globalSearchTitle">
                 <div>
-                    <p class="eyebrow">Busqueda rapida</p>
-                    <h2 id="globalSearchTitle">Encuentra codigos, guias y tareas</h2>
+                    <p class="eyebrow">Búsqueda rápida</p>
+                    <h2 id="globalSearchTitle">Encuentra códigos, guías y tareas</h2>
                 </div>
                 <label class="global-search-field">
                     <span>Buscar</span>
-                    <input id="globalSearchInput" type="search" placeholder="Ej. plumilla, impresora, codigo rojo, ronda">
+                    <input id="globalSearchInput" type="search" placeholder="Ej. plumilla, impresora, código rojo, ronda">
                 </label>
                 <div id="globalSearchResults" class="global-search-results" aria-live="polite" hidden></div>
             </section>
 
             <section class="module-panel" id="modulePanel" aria-labelledby="moduleTitle">
                 <div class="section-heading">
-                    <h2 id="moduleTitle">Menu de consulta</h2>
-                    <p>Elige un area como si fuera una app: mantenimiento, operaciones, caja, ronda o codigos.</p>
+                    <h2 id="moduleTitle">Menú de consulta</h2>
+                    <p>Elige un área como si fuera una app: mantenimiento, operaciones, caja, ronda o códigos.</p>
                 </div>
-                <div class="module-grid" aria-label="Modulos informativos">
+                <div class="module-grid" aria-label="Módulos informativos">
                     <button class="module-button" type="button" data-module="mantenimiento">
                         <span class="module-icon module-icon-maintenance" aria-hidden="true">
                             <svg viewBox="0 0 64 64" focusable="false">
@@ -100,7 +100,7 @@
                                 <circle cx="32" cy="32" r="9"/>
                             </svg>
                         </span>
-                        <span class="module-copy"><strong>Mantenimiento</strong><small data-module-count="mantenimiento">0 guias</small></span>
+                        <span class="module-copy"><strong>Mantenimiento</strong><small data-module-count="mantenimiento">0 guías</small></span>
                     </button>
                     <button class="module-button" type="button" data-module="operaciones">
                         <span class="module-icon module-icon-operations" aria-hidden="true">
@@ -111,7 +111,7 @@
                                 <circle cx="17" cy="47" r="4"/>
                             </svg>
                         </span>
-                        <span class="module-copy"><strong>Operaciones</strong><small data-module-count="operaciones">0 guias</small></span>
+                        <span class="module-copy"><strong>Operaciones</strong><small data-module-count="operaciones">0 guías</small></span>
                     </button>
                     <button class="module-button" type="button" data-module="reporteria">
                         <span class="module-icon module-icon-reporting" aria-hidden="true">
@@ -130,7 +130,7 @@
                                 <circle cx="43" cy="38" r="5"/>
                             </svg>
                         </span>
-                        <span class="module-copy"><strong>Caja</strong><small data-module-count="caja">0 guias</small></span>
+                        <span class="module-copy"><strong>Caja</strong><small data-module-count="caja">0 guías</small></span>
                     </button>
                     <button class="module-button" type="button" data-module="ronda">
                         <span class="module-icon module-icon-rounds" aria-hidden="true">
@@ -139,7 +139,7 @@
                                 <path d="M24 32h16M32 24v16"/>
                             </svg>
                         </span>
-                        <span class="module-copy"><strong>Ronda</strong><small data-module-count="ronda">0 guias</small></span>
+                        <span class="module-copy"><strong>Ronda</strong><small data-module-count="ronda">0 guías</small></span>
                     </button>
                     <button class="module-button module-button-primary" type="button" data-module="codigos">
                         <span class="module-icon module-icon-codes" aria-hidden="true">
@@ -148,7 +148,7 @@
                                 <path d="M32 22v15M32 45h.1"/>
                             </svg>
                         </span>
-                        <span class="module-copy"><strong>Codigos</strong><small data-module-count="codigos">9 protocolos</small></span>
+                        <span class="module-copy"><strong>Códigos</strong><small data-module-count="codigos">9 protocolos</small></span>
                     </button>
                     <button class="module-button" type="button" data-module="capacitacion">
                         <span class="module-icon module-icon-training" aria-hidden="true">
@@ -158,7 +158,7 @@
                                 <path d="M54 18v18"/>
                             </svg>
                         </span>
-                        <span class="module-copy"><strong>Capacitacion</strong><small data-module-count="capacitacion">0% completado</small></span>
+                        <span class="module-copy"><strong>Capacitación</strong><small data-module-count="capacitacion">0% completado</small></span>
                     </button>
                     <button class="module-button subscribers-module-button" type="button" data-module="abonados" hidden>
                         <span class="module-icon module-icon-subscribers" aria-hidden="true">
@@ -167,7 +167,7 @@
                                 <path d="M8 50c1-10 7-15 16-15s15 5 16 15M43 18h13v25H43zM47 25h5M47 31h5M47 37h5"/>
                             </svg>
                         </span>
-                        <span class="module-copy"><strong>Abonados</strong><small data-module-count="abonados">Gestion mensual</small></span>
+                        <span class="module-copy"><strong>Abonados</strong><small data-module-count="abonados">Gestión mensual</small></span>
                     </button>
                     <button class="module-button" type="button" data-module="registro">
                         <span class="module-icon module-icon-attendance" aria-hidden="true">
@@ -196,7 +196,7 @@
             <section class="admin-actions-panel" id="adminActionsPanel" aria-labelledby="adminActionsTitle" hidden>
                 <div>
                     <p class="eyebrow">Herramientas admin</p>
-                    <h2 id="adminActionsTitle">Administracion</h2>
+                    <h2 id="adminActionsTitle">Administración</h2>
                 </div>
                 <div class="admin-actions">
                     <button
@@ -205,7 +205,7 @@
                         id="toggleGuideAdmin"
                         aria-expanded="false"
                         aria-controls="adminGuidePanel"
-                    >Crear guias</button>
+                    >Crear guías</button>
                     <button
                         class="clear-btn"
                         type="button"
@@ -225,18 +225,18 @@
             </section>
 
             <section class="admin-guide-panel" id="adminGuidePanel" role="dialog" aria-modal="true" aria-labelledby="adminGuideTitle" tabindex="-1" hidden>
-                <button class="modal-close admin-panel-close" type="button" data-close-admin-panel aria-label="Cerrar creador de guias" title="Cerrar">&times;</button>
+                <button class="modal-close admin-panel-close" type="button" data-close-admin-panel aria-label="Cerrar creador de guías" title="Cerrar">&times;</button>
                 <div class="section-heading">
                     <div>
                         <p class="eyebrow">Solo administradores</p>
-                        <h2 id="adminGuideTitle">Crear guia paso a paso</h2>
-                        <p>Agrega procedimientos para mantenimiento, operaciones, caja o ronda. Los usuarios podran consultarlos desde su modulo.</p>
+                        <h2 id="adminGuideTitle">Crear guía paso a paso</h2>
+                        <p>Agrega procedimientos para mantenimiento, operaciones, caja o ronda. Los usuarios podrán consultarlos desde su módulo.</p>
                     </div>
                 </div>
                 <form id="adminGuideForm" class="admin-guide-form">
                     <input id="guideEditingId" type="hidden">
                     <label>
-                        Area
+                        Área
                         <select id="guideModule" required>
                             <option value="mantenimiento">Mantenimiento</option>
                             <option value="operaciones">Operaciones</option>
@@ -261,14 +261,14 @@
                             </label>
                             <label>
                                 <input type="checkbox" name="guideSites" value="civico">
-                                <span>Real Plaza Civico</span>
+                                <span>Real Plaza Cívico</span>
                             </label>
                             <label>
                                 <input type="checkbox" name="guideSites" value="gama">
                                 <span>GAMA</span>
                             </label>
                         </div>
-                        <p class="form-helper">Puedes marcar una o varias sedes para duplicar la guia en cada una.</p>
+                        <p class="form-helper">Puedes marcar una o varias sedes para duplicar la guía en cada una.</p>
                     </fieldset>
                     <label>
                         Compartir con
@@ -278,8 +278,8 @@
                         </select>
                     </label>
                     <label>
-                        Titulo de la tarea
-                        <input id="guideTitle" type="text" placeholder="Ej. Cobro manual, ronda de apertura, revision de barrera" required>
+                        Título de la tarea
+                        <input id="guideTitle" type="text" placeholder="Ej. Cobro manual, ronda de apertura, revisión de barrera" required>
                     </label>
                     <label class="admin-guide-wide">
                         Resumen
@@ -315,7 +315,7 @@
                     </label>
                     <label>
                         DNI
-                        <input id="newUserDni" type="text" inputmode="numeric" autocomplete="off" pattern="[0-9]{8}" minlength="8" maxlength="8" placeholder="8 digitos" required>
+                        <input id="newUserDni" type="text" inputmode="numeric" autocomplete="off" pattern="[0-9]{8}" minlength="8" maxlength="8" placeholder="8 dígitos" required>
                     </label>
                     <label>
                         Sede base (General para roles globales)
@@ -324,15 +324,15 @@
                             <option value="puruchuco">Real Plaza Puruchuco</option>
                             <option value="salaverry">Real Plaza Salaverry</option>
                             <option value="primavera">Real Plaza Primavera</option>
-                            <option value="civico">Real Plaza Civico</option>
+                            <option value="civico">Real Plaza Cívico</option>
                             <option value="gama">GAMA</option>
                         </select>
                     </label>
                     <label>
                         Rol
                         <select id="newUserRole" required>
-                            <option value="anfitrion">Anfitrion</option>
-                            <option value="tecnico">Tecnico de mantenimiento</option>
+                            <option value="anfitrion">Anfitrión</option>
+                            <option value="tecnico">Técnico de mantenimiento</option>
                             <option value="charly">Charly</option>
                             <option value="eco">ECO</option>
                             <option value="supervisor">Supervisor</option>
@@ -345,7 +345,7 @@
                         </select>
                     </label>
                     <button class="finish-btn" type="submit">Crear usuario</button>
-                    <p class="form-helper" id="createUserHelper">El sistema generara una contrasena temporal para entregar al colaborador. Luego podra cambiarla desde su cuenta.</p>
+                    <p class="form-helper" id="createUserHelper">El sistema generará una contraseña temporal para entregar al colaborador. Luego podrá cambiarla desde su cuenta.</p>
                     <p id="createUserStatus" class="auth-status" role="status" aria-live="polite"></p>
                 </form>
                 <section class="password-reset-result" id="passwordResetResult" aria-labelledby="passwordResetResultTitle" hidden>
@@ -404,7 +404,7 @@
             <section class="summary-panel" id="activityPanel" aria-labelledby="summaryTitle" hidden>
                 <div class="section-heading">
                     <h2 id="summaryTitle">Historial de actividades</h2>
-                    <p>Resumen rapido de codigos activados, cierres registrados y tiempos de respuesta.</p>
+                    <p>Resumen rápido de códigos activados, cierres registrados y tiempos de respuesta.</p>
                 </div>
                 <div id="summaryGrid" class="summary-grid" aria-live="polite"></div>
                 <div id="activityLog" class="activity-log" aria-live="polite"></div>
@@ -412,34 +412,34 @@
 
             <section id="module-codigos" class="module-content" aria-labelledby="moduleCodigosTitle" hidden>
                 <div class="section-heading">
-                    <h2 id="moduleCodigosTitle">Codigos disponibles</h2>
-                    <p>Selecciona un codigo para activarlo, registrar el evento y ver su imagen.</p>
+                    <h2 id="moduleCodigosTitle">Códigos disponibles</h2>
+                    <p>Selecciona un código para activarlo, registrar el evento y ver su imagen.</p>
                 </div>
-                <div id="codesGrid" class="codes-grid" aria-label="Codigos disponibles"></div>
+                <div id="codesGrid" class="codes-grid" aria-label="Códigos disponibles"></div>
 
                 <section class="detail-grid">
                 <section class="active-panel" aria-labelledby="activeTitle">
                     <div class="panel-heading">
-                        <h2 id="activeTitle">Codigo activo</h2>
+                        <h2 id="activeTitle">Código activo</h2>
                         <button class="desactivate-btn" type="button" id="deactivateAll">Desactivar todos</button>
                     </div>
                     <div id="activeCodeDisplay" class="active-code-display" aria-live="polite" aria-atomic="true">
-                        <p>Ningun codigo activo</p>
+                        <p>Ningún código activo</p>
                     </div>
                 </section>
 
                 <section class="image-panel" aria-labelledby="imageTitle">
                     <div class="panel-heading">
-                        <h2 id="imageTitle">Lamina del codigo</h2>
+                        <h2 id="imageTitle">Lámina del código</h2>
                         <button class="clear-btn" type="button" id="openImageView" disabled>Ver en grande</button>
                     </div>
                     <div id="conceptVisual" class="concept-visual" aria-live="polite">
-                        <p>Activa un codigo para ver su imagen conceptual.</p>
+                        <p>Activa un código para ver su imagen conceptual.</p>
                     </div>
                     <figure class="code-figure">
-                        <img id="codeImage" src="" alt="Lamina de codigo de emergencia" />
+                        <img id="codeImage" src="" alt="Lámina de código de emergencia" />
                         <figcaption id="codeImageCaption">
-                            Activa un codigo para mostrar su lamina de respuesta.
+                            Activa un código para mostrar su lámina de respuesta.
                         </figcaption>
                     </figure>
                 </section>
@@ -450,13 +450,13 @@
                         <button class="clear-btn" type="button" id="resetChecklist" disabled>Reiniciar lista</button>
                     </div>
                     <p id="checklistIntro" class="checklist-intro" aria-live="polite">
-                        Activa un codigo para ver las actividades a completar.
+                        Activa un código para ver las actividades a completar.
                     </p>
                     <div class="checklist-progress" aria-hidden="true">
                         <span id="checklistProgressText">0 de 0</span>
                     </div>
-                    <ul id="checklistList" class="checklist-list" aria-label="Lista de tareas del codigo activo"></ul>
-                    <div class="operation-record" aria-label="Datos para finalizar el codigo">
+                    <ul id="checklistList" class="checklist-list" aria-label="Lista de tareas del código activo"></ul>
+                    <div class="operation-record" aria-label="Datos para finalizar el código">
                         <div class="responsible-field">
                             <label for="responsibleName">Encargado</label>
                             <input
@@ -483,10 +483,10 @@
                                     <option value="baja">Baja</option>
                                     <option value="media">Media</option>
                                     <option value="alta">Alta</option>
-                                    <option value="critica">Critica</option>
+                                    <option value="critica">Crítica</option>
                                 </select>
                             </div>
-                            <button class="finish-btn" type="button" id="finishCode" disabled>Finalizar codigo</button>
+                            <button class="finish-btn" type="button" id="finishCode" disabled>Finalizar código</button>
                         </div>
                     </div>
                 </section>
@@ -494,7 +494,7 @@
 
                 <section class="history-panel" aria-labelledby="historyTitle">
                 <div class="panel-heading">
-                    <h2 id="historyTitle">Historial de codigos finalizados</h2>
+                    <h2 id="historyTitle">Historial de códigos finalizados</h2>
                     <div class="panel-actions">
                         <button
                             class="clear-btn"
@@ -502,7 +502,7 @@
                             id="toggleHistoryFilters"
                             aria-expanded="false"
                             aria-controls="historyFilters"
-                        >Buscar codigo finalizado</button>
+                        >Buscar código finalizado</button>
                         <button class="clear-btn" type="button" id="generateReport" disabled>Generar informe</button>
                         <button class="clear-btn" type="button" id="clearHistory">Limpiar historial</button>
                     </div>
@@ -513,7 +513,7 @@
                         <input id="historyFilterDate" type="date">
                     </label>
                     <label>
-                        Codigo
+                        Código
                         <select id="historyFilterCode">
                             <option value="">Todos</option>
                         </select>
@@ -533,16 +533,16 @@
                             <option value="baja">Baja</option>
                             <option value="media">Media</option>
                             <option value="alta">Alta</option>
-                            <option value="critica">Critica</option>
+                            <option value="critica">Crítica</option>
                         </select>
                     </label>
                     <label class="history-filter-search">
                         Buscar
-                        <input id="historyFilterText" type="search" placeholder="Codigo, encargado o detalle">
+                        <input id="historyFilterText" type="search" placeholder="Código, encargado o detalle">
                     </label>
                     <button class="clear-btn" type="button" id="clearHistoryFilters">Quitar filtros</button>
                 </div>
-                <ul id="historyList" aria-live="polite" aria-label="Historial de codigos finalizados"></ul>
+                <ul id="historyList" aria-live="polite" aria-label="Historial de códigos finalizados"></ul>
             </section>
             </section>
 
@@ -551,7 +551,7 @@
                     <div class="section-heading">
                         <div>
                             <h2 id="moduleMantenimientoTitle">Mantenimiento</h2>
-                            <p>Guias rapidas para que el anfitrion pueda reconocer, revisar y reportar tareas frecuentes de soporte en campo.</p>
+                            <p>Guías rápidas para que el anfitrión pueda reconocer, revisar y reportar tareas frecuentes de soporte en campo.</p>
                         </div>
                     </div>
 
@@ -562,14 +562,14 @@
                         <div class="maintenance-private-heading">
                             <div>
                                 <p class="eyebrow">Acceso restringido</p>
-                                <h3 id="maintenancePrivateTitle">Area de mantenimiento</h3>
+                                <h3 id="maintenancePrivateTitle">Área de mantenimiento</h3>
                                 <p>Intervenciones tecnicas e inventario de repuestos de la sede.</p>
                             </div>
                         </div>
 
                         <div class="maintenance-access-gate" id="maintenanceAccessGate">
                             <form id="maintenanceAccessForm" class="maintenance-access-form">
-                                <label for="maintenanceAccessPassword">Contrasena del area</label>
+                                <label for="maintenanceAccessPassword">Contraseña del área</label>
                                 <div class="maintenance-password-row">
                                     <input id="maintenanceAccessPassword" type="password" autocomplete="off" required>
                                     <button class="finish-btn" type="submit">Ingresar</button>
@@ -639,10 +639,10 @@
 
                                 <form id="maintenanceTaskForm" class="maintenance-task-form" hidden>
                                     <label>Tarea<input id="maintenanceTaskTitle" type="text" maxlength="160" required placeholder="Ej. Preventivo mensual de carril"></label>
-                                    <label>Tecnico<select id="maintenanceTaskTechnician" required><option value="">Selecciona un tecnico</option></select></label>
+                                    <label>Técnico<select id="maintenanceTaskTechnician" required><option value="">Selecciona un técnico</option></select></label>
                                     <label>Sede<select id="maintenanceTaskSite" required></select></label>
                                     <label>Equipo<select id="maintenanceTaskEquipment"><option value="">Trabajo general / sin equipo</option></select></label>
-                                    <label>Prioridad<select id="maintenanceTaskPriority" required><option value="baja">Baja</option><option value="media" selected>Media</option><option value="alta">Alta</option><option value="critica">Critica</option></select></label>
+                                    <label>Prioridad<select id="maintenanceTaskPriority" required><option value="baja">Baja</option><option value="media" selected>Media</option><option value="alta">Alta</option><option value="critica">Crítica</option></select></label>
                                     <label>Fecha limite<input id="maintenanceTaskDueDate" type="date" required></label>
                                     <label class="maintenance-recurring-option"><input id="maintenanceTaskRecurring" type="checkbox"> Repetir automaticamente cada mes</label>
                                     <label class="maintenance-task-description">Indicaciones<textarea id="maintenanceTaskDescription" rows="3" maxlength="1000" placeholder="Detalle del trabajo que debe realizarse"></textarea></label>
@@ -685,24 +685,24 @@
                                 <div class="inventory-heading">
                                     <div>
                                         <h4 id="inventoryTitle">Inventario de repuestos disponibles</h4>
-                                        <p>Consulta el stock, ubicacion y nivel minimo de cada repuesto.</p>
+                                        <p>Consulta el stock, ubicación y nivel mínimo de cada repuesto.</p>
                                     </div>
                                     <button class="clear-btn" id="refreshInventory" type="button">Actualizar</button>
                                 </div>
 
                                 <label class="inventory-search" for="inventorySearch">
                                     Buscar repuesto
-                                    <input id="inventorySearch" type="search" placeholder="Codigo, nombre, categoria o ubicacion">
+                                    <input id="inventorySearch" type="search" placeholder="Código, nombre, categoría o ubicación">
                                 </label>
 
                                 <form id="inventoryForm" class="inventory-form" hidden>
-                                    <label>Codigo<input id="inventoryCode" type="text" required></label>
+                                    <label>Código<input id="inventoryCode" type="text" required></label>
                                     <label>Repuesto<input id="inventoryName" type="text" required></label>
-                                    <label>Categoria<input id="inventoryCategory" type="text" placeholder="General"></label>
+                                    <label>Categoría<input id="inventoryCategory" type="text" placeholder="General"></label>
                                     <label>Stock<input id="inventoryStock" type="number" min="0" step="0.01" required></label>
-                                    <label>Stock minimo<input id="inventoryMinimum" type="number" min="0" step="0.01" value="0" required></label>
+                                    <label>Stock mínimo<input id="inventoryMinimum" type="number" min="0" step="0.01" value="0" required></label>
                                     <label>Unidad<input id="inventoryUnit" type="text" value="unidad" required></label>
-                                    <label class="inventory-location">Ubicacion<input id="inventoryLocation" type="text" placeholder="Almacen, estante o modulo"></label>
+                                    <label class="inventory-location">Ubicación<input id="inventoryLocation" type="text" placeholder="Almacén, estante o módulo"></label>
                                     <button class="finish-btn" type="submit">Guardar repuesto</button>
                                 </form>
 
@@ -788,7 +788,7 @@
                                     </svg>
                                 </span>
                                 <span>
-                                    <strong>Revision de impresoras</strong>
+                                    <strong>Revisión de impresoras</strong>
                                     <small>Validacion basica cuando el cajero no imprime ticket o comprobante.</small>
                                 </span>
                             </summary>
@@ -839,7 +839,7 @@
                             </div>
                         </details>
                     </div>
-                    <div id="dynamicGuides-mantenimiento" class="dynamic-guides" aria-label="Guias agregadas de mantenimiento"></div>
+                <div id="dynamicGuides-mantenimiento" class="dynamic-guides" aria-label="Guías agregadas de mantenimiento"></div>
                 </div>
             </section>
 
@@ -860,7 +860,7 @@
                         <div>
                             <p class="eyebrow">Control diario por zonas</p>
                             <h2 id="operationsOccupancyTitle">Ocupabilidad del estacionamiento</h2>
-                            <p>Cada anfitrion reporta su zona durante la hora actual. Fortaleza recibe el consolidado y el Excel listo.</p>
+                            <p>Cada anfitrión reporta su zona durante la hora actual. Fortaleza recibe el consolidado y el Excel listo.</p>
                         </div>
                         <button class="modal-close" id="closeOperationsOccupancy" type="button" aria-label="Cerrar ocupabilidad" title="Cerrar">&times;</button>
                     </div>
@@ -897,7 +897,7 @@
                         <div>
                             <p class="eyebrow">Control por turno</p>
                             <h2 id="operationsChecklistTitle">Checklist operativo de sede</h2>
-                            <p>Administracion, supervision y Fortaleza controlan los resultados. Los anfitriones pueden seguir el avance y aportar fotos por bloque.</p>
+                            <p>Administración, supervisión y Fortaleza controlan los resultados. Los anfitriones pueden seguir el avance y aportar fotos por bloque.</p>
                         </div>
                         <button class="modal-close" id="closeOperationsChecklist" type="button" aria-label="Cerrar checklist" title="Cerrar">&times;</button>
                     </div>
@@ -908,7 +908,7 @@
                             <label>Hora de inicio<input id="operationsChecklistStartTime" type="time" readonly></label>
                             <label>Responsable<input id="operationsChecklistResponsible" type="text" readonly></label>
                             <label>Cargo<input id="operationsChecklistRole" type="text" readonly></label>
-                            <label>Turno automatico
+                            <label>Turno automático
                                 <select id="operationsChecklistShift" required disabled aria-describedby="operationsShiftWindowStatus">
                                     <option value="">Seleccionar</option>
                                     <option value="apertura">Apertura</option>
@@ -923,7 +923,7 @@
                         <div class="operations-checklist-footer">
                             <div>
                                 <strong id="operationsChecklistProgress">0 de 0 puntos revisados</strong>
-                                <span>Las novedades requieren una observacion.</span>
+                                <span>Las novedades requieren una observación.</span>
                             </div>
                             <button class="finish-btn" id="finishOperationsChecklist" type="submit">Finalizar checklist</button>
                             <button class="clear-btn" id="shareLastOperationsChecklist" type="button" hidden>PDF / WhatsApp</button>
@@ -937,7 +937,7 @@
                         <div>
                             <p class="eyebrow">Vista gerencial multisede</p>
                             <h2 id="operationsGeneralReportTitle">Informe general de operaciones</h2>
-                            <p>Benchmark mensual, puntos con menor cumplimiento y revisiones que requieren validacion.</p>
+                            <p>Benchmark mensual, puntos con menor cumplimiento y revisiones que requieren validación.</p>
                         </div>
                         <button class="modal-close" id="closeOperationsGeneralReport" type="button" aria-label="Cerrar informe gerencial" title="Cerrar">&times;</button>
                     </div>
@@ -972,7 +972,7 @@
                         <article><span>Checklists</span><strong id="operationsKpiTotal">0</strong></article>
                         <article><span>Cumplimiento</span><strong id="operationsKpiCompliance">0%</strong></article>
                         <article><span>No conformidades</span><strong id="operationsKpiFailures">0</strong></article>
-                        <article class="critical"><span>Criticos pendientes</span><strong id="operationsKpiCritical">0</strong></article>
+                        <article class="critical"><span>Críticos pendientes</span><strong id="operationsKpiCritical">0</strong></article>
                         <article><span>Con tardanza</span><strong id="operationsKpiLate">0</strong></article>
                     </div>
                     <div id="operationsSectionKpis" class="operations-section-kpis"></div>
@@ -984,7 +984,7 @@
                         <div>
                             <p class="eyebrow">Control de activos</p>
                             <h2 id="operationsAssetsTitle">Activos de operaciones</h2>
-                            <p>Registro general de codigos, nombres y valores actuales.</p>
+                            <p>Registro general de códigos, nombres y valores actuales.</p>
                         </div>
                         <button class="modal-close" id="closeOperationsAssets" type="button" aria-label="Cerrar activos" title="Cerrar">&times;</button>
                     </div>
@@ -995,13 +995,13 @@
                                 <option value="puruchuco">Real Plaza Puruchuco</option>
                                 <option value="salaverry">Real Plaza Salaverry</option>
                                 <option value="primavera">Real Plaza Primavera</option>
-                                <option value="civico">Real Plaza Civico</option>
+                                <option value="civico">Real Plaza Cívico</option>
                                 <option value="gama">GAMA</option>
                             </select>
                         </label>
                         <label>
                             Buscar activo
-                            <input id="operationsAssetsSearch" type="search" placeholder="Codigo o nombre">
+                            <input id="operationsAssetsSearch" type="search" placeholder="Código o nombre">
                         </label>
                         <div class="operations-assets-toolbar-actions">
                             <button class="clear-btn" id="exportOperationsAssetsPdf" type="button">Generar PDF</button>
@@ -1012,7 +1012,7 @@
                     <form class="operations-asset-form" id="operationsAssetForm" hidden>
                         <input id="operationsAssetId" type="hidden">
                         <label>
-                            Codigo
+                            Código
                             <input id="operationsAssetCode" type="text" maxlength="50" placeholder="Ej. ACT-001" required>
                         </label>
                         <label>
@@ -1031,7 +1031,7 @@
                     <p class="auth-status" id="operationsAssetsStatus" role="status" aria-live="polite"></p>
                     <div class="operations-assets-list" id="operationsAssetsList" aria-live="polite"></div>
                 </section>
-                <div id="dynamicGuides-operaciones" class="dynamic-guides" aria-label="Guias agregadas de operaciones"></div>
+                <div id="dynamicGuides-operaciones" class="dynamic-guides" aria-label="Guías agregadas de operaciones"></div>
             </section>
 
             <section id="module-reporteria" class="module-content" aria-labelledby="moduleReporteriaTitle" hidden>
@@ -1127,11 +1127,11 @@
             <section id="module-caja" class="module-content" aria-labelledby="moduleCajaTitle" hidden>
                 <div class="module-placeholder site-module-header">
                     <h2 id="moduleCajaTitle">Caja</h2>
-                    <p>Selecciona una sede para consultar sus procesos, alertas y guias de atencion para caja.</p>
+                    <p>Selecciona una sede para consultar sus procesos, alertas y guías de atención para caja.</p>
                     <div class="site-navigation" data-site-navigation="caja" aria-label="Seleccionar sede de caja"></div>
                     <p class="site-context" id="siteContext-caja"></p>
                 </div>
-                <div id="dynamicGuides-caja" class="dynamic-guides" aria-label="Guias agregadas de caja"></div>
+                <div id="dynamicGuides-caja" class="dynamic-guides" aria-label="Guías agregadas de caja"></div>
             </section>
 
             <section id="module-ronda" class="module-content" aria-labelledby="moduleRondaTitle" hidden>
@@ -1141,33 +1141,33 @@
                     <div class="site-navigation" data-site-navigation="ronda" aria-label="Seleccionar sede de ronda"></div>
                     <p class="site-context" id="siteContext-ronda"></p>
                 </div>
-                <div id="dynamicGuides-ronda" class="dynamic-guides" aria-label="Guias agregadas de ronda"></div>
+                <div id="dynamicGuides-ronda" class="dynamic-guides" aria-label="Guías agregadas de ronda"></div>
             </section>
 
             <section id="module-capacitacion" class="module-content" aria-labelledby="moduleCapacitacionTitle" hidden>
                 <div class="training-panel">
                     <div class="section-heading">
                         <div>
-                            <h2 id="moduleCapacitacionTitle">Capacitacion</h2>
-                            <p>Ruta rapida para personal nuevo o personal que necesita reforzar procedimientos clave.</p>
+                            <h2 id="moduleCapacitacionTitle">Capacitación</h2>
+                            <p>Ruta rápida para personal nuevo o personal que necesita reforzar procedimientos clave.</p>
                         </div>
                     </div>
                     <div class="training-grid">
                         <article>
                             <h3>Primer dia operativo</h3>
-                            <p>Reconoce roles, canales de radio, puntos criticos, accesos y zonas de reporte.</p>
+                            <p>Reconoce roles, canales de radio, puntos críticos, accesos y zonas de reporte.</p>
                         </article>
                         <article>
                             <h3>Uso de radio</h3>
-                            <p>Comunica ubicacion, prioridad, apoyo requerido y cierre de novedad con mensajes breves.</p>
+                            <p>Comunica ubicación, prioridad, apoyo requerido y cierre de novedad con mensajes breves.</p>
                         </article>
                         <article>
                             <h3>Roles de respuesta</h3>
-                            <p>ECO coordina en campo, Charly centraliza informacion y Tango apoya situaciones escaladas.</p>
+                            <p>ECO coordina en campo, Charly centraliza información y Tango apoya situaciones escaladas.</p>
                         </article>
                         <article>
-                            <h3>Guias revisadas</h3>
-                            <p id="trainingProgressText">Marca guias como revisadas para llevar tu avance de capacitacion.</p>
+                            <h3>Guías revisadas</h3>
+                            <p id="trainingProgressText">Marca guías como revisadas para llevar tu avance de capacitación.</p>
                         </article>
                     </div>
                 </div>
@@ -1176,9 +1176,9 @@
             <section id="module-abonados" class="module-content subscribers-panel" aria-labelledby="subscribersTitle" hidden>
                 <div class="section-heading subscribers-heading">
                     <div>
-                        <p class="eyebrow">Gestion por sede</p>
+                        <p class="eyebrow">Gestión por sede</p>
                         <h2 id="subscribersTitle">Abonados mensuales</h2>
-                        <p>Registra solicitudes y controla su atencion en el sistema de parking.</p>
+                        <p>Registra solicitudes y controla su atención en el sistema de parking.</p>
                     </div>
                     <div class="subscribers-filters">
                         <label class="subscriber-admin-only">Mes
@@ -1208,8 +1208,8 @@
                         <label>Nombres y apellidos completos
                             <input id="subscriberName" type="text" autocomplete="name" required maxlength="160">
                         </label>
-                        <label>Numero de DNI
-                            <input id="subscriberDni" type="text" inputmode="numeric" autocomplete="off" required pattern="[0-9]{8,12}" maxlength="12" placeholder="8 digitos">
+                        <label>Número de DNI
+                            <input id="subscriberDni" type="text" inputmode="numeric" autocomplete="off" required pattern="[0-9]{8,12}" maxlength="12" placeholder="8 dígitos">
                         </label>
                         <label>Tipo de abono
                             <select id="subscriberType" required>
@@ -1253,11 +1253,11 @@
 
     <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 
-    <nav class="bottom-nav" id="bottomNav" aria-label="Navegacion principal" hidden>
+    <nav class="bottom-nav" id="bottomNav" aria-label="Navegación principal" hidden>
         <button type="button" data-nav-action="home">Inicio</button>
         <button type="button" data-nav-action="search">Buscar</button>
-        <button type="button" data-nav-module="codigos">Codigos</button>
-        <button type="button" data-nav-module="mantenimiento">Guias</button>
+        <button type="button" data-nav-module="codigos">Códigos</button>
+        <button type="button" data-nav-module="mantenimiento">Guías</button>
         <button type="button" data-nav-action="admin">Admin</button>
     </nav>
 
@@ -1265,7 +1265,7 @@
         <div class="remote-alert-card">
             <button class="remote-alert-close" type="button" id="remoteAlertClose" aria-label="Cerrar alerta">&times;</button>
             <p class="eyebrow">Alerta recibida</p>
-            <h2 id="remoteAlertTitle">Se activo un codigo</h2>
+            <h2 id="remoteAlertTitle">Se activó un código</h2>
             <p id="remoteAlertText">Revisa el checklist operativo.</p>
             <div class="remote-alert-actions">
                 <button class="finish-btn" type="button" id="remoteAlertOpen">Ver checklist</button>
@@ -1278,14 +1278,14 @@
         <div class="remote-alert-card">
             <button class="remote-alert-close" type="button" id="closePasswordModal" aria-label="Cerrar">&times;</button>
             <p class="eyebrow">Seguridad de cuenta</p>
-            <h2 id="passwordModalTitle">Cambiar contrasena</h2>
+            <h2 id="passwordModalTitle">Cambiar contraseña</h2>
             <p id="passwordModalText">Crea una clave personal de al menos 8 caracteres.</p>
             <form id="passwordChangeForm" class="auth-form">
-                <label for="newPersonalPassword">Nueva contrasena</label>
+                <label for="newPersonalPassword">Nueva contraseña</label>
                 <input id="newPersonalPassword" type="password" minlength="8" autocomplete="new-password" required>
-                <label for="confirmPersonalPassword">Confirmar contrasena</label>
+                <label for="confirmPersonalPassword">Confirmar contraseña</label>
                 <input id="confirmPersonalPassword" type="password" minlength="8" autocomplete="new-password" required>
-                <button class="finish-btn" type="submit">Guardar nueva contrasena</button>
+                <button class="finish-btn" type="submit">Guardar nueva contraseña</button>
                 <p id="passwordChangeStatus" class="auth-status" role="status" aria-live="polite"></p>
             </form>
         </div>
@@ -1293,13 +1293,13 @@
 
     <div class="remote-alert mandatory-announcement" id="mandatoryAnnouncement" role="alertdialog" aria-modal="true" aria-labelledby="mandatoryAnnouncementTitle" aria-describedby="mandatoryAnnouncementText" hidden>
         <div class="remote-alert-card">
-            <p class="eyebrow">Informacion obligatoria de GDH</p>
+            <p class="eyebrow">Información obligatoria de GDH</p>
             <h2 id="mandatoryAnnouncementTitle">Comunicado pendiente</h2>
             <p id="mandatoryAnnouncementText"></p>
             <div class="remote-alert-actions" id="mandatoryAnnouncementLinks"></div>
             <div class="remote-alert-actions">
-                <button class="finish-btn" type="button" id="confirmMandatoryAnnouncement">Si, confirmo que he leido</button>
-                <button class="clear-btn" type="button" id="declineMandatoryAnnouncement">Aun no</button>
+                <button class="finish-btn" type="button" id="confirmMandatoryAnnouncement">Sí, confirmo que he leído</button>
+                <button class="clear-btn" type="button" id="declineMandatoryAnnouncement">Aún no</button>
             </div>
             <p id="mandatoryAnnouncementStatus" class="auth-status" role="status" aria-live="polite"></p>
         </div>
@@ -1309,7 +1309,7 @@
         <div class="modal-backdrop" data-close-modal></div>
         <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
             <button class="modal-close" type="button" aria-label="Cerrar vista ampliada" data-close-modal>&times;</button>
-            <h2 id="modalTitle">Lamina del codigo</h2>
+            <h2 id="modalTitle">Lámina del código</h2>
             <p id="modalSubtitle" class="modal-subtitle"></p>
             <div class="zoom-toolbar" role="group" aria-label="Controles de zoom">
                 <button class="clear-btn" type="button" id="zoomOut" aria-label="Alejar">&minus;</button>

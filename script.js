@@ -62,12 +62,12 @@ const ETIQUETAS_ROL = {
     jefe_operaciones: 'Jefe de operaciones',
     coordinador_operaciones: 'Coordinador de operaciones',
     gdh: 'GDH',
-    tecnico: 'Tecnico de mantenimiento',
+    tecnico: 'Técnico de mantenimiento',
     supervisor: 'Supervisor',
     fortaleza: 'Fortaleza',
     eco: 'ECO',
     charly: 'Charly',
-    anfitrion: 'Anfitrion'
+    anfitrion: 'Anfitrión'
 };
 const TIPOS_ABONO = {
     locatario_lv: { nombre: 'Locatario auto - lunes a viernes', monto: 150 },
@@ -168,10 +168,10 @@ const etiquetasPrioridad = {
 
 const codigosEmergencia = {
     rojo: {
-        nombre: 'Codigo Rojo',
-        descripcion: 'Incendios o inflamacion de chimeneas',
-        guia: '5 primeros minutos en incendios o inflamacion de chimeneas',
-        resumen: 'Activa respuesta contra incendio y comunica la ubicacion.',
+        nombre: 'Código Rojo',
+        descripcion: 'Incendios o inflamación de chimeneas',
+        guia: '5 primeros minutos en incendios o inflamación de chimeneas',
+        resumen: 'Activa respuesta contra incendio y comunica la ubicación.',
         color: '#d92d20',
         icono: 'R',
         image: 'assets/codigo-rojo.webp',
@@ -197,7 +197,7 @@ const codigosEmergencia = {
         ]
     },
     naranja: {
-        nombre: 'Codigo Naranja',
+        nombre: 'Código Naranja',
         descripcion: 'Atrapados en ascensores, escaleras o travolator',
         guia: '5 primeros minutos atrapados en ascensores, escaleras o travolator',
         resumen: 'Responde ante atrapamiento y coordina el servicio de emergencias.',
@@ -212,13 +212,13 @@ const codigosEmergencia = {
             etiquetas: ['Ascensor', 'Mantenimiento', 'Calma']
         },
         checklist: [
-            'Anfitrion comunica a ECO el atrapamiento de personas dentro del ascensor, escalera o travolator.',
+            'Anfitrión comunica a ECO el atrapamiento de personas dentro del ascensor, escalera o travolator.',
             'ECO se dirige al punto e informa de inmediato a Charly para activar al proveedor de ascensores.',
             'Mantener comunicacion calmada con los clientes, informar que la ayuda esta en camino y contener la situacion.'
         ]
     },
     'verde-oscuro': {
-        nombre: 'Codigo 3D',
+        nombre: 'Código 3D',
         descripcion: 'Fugas de gases y derrames de combustibles',
         guia: 'Diluye - Dispersa - Dirige',
         resumen: 'Controla gases o derrames con apoyo de mantenimiento y seguridad.',
@@ -244,12 +244,12 @@ const codigosEmergencia = {
         checklistsCondicionales: {
             'tipo-incidente-3d': {
                 Gas: [
-                    'Anfitrion se aleja del punto, comunica a ECO y apaga la radio hasta ubicarse en una zona segura.',
+                    'Anfitrión se aleja del punto, comunica a ECO y apaga la radio hasta ubicarse en una zona segura.',
                     'ECO comunica de inmediato a Charly la fuga de gas y la ubicacion exacta.',
                     'ECO cierra la zona y establece un perimetro de seguridad definido.'
                 ],
                 'Gasolina o petroleo': [
-                    'Anfitrion coloca arena en el punto del derrame, informa a ECO y reporta la situacion al grupo.',
+                    'Anfitrión coloca arena en el punto del derrame, informa a ECO y reporta la situación al grupo.',
                     'ECO se acerca al punto y recopila los datos del vehiculo que genera el derrame.',
                     'ECO coordina con Charly el perifoneo y mantiene controlada la zona afectada.'
                 ]
@@ -257,8 +257,8 @@ const codigosEmergencia = {
         }
     },
     azul: {
-        nombre: 'Codigo CAT',
-        descripcion: 'Persona necesita atencion medica',
+        nombre: 'Código CAT',
+        descripcion: 'Persona necesita atención médica',
         guia: 'Comunica + Atiende + Traslada',
         resumen: 'Orienta la atencion medica y el traslado del paciente.',
         color: '#175cd3',
@@ -272,17 +272,17 @@ const codigosEmergencia = {
             etiquetas: ['Paciente', 'Topico', 'Traslado']
         },
         checklist: [
-            'Anfitrion comunica por radio a ECO la situacion y ubicacion del cliente.',
-            'ECO informa de inmediato a Charly la activacion del Codigo CAT.',
-            'Anfitrion observa de forma constante y mantiene comunicacion de soporte con el cliente.'
+            'Anfitrión comunica por radio a ECO la situación y ubicación del cliente.',
+            'ECO informa de inmediato a Charly la activación del Código CAT.',
+            'Anfitrión observa de forma constante y mantiene comunicación de soporte con el cliente.'
         ],
         notaChecklist: 'NO SE ACERCA NI CONTENEMOS. VISION CONSTANTE Y COMUNICACION DE SOPORTE AL CLIENTE.'
     },
     verde: {
-        nombre: 'Codigo Verde',
+        nombre: 'Código Verde',
         descripcion: 'Sismos',
         guia: 'Verifica + Evalua + Restringe + Distribuye + Evacua',
-        resumen: 'Gestiona el sismo con evacuacion y control de la operacion.',
+        resumen: 'Gestiona el sismo con evacuación y control de la operación.',
         color: '#039855',
         icono: 'V',
         image: 'assets/codigo-verde.webp',
@@ -294,16 +294,16 @@ const codigosEmergencia = {
             etiquetas: ['Alarma', 'Rutas', 'Punto seguro']
         },
         checklist: [
-            'ECO lanza el Codigo Verde y alerta a todo el equipo de URBAPARK.',
+            'ECO lanza el Código Verde y alerta a todo el equipo de URBAPARK.',
             'Anfitriones se acercan a los ascensores para evacuar y orientar a los clientes.',
-            'Anfitrion de modulo evacua a los clientes y cierra su caja con llave.',
+            'Anfitrión de módulo evacua a los clientes y cierra su caja con llave.',
             'Rondas evacuan a los clientes y los direccionan hacia las puertas de emergencia.',
             'Fortaleza apertura plumillas y bloquea accesos para facilitar la evacuacion.',
             'Japibici evacua por la escalera de emergencia y direcciona a los clientes por la ruta segura.'
         ]
     },
     croc: {
-        nombre: 'Codigo CROC',
+        nombre: 'Código CROC',
         descripcion: 'Incidente con sospechoso o riesgo de seguridad',
         guia: 'Comunica + Rastrea + Observa + Contiene',
         resumen: 'Coordina con seguridad y control para contener la situacion.',
@@ -318,14 +318,14 @@ const codigosEmergencia = {
             etiquetas: ['Camaras', 'Cerco', 'Autoridad']
         },
         checklist: [
-            'Anfitrion comunica al grupo via radial un presunto C10, indicando vestimenta y ultimo lugar donde fue visualizado.',
+            'Anfitrión comunica al grupo vía radial un presunto C10, indicando vestimenta y último lugar donde fue visualizado.',
             'ECO comunica a Charly los detalles del presunto C10 y la referencia de ubicacion.',
             'Anfitriones se posicionan en ascensores y puertas de emergencia para reforzar puntos de salida.',
             'Anfitriones realizan seguimiento visual y comunican desplazamientos sin perder contacto operativo.'
         ]
     },
     adam: {
-        nombre: 'Codigo ADAM',
+        nombre: 'Código ADAM',
         descripcion: 'Personas extraviadas',
         guia: 'Personas extraviadas',
         resumen: 'Activa la busqueda y el seguimiento del familiar o la persona.',
@@ -340,14 +340,14 @@ const codigosEmergencia = {
             etiquetas: ['Datos', 'Busqueda', 'Control']
         },
         checklist: [
-            'Anfitrion comunica a ECO la activacion del Codigo ADAM, entregando detalles de la persona extraviada.',
-            'Anfitrion permanece con la persona extraviada en un punto visible por camaras y mantiene comunicacion calmada.',
+            'Anfitrión comunica a ECO la activación del Código ADAM, entregando detalles de la persona extraviada.',
+            'Anfitrión permanece con la persona extraviada en un punto visible por cámaras y mantiene comunicación calmada.',
             'ECO se acerca al punto y acompana a la persona extraviada hacia el modulo mas cercano.',
             'ECO realiza la entrega de la persona extraviada a Charly, dejando constancia del cierre de atencion.'
         ]
     },
     calma: {
-        nombre: 'Codigo CALMA',
+        nombre: 'Código CALMA',
         descripcion: 'Agresion fisica o verbal y alteracion del orden',
         guia: 'Comunica + Atiende + Lidera sin agredir + Mantiene la calma + Aisla',
         resumen: 'Desescala el conflicto y aisla el punto para proteger a todos.',
@@ -362,14 +362,14 @@ const codigosEmergencia = {
             etiquetas: ['Separar', 'Dialogar', 'Aislar']
         },
         checklist: [
-            'Anfitrion comunica a ECO los detalles de la situacion y la ubicacion exacta.',
+            'Anfitrión comunica a ECO los detalles de la situación y la ubicación exacta.',
             'ECO se acerca, aborda la situacion y busca apaciguar a las personas involucradas.',
             'Si la situacion escala, ECO solicita apoyo de Charly o Tango para contener y calmar el punto.',
             'A la llegada de Tango, ECO y anfitriones se retiran del punto manteniendo el control operativo.'
         ]
     },
     capta: {
-        nombre: 'Codigo CAPTA',
+        nombre: 'Código CAPTA',
         descripcion: 'Persona de alto riesgo, amenaza o agresion',
         guia: 'Comunica + Acompana + Protege + Tranquiliza + Activa',
         resumen: 'Acompana y protege a la persona mientras se activa el protocolo.',
@@ -384,9 +384,9 @@ const codigosEmergencia = {
             etiquetas: ['Proteger', 'Acompanamiento', 'Apoyo']
         },
         checklist: [
-            'Anfitrion aborda a la persona de forma respetuosa e informa que no esta permitido el comercio ambulatorio, consumo indebido o conducta que afecte la operacion del mall.',
+            'Anfitrión aborda a la persona de forma respetuosa e informa que no está permitido el comercio ambulatorio, consumo indebido o conducta que afecte la operación del mall.',
             'ECO comunica a Charly la ubicacion y descripcion de la persona intervenida.',
-            'ECO acompana a la persona durante su retiro; si la situacion escala, activa Codigo CALMA o Codigo CROC segun corresponda.'
+            'ECO acompaña a la persona durante su retiro; si la situación escala, activa Código CALMA o Código CROC según corresponda.'
         ]
     }
 };
@@ -967,7 +967,7 @@ function renderizarTareasMantenimiento() {
         titulo.textContent = tarea.titulo;
         detalle.textContent = tarea.descripcion || 'Sin indicaciones adicionales.';
         meta.className = 'maintenance-task-meta';
-        const tecnico = tarea.profiles?.nombre || tarea.profiles?.email || 'Tecnico asignado';
+        const tecnico = tarea.profiles?.nombre || tarea.profiles?.email || 'Técnico asignado';
         const equipo = tarea.equipo_codigo ? ` - ${tarea.equipo_codigo}` : '';
         const automatico = tarea.plan_preventivo_id ? ' - Preventivo automatico' : '';
         meta.textContent = `${obtenerNombreSede(tarea.sede)}${equipo} - ${tecnico} - Limite: ${tarea.fecha_limite} - Prioridad ${tarea.prioridad}${automatico}`;
@@ -1814,7 +1814,7 @@ async function validarAccesoMantenimiento(event) {
     const clave = campo?.value || '';
 
     if (!clave || !supabaseClient || !sesionActual?.user) {
-        actualizarEstadoAccesoMantenimiento('Ingresa la contrasena del area.', 'error');
+        actualizarEstadoAccesoMantenimiento('Ingresa la contraseña del área.', 'error');
         return;
     }
 
@@ -1833,12 +1833,12 @@ async function validarAccesoMantenimiento(event) {
 
     if (error) {
         console.warn('No se pudo validar el acceso de mantenimiento:', error);
-        actualizarEstadoAccesoMantenimiento('No se pudo verificar la contrasena. Intenta nuevamente.', 'error');
+        actualizarEstadoAccesoMantenimiento('No se pudo verificar la contraseña. Intenta nuevamente.', 'error');
         return;
     }
 
     if (!data) {
-        actualizarEstadoAccesoMantenimiento('Contrasena incorrecta.', 'error');
+        actualizarEstadoAccesoMantenimiento('Contraseña incorrecta.', 'error');
         campo?.select();
         return;
     }
@@ -5497,7 +5497,7 @@ async function guardarSolicitudAbonado(event) {
     }
     event.currentTarget.reset();
     obtenerElemento('subscriberStart').value = new Date().toISOString().slice(0, 10);
-    actualizarEstadoAbonados('Solicitud registrada. Enviando alerta a la administracion...', 'success');
+    actualizarEstadoAbonados('Solicitud registrada. Enviando alerta a la administración...', 'success');
     const entrega = await enviarAlertaPushAbonado(payload.sede);
     if (entrega.sent > 0) {
         actualizarEstadoAbonados(`Solicitud registrada. ${entrega.sent} alerta${entrega.sent === 1 ? '' : 's'} enviada${entrega.sent === 1 ? '' : 's'} correctamente.`, 'success');
@@ -5827,7 +5827,7 @@ function renderizarSaludSupabase(datos) {
 
     const anfitrionesDatos = Array.isArray(datos.users?.hosts) ? datos.users.hosts : [];
     if (!anfitrionesDatos.length) {
-        anfitriones.appendChild(crearMensajeVacio('No hay usuarios creados con el rol Anfitrion.'));
+        anfitriones.appendChild(crearMensajeVacio('No hay usuarios creados con el rol Anfitrión.'));
     }
     anfitrionesDatos.forEach(usuario => {
         const fila = document.createElement('article');
@@ -5980,8 +5980,8 @@ function configurarFormularioCreacionUsuario() {
     }
     if (ayuda) {
         ayuda.textContent = esSuperior
-            ? 'Ingresa apellidos y nombres y el DNI. El sistema entregara una contrasena temporal.'
-            : 'Puedes crear personal operativo para tu sede. El sistema entregara una contrasena temporal.';
+            ? 'Ingresa apellidos y nombres y el DNI. El sistema entregará una contraseña temporal.'
+            : 'Puedes crear personal operativo para tu sede. El sistema entregará una contraseña temporal.';
     }
     if (formulario) formulario.hidden = false;
     if (actualizar) actualizar.hidden = false;
@@ -6731,7 +6731,7 @@ function crearGuiaElemento(guia) {
     const autoria = guia.creadoPorEmail
         ? `Creado por ${guia.creadoPorEmail}`
         : 'Guia agregada por administrador';
-    const acceso = guia.audiencia === 'supervision' ? 'Solo supervision y administracion' : 'Todos los usuarios';
+    const acceso = guia.audiencia === 'supervision' ? 'Solo supervisión y administración' : 'Todos los usuarios';
     meta.textContent = `${sedeTexto} - ${acceso} - ${autoria}`;
 
     cuerpo.append(lista, meta);
@@ -8097,7 +8097,7 @@ async function crearUsuarioDesdeAdmin(event) {
         obtenerElemento('createUserForm')?.reset();
         configurarFormularioCreacionUsuario();
         if (estado) {
-            estado.textContent = `${nombre} fue creado. DNI: ${dni}. Contrasena temporal: ${data.temporaryPassword}`;
+            estado.textContent = `${nombre} fue creado. DNI: ${dni}. Contraseña temporal: ${data.temporaryPassword}`;
             estado.dataset.status = 'success';
         }
         mostrarToast(`Usuario creado: ${nombre}`);
@@ -8477,7 +8477,7 @@ function abrirModalCambioPassword(primeraVez = false) {
     if (!modal) return;
     if (texto) {
         texto.textContent = primeraVez
-            ? 'Estas usando una contrasena temporal. Puedes crear ahora una clave personal de al menos 8 caracteres.'
+            ? 'Estás usando una contraseña temporal. Puedes crear ahora una clave personal de al menos 8 caracteres.'
             : 'Crea una clave personal de al menos 8 caracteres.';
     }
     obtenerElemento('passwordChangeForm')?.reset();
@@ -8501,27 +8501,27 @@ async function cambiarPasswordPersonal(event) {
     if (password.length < 8 || password !== confirmacion) {
         if (estado) {
             estado.textContent = password !== confirmacion
-                ? 'Las contrasenas no coinciden.'
-                : 'La contrasena debe tener al menos 8 caracteres.';
+                ? 'Las contraseñas no coinciden.'
+                : 'La contraseña debe tener al menos 8 caracteres.';
             estado.dataset.status = 'error';
         }
         return;
     }
     if (estado) {
-        estado.textContent = 'Actualizando contrasena...';
+        estado.textContent = 'Actualizando contraseña...';
         estado.dataset.status = 'info';
     }
     const { error } = await supabaseClient.auth.updateUser({ password });
     if (error) {
         if (estado) {
-            estado.textContent = 'No se pudo actualizar la contrasena.';
+            estado.textContent = 'No se pudo actualizar la contraseña.';
             estado.dataset.status = 'error';
         }
         return;
     }
     await supabaseClient.rpc('confirmar_cambio_password');
     if (perfilActual) perfilActual.debe_cambiar_password = false;
-    mostrarToast('Contrasena personal actualizada.');
+    mostrarToast('Contraseña personal actualizada.');
     cerrarModalCambioPassword();
 }
 
@@ -8740,7 +8740,7 @@ async function iniciarSesion(event) {
     const boton = obtenerElemento('authSubmit');
 
     if (!identificador || !password) {
-        actualizarEstadoAuth('Completa usuario y contrasena.', 'error');
+        actualizarEstadoAuth('Completa usuario y contraseña.', 'error');
         return;
     }
 
@@ -8778,7 +8778,7 @@ async function iniciarSesion(event) {
     }
 
     if (error) {
-        actualizarEstadoAuth('No se pudo iniciar sesion. Revisa DNI y contrasena.', 'error');
+        actualizarEstadoAuth('No se pudo iniciar sesión. Revisa DNI y contraseña.', 'error');
         return;
     }
 
@@ -10030,7 +10030,7 @@ function actualizarCodigoActivo(codigo) {
     limpiarElemento(display);
 
     if (!codigo) {
-        display.appendChild(crearMensajeVacio('Ningun codigo activo', 'active-empty'));
+        display.appendChild(crearMensajeVacio('Ningún código activo', 'active-empty'));
         display.classList.remove('has-code');
         return;
     }
@@ -10106,7 +10106,7 @@ function actualizarEncargadoUI(codigo) {
     finalizar.disabled = Boolean(estado.cerradoEn) || !estaChecklistCompleto(codigo, estado) || !tieneEncargadoRegistrado(estado);
     input.setAttribute('aria-describedby', 'responsibleHint');
     hint.textContent = estado.cerradoEn
-        ? `Codigo finalizado: ${formatearFechaHoraISO(estado.cerradoEn)}`
+        ? `Código finalizado: ${formatearFechaHoraISO(estado.cerradoEn)}`
         : !tieneEncargadoRegistrado(estado)
             ? 'Obligatorio: coloca el nombre de la persona a cargo para poder finalizar.'
             : estaChecklistCompleto(codigo, estado)
@@ -10122,7 +10122,7 @@ function actualizarLamina(codigo, { abrirModal = false } = {}) {
 
     if (!info) {
         imagen.src = '';
-        imagen.alt = 'Lamina de codigo de emergencia';
+        imagen.alt = 'Lámina de código de emergencia';
         imagen.hidden = true;
         caption.textContent = 'Activa un codigo para mostrar su lamina de respuesta.';
         botonAbrir.disabled = true;
@@ -11919,8 +11919,8 @@ function abrirModalCodigo(codigo) {
     const modalImage = obtenerElemento('modalImage');
     const modalSubtitle = obtenerElemento('modalSubtitle');
 
-    modalTitle.textContent = 'Lamina del codigo';
-    mostrarLaminaEnModal(info.imagenAmpliada || info.image, info.image, `${info.nombre} - lamina ampliada`);
+    modalTitle.textContent = 'Lámina del código';
+    mostrarLaminaEnModal(info.imagenAmpliada || info.image, info.image, `${info.nombre} - lámina ampliada`);
     modalSubtitle.textContent = `${info.nombre}. ${info.guia}.`;
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
@@ -12040,7 +12040,7 @@ function configurarEventos() {
     obtenerElemento('confirmMandatoryAnnouncement')?.addEventListener('click', confirmarComunicadoObligatorio);
     obtenerElemento('declineMandatoryAnnouncement')?.addEventListener('click', () => {
         const estado = obtenerElemento('mandatoryAnnouncementStatus');
-        if (estado) estado.textContent = 'La confirmacion sigue pendiente. Debes leer y confirmar para continuar.';
+        if (estado) estado.textContent = 'La confirmación sigue pendiente. Debes leer y confirmar para continuar.';
     });
     obtenerElemento('enableAlertsButton').addEventListener('click', solicitarPermisoAlertas);
     obtenerElemento('remoteAlertOpen').addEventListener('click', abrirChecklistDesdeAlerta);
