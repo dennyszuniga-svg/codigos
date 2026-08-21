@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="gdh.css">
     <link rel="stylesheet" href="gdh-media.css">
     <link rel="stylesheet" href="gdh-expedientes.css">
+    <link rel="stylesheet" href="gdh-evaluaciones.css">
 </head>
 <body>
     <header class="gdh-header">
@@ -28,6 +29,7 @@
             <button class="active" type="button" data-gdh-tab="documentos">Mis documentos</button>
             <button type="button" data-gdh-tab="comunicados">Comunicados</button>
             <button type="button" data-gdh-tab="expedientes" id="gdhFilesTab" hidden>Expedientes</button>
+            <button type="button" data-gdh-tab="evaluaciones" id="gdhEvaluationsTab">Evaluacion</button>
             <button type="button" data-gdh-tab="gestion" id="gdhManagementTab" hidden>Gestion GDH</button>
         </nav>
 
@@ -54,6 +56,34 @@
             </div>
             <div class="directory-summary" id="personnelFileSummary" aria-live="polite"></div>
             <div class="personnel-directory" id="personnelDirectory" aria-live="polite"></div>
+        </section>
+
+        <section class="gdh-panel evaluation-panel" data-gdh-panel="evaluaciones" hidden>
+            <div class="panel-heading evaluation-heading">
+                <div><p>Desarrollo de personas</p><h2>Evaluacion anual de desempeno</h2></div>
+                <div class="heading-actions">
+                    <button type="button" class="secondary-button" id="exportEvaluationsExcel" hidden>Generar Excel</button>
+                    <button type="button" class="secondary-button" id="refreshEvaluations">Actualizar</button>
+                </div>
+            </div>
+            <div class="evaluation-welcome">
+                <strong>Evaluar con objetividad</strong>
+                <p>Reconoce fortalezas, identifica oportunidades de mejora y promueve el desarrollo continuo del equipo UrbaPark.</p>
+                <div class="score-legend" aria-label="Escala de evaluacion"><span><b>1</b> Malo</span><span><b>2</b> Regular</span><span><b>3</b> Bueno</span><span><b>4</b> Muy bueno</span></div>
+            </div>
+            <div id="evaluationManagerArea" hidden>
+                <div class="evaluation-filters">
+                    <label>Periodo<select id="evaluationYear"></select></label>
+                    <label>Sede<select id="evaluationSite"></select></label>
+                    <label>Buscar<input id="evaluationSearch" type="search" placeholder="Apellidos, nombres o DNI"></label>
+                </div>
+                <div class="evaluation-metrics" id="evaluationMetrics"></div>
+                <div class="evaluation-people" id="evaluationPeople" aria-live="polite"></div>
+            </div>
+            <section class="evaluation-history">
+                <div class="panel-heading"><div><p>Seguimiento</p><h2 id="evaluationHistoryTitle">Mis evaluaciones</h2></div></div>
+                <div id="evaluationHistory" class="card-list" aria-live="polite"></div>
+            </section>
         </section>
 
         <section class="gdh-panel" data-gdh-panel="gestion" hidden>
@@ -210,9 +240,34 @@
         </div>
     </div>
 
+    <div class="viewer evaluation-viewer" id="evaluationViewer" hidden>
+        <div class="viewer-card evaluation-card" role="dialog" aria-modal="true" aria-labelledby="evaluationPersonName">
+            <button class="viewer-close" id="closeEvaluation" type="button" aria-label="Cerrar evaluacion">&times;</button>
+            <header class="evaluation-person-header">
+                <div class="evaluation-avatar" id="evaluationAvatar" aria-hidden="true"></div>
+                <div><p>Evaluacion de desempeno <span id="evaluationPeriodLabel"></span></p><h2 id="evaluationPersonName"></h2><div id="evaluationPersonMeta" class="evaluation-person-meta"></div></div>
+            </header>
+            <div class="evaluation-progress-block"><div><strong id="evaluationProgressText">0 de 13 categorias</strong><span id="evaluationProgressPercent">0%</span></div><progress id="evaluationProgress" max="13" value="0"></progress></div>
+            <div class="evaluation-workspace">
+                <nav id="evaluationCategoryNav" class="evaluation-category-nav" aria-label="Categorias de evaluacion"></nav>
+                <section id="evaluationCategoryContent" class="evaluation-category-content"></section>
+            </div>
+            <section id="evaluationFinalSection" class="evaluation-final-section" hidden>
+                <h3>Resumen de la evaluacion</h3>
+                <div class="evaluation-result" id="evaluationResult"></div>
+                <label>Fortalezas<textarea id="evaluationStrengths" rows="3" maxlength="1500" placeholder="Principales fortalezas observadas"></textarea></label>
+                <label>Oportunidades de mejora<textarea id="evaluationOpportunities" rows="3" maxlength="1500" placeholder="Aspectos que requieren desarrollo"></textarea></label>
+                <label>Plan de accion<textarea id="evaluationActionPlan" rows="3" maxlength="1500" placeholder="Compromisos, responsables y seguimiento"></textarea></label>
+                <label>Observacion general<textarea id="evaluationGeneralComment" rows="3" maxlength="1500" placeholder="Comentario final opcional"></textarea></label>
+                <div class="evaluation-final-actions"><button type="button" class="secondary-button danger-button" id="discardEvaluation">Eliminar avance</button><button type="button" class="primary-button" id="finishEvaluation">Finalizar evaluacion</button></div>
+            </section>
+        </div>
+    </div>
+
     <div id="gdhToast" class="toast" role="status" aria-live="polite" hidden></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="assets/xlsx.full.min.js"></script>
+    <script src="gdh-evaluaciones.js"></script>
     <script src="gdh.js"></script>
 </body>
 </html>

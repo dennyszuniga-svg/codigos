@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codigos-urbapark-v141';
+const CACHE_NAME = 'codigos-urbapark-v142';
 const APP_SHELL = [
     './',
     './index.html',
@@ -22,6 +22,8 @@ const APP_SHELL = [
     './gdh.css',
     './gdh-media.css',
     './gdh-expedientes.css',
+    './gdh-evaluaciones.css',
+    './gdh-evaluaciones.js',
     './gdh.js',
     './manifest.webmanifest',
     './assets/urbapark-logo.png',

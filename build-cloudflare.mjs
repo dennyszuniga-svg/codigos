@@ -21,6 +21,8 @@ const publicFiles = [
   "gdh.css",
   "gdh-media.css",
   "gdh-expedientes.css",
+  "gdh-evaluaciones.css",
+  "gdh-evaluaciones.js",
   "gdh.js"
 ];
 
