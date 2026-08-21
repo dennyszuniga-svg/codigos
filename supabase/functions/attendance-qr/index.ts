@@ -92,7 +92,7 @@ Deno.serve(async req => {
       const { data: enrolled } = await admin.from('asistencia_biometria').select('descriptor,activa').eq('user_id', user.id).maybeSingle();
       if (!enrolled?.activa) return json({ error: 'Primero registra tu rostro en la aplicacion.' }, 409);
       const matchDistance = facialDistance(enrolled.descriptor, body.descriptor);
-      if (matchDistance > 0.48) return json({ error: 'El rostro no coincide con el registro. Intenta con mejor iluminacion.' }, 403);
+      if (matchDistance > 0.58) return json({ error: 'El rostro no coincide con el registro. Mira de frente y mejora la iluminacion.' }, 403);
       const lat = Number(body.latitude);
       const lon = Number(body.longitude);
       const accuracy = Number(body.accuracy || 9999);
