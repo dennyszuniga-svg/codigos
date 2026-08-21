@@ -1,6 +1,6 @@
 const CONFIG={url:'https://uibiwhkxlyxdfytvudbn.supabase.co',key:'sb_publishable_R-auhGcSmwSl-1U9WdGe3g_ZYm5BZEt'};
 const client=window.supabase.createClient(CONFIG.url,CONFIG.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
-const $=id=>document.getElementById(id);let session=null,profile=null,sites=[],shifts=[],people=[],qrTimer=null,qrSeconds=0,scannerStream=null,scannerFrame=null,markType='entrada';
+const $=id=>document.getElementById(id);let session=null,profile=null,sites=[],shifts=[],people=[],qrTimer=null,qrSeconds=0,scannerStream=null,scannerFrame=null,markType='entrada',biometric=null,faceStream=null,faceMode='enroll',faceMarkType='entrada',faceSamples=[],faceModelsReady=false;
 const siteName=id=>sites.find(site=>site.codigo===id)?.nombre||id;
 const dateIso=date=>{const copy=new Date(date);copy.setMinutes(copy.getMinutes()-copy.getTimezoneOffset());return copy.toISOString().slice(0,10)};
 const mondayOf=value=>{const date=new Date(`${value||dateIso(new Date())}T12:00:00`);const day=date.getDay()||7;date.setDate(date.getDate()-day+1);return date};
@@ -25,6 +25,7 @@ async function init(){
  if(siteResult.error||shiftResult.error){status('No se pudo cargar la configuracion de asistencia.',true);return}
  sites=siteResult.data||[];shifts=shiftResult.data||[];$('attendanceUser').textContent=`${profile.apellidos_nombres||profile.nombre}${profile.dni?` - DNI ${profile.dni}`:''} - ${profile.rol}`;$('attendanceApp').hidden=false;
  if(['anfitrion','tecnico','supervisor','fortaleza'].includes(profile.rol)){$('workerPanel').hidden=false;await loadWorker()}
+ $('biometricPanel').hidden=false;$('faceOfficialActions').hidden=!['anfitrion','tecnico','supervisor','fortaleza'].includes(profile.rol);$('faceTest').hidden=!isManager();await loadBiometric();
  if(isManager()){$('adminPanel').hidden=false;['qrSite','scheduleSite','summarySite'].forEach(id=>fillSiteSelect($(id),isGlobalRole()?'puruchuco':profile.sede));$('scheduleWeek').value=dateIso(schedulingMonday());$('summaryMonth').value=dateIso(new Date()).slice(0,7);await loadSchedule()}
  status('Asistencia lista.');
 }
@@ -40,6 +41,7 @@ async function loadWorker(){
  const todaySchedule=map.get(today);const todayRecord=recordMap.get(today)||(records||[]).find(item=>!item.salida_at);const box=$('todayShift');clear(box);const strong=document.createElement('strong'),text=document.createElement('span');
  strong.textContent=todaySchedule?.estado==='programado'?(todaySchedule.asistencia_turnos?.nombre||'Turno programado'):'Sin turno programado hoy';text.textContent=todaySchedule?.estado==='programado'?`${siteName(todaySchedule.sede)} | Refrigerio ${todaySchedule.asistencia_turnos?.refrigerio_minutos||0} min${todaySchedule.asistencia_turnos?.es_nocturno?' | Turno nocturno':''}`:'Solicita al administrador que programe tu semana.';box.append(strong,text);
  const canEnter=Boolean(todaySchedule&&todaySchedule.estado==='programado'&&!todayRecord?.entrada_at);const canExit=Boolean(todayRecord?.entrada_at&&!todayRecord?.salida_at);$('markEntry').disabled=!canEnter;$('markExit').disabled=!canExit;
+ if($('faceEntry'))$('faceEntry').disabled=!canEnter||!biometric;if($('faceExit'))$('faceExit').disabled=!canExit||!biometric;
  const help=$('markHelp');help.className='mark-help';
  if(!todaySchedule||todaySchedule.estado!=='programado'){help.textContent='Marcacion bloqueada: el administrador debe asignarte un turno para hoy.';help.classList.add('warning')}
  else if(canEnter)help.textContent='Turno programado. Pulsa Marcar entrada para abrir la camara y escanear el QR.';
@@ -132,10 +134,38 @@ function closeScanner(){if(scannerFrame)cancelAnimationFrame(scannerFrame);scann
 function scanFrame(){const video=$('scannerVideo'),canvas=$('scannerCanvas');if(video.readyState>=2){canvas.width=video.videoWidth;canvas.height=video.videoHeight;const context=canvas.getContext('2d',{willReadFrequently:true});context.drawImage(video,0,0);const image=context.getImageData(0,0,canvas.width,canvas.height);const code=window.jsQR?.(image.data,image.width,image.height);if(code?.data?.startsWith('URBAPARK_ATTENDANCE:')){closeScanner();markAttendance(code.data);return}}scannerFrame=requestAnimationFrame(scanFrame)}
 function currentPosition(){return new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,maximumAge:0,timeout:20000}))}
 async function markAttendance(token){status('Validando ubicacion y hora oficial...');try{const position=await currentPosition();const {data,error}=await client.functions.invoke('attendance-qr',{body:{action:'mark',type:markType,token,latitude:position.coords.latitude,longitude:position.coords.longitude,accuracy:position.coords.accuracy}});if(error||data?.error){status(data?.error||'No se pudo registrar la marcacion.',true);return}status(`${markType==='entrada'?'Entrada':'Salida'} registrada. Distancia a sede: ${data.distance} m.`);await loadWorker()}catch(error){status(error?.message||'No se pudo obtener una ubicacion precisa.',true)}}
+
+async function loadBiometric(){
+ const {data,error}=await client.from('asistencia_biometria').select('user_id,updated_at,activa').eq('user_id',session.user.id).maybeSingle();
+ biometric=!error&&data?.activa?data:null;const badge=$('biometricBadge');badge.textContent=biometric?'Rostro registrado':'Sin registrar';badge.classList.toggle('ready',Boolean(biometric));$('deleteFace').hidden=!biometric;$('enrollFace').textContent=biometric?'Volver a registrar mi rostro':'Registrar mi rostro';
+ $('faceTest').disabled=!biometric;if(!$('faceOfficialActions').hidden){$('faceHelp').textContent=biometric?'Puedes marcar con rostro o continuar usando el QR como respaldo.':'Primero registra tu rostro para habilitar la marcacion facial.';await loadWorker()}else $('faceHelp').textContent=biometric?'Tu rostro esta listo. Usa el boton de prueba para validar este celular.':'Registra tu rostro y enviaremos una marcacion de prueba sin afectar el reporte laboral.';
+}
+async function loadFaceModels(){
+ if(faceModelsReady)return;if(!window.faceapi)throw new Error('No se pudo cargar el reconocimiento facial.');
+ $('faceModalStatus').textContent='Preparando reconocimiento facial...';const base='./assets/face-models';await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(base),faceapi.nets.faceLandmark68TinyNet.loadFromUri(base),faceapi.nets.faceRecognitionNet.loadFromUri(base)]);faceModelsReady=true;
+}
+async function openFace(mode,type='entrada'){
+ faceMode=mode;faceMarkType=type;faceSamples=[];$('faceModal').hidden=false;$('faceConsentRow').hidden=mode!=='enroll';$('faceConsent').checked=false;$('faceModalTitle').textContent=mode==='enroll'?'Registrar mi rostro':mode==='test'?'Prueba de marcacion facial':`${type==='entrada'?'Entrada':'Salida'} con rostro`;$('captureFace').textContent=mode==='enroll'?'Capturar muestra 1 de 3':'Verificar y marcar';$('faceModalStatus').textContent='Preparando camara...';
+ try{await loadFaceModels();faceStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:720},height:{ideal:960}},audio:false});$('faceVideo').srcObject=faceStream;await $('faceVideo').play();$('faceModalStatus').textContent='Mira de frente, sin gorra ni lentes oscuros, y mantente dentro del marco.'}catch(error){$('faceModalStatus').textContent=error?.message||'No se pudo abrir la camara. Revisa el permiso.'}
+}
+function closeFace(){if(faceStream)faceStream.getTracks().forEach(track=>track.stop());faceStream=null;$('faceVideo').srcObject=null;$('faceModal').hidden=true;$('faceModal').querySelector('.face-card').classList.remove('busy')}
+async function readFaceDescriptor(){
+ const results=await faceapi.detectAllFaces($('faceVideo'),new faceapi.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:.58})).withFaceLandmarks(true).withFaceDescriptors();
+ if(!results.length)throw new Error('No se detecto un rostro. Acercate y mejora la iluminacion.');if(results.length>1)throw new Error('Debe aparecer una sola persona en la camara.');return Array.from(results[0].descriptor);
+}
+function averageFaceSamples(samples){const average=new Array(128).fill(0);samples.forEach(sample=>sample.forEach((value,index)=>average[index]+=value/samples.length));const norm=Math.sqrt(average.reduce((sum,value)=>sum+value*value,0))||1;return average.map(value=>Number((value/norm).toFixed(8)))}
+async function captureFace(){
+ const card=$('faceModal').querySelector('.face-card');if(card.classList.contains('busy'))return;if(faceMode==='enroll'&&!$('faceConsent').checked){$('faceModalStatus').textContent='Marca la autorizacion para continuar.';return}card.classList.add('busy');
+ try{const descriptor=await readFaceDescriptor();if(faceMode==='enroll'){faceSamples.push(descriptor);if(faceSamples.length<3){$('faceModalStatus').textContent=`Muestra ${faceSamples.length} correcta. Mueve ligeramente el rostro y toma la siguiente.`;$('captureFace').textContent=`Capturar muestra ${faceSamples.length+1} de 3`;return}const {error}=await client.from('asistencia_biometria').upsert({user_id:session.user.id,descriptor:averageFaceSamples(faceSamples),modelo:'face-api-0.22.2',consentimiento_at:new Date().toISOString(),activa:true,updated_at:new Date().toISOString()},{onConflict:'user_id'});if(error)throw error;closeFace();status('Rostro registrado correctamente.');await loadBiometric();return}
+  $('faceModalStatus').textContent='Validando rostro, ubicacion y hora oficial...';const position=await currentPosition();const action=faceMode==='test'?'face-test':'face-mark';const {data,error}=await client.functions.invoke('attendance-qr',{body:{action,type:faceMarkType,descriptor,latitude:position.coords.latitude,longitude:position.coords.longitude,accuracy:position.coords.accuracy}});if(error||data?.error)throw new Error(data?.error||'No se pudo completar la marcacion facial.');closeFace();if(faceMode==='test')status(`Prueba facial aprobada en ${data.site}. Coincidencia correcta y distancia a sede: ${data.distance} m.`);else{status(`${faceMarkType==='entrada'?'Entrada':'Salida'} facial registrada. Distancia a sede: ${data.distance} m.`);await loadWorker()}
+ }catch(error){$('faceModalStatus').textContent=error?.message||'No se pudo validar el rostro.'}finally{card.classList.remove('busy')}
+}
+async function deleteBiometric(){if(!confirm('¿Eliminar tu registro facial? La marcacion por QR seguira disponible.'))return;const {error}=await client.from('asistencia_biometria').delete().eq('user_id',session.user.id);if(error){status(error.message,true);return}status('Registro facial eliminado.');await loadBiometric()}
 function escapeHtml(value){return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;')}
 
 document.querySelector('.admin-tabs')?.addEventListener('click',event=>{const button=event.target.closest('[data-attendance-tab]');if(button)switchTab(button.dataset.attendanceTab)});
 $('refreshWorker')?.addEventListener('click',loadWorker);$('markEntry')?.addEventListener('click',()=>openScanner('entrada'));$('markExit')?.addEventListener('click',()=>openScanner('salida'));$('closeScanner')?.addEventListener('click',closeScanner);
+$('enrollFace')?.addEventListener('click',()=>openFace('enroll'));$('deleteFace')?.addEventListener('click',deleteBiometric);$('faceEntry')?.addEventListener('click',()=>openFace('mark','entrada'));$('faceExit')?.addEventListener('click',()=>openFace('mark','salida'));$('faceTest')?.addEventListener('click',()=>openFace('test'));$('captureFace')?.addEventListener('click',captureFace);$('closeFace')?.addEventListener('click',closeFace);
 $('startQr')?.addEventListener('click',startQr);$('stopQr')?.addEventListener('click',stopQr);$('qrSite')?.addEventListener('change',()=>{if(qrTimer)generateQr()});$('loadSchedule')?.addEventListener('click',loadSchedule);$('saveSchedule')?.addEventListener('click',saveSchedule);$('loadSummary')?.addEventListener('click',loadSummary);$('exportSummaryExcel')?.addEventListener('click',exportarResumenAsistenciaExcel);
 $('pendingExtras')?.addEventListener('click',event=>{const approve=event.target.closest('[data-approve-extra]'),reject=event.target.closest('[data-reject-extra]');if(approve){const value=Number(approve.closest('.extra-actions').querySelector('input').value);approveExtra(approve,value)}else if(reject)approveExtra(reject,0)});
-window.addEventListener('pagehide',()=>{stopQr();closeScanner()});init();
+window.addEventListener('pagehide',()=>{stopQr();closeScanner();closeFace()});init();

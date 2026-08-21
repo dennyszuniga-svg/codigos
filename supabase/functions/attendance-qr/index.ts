@@ -59,6 +59,18 @@ function scheduledDate(date: string, time: string) {
   return new Date(`${date}T${time.slice(0, 8)}-05:00`);
 }
 
+function facialDistance(first: unknown, second: unknown) {
+  if (!Array.isArray(first) || !Array.isArray(second) || first.length !== 128 || second.length !== 128) throw new Error('Plantilla facial no valida.');
+  let total = 0;
+  for (let index = 0; index < 128; index += 1) {
+    const a = Number(first[index]);
+    const b = Number(second[index]);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error('Plantilla facial no valida.');
+    total += (a - b) ** 2;
+  }
+  return Math.sqrt(total);
+}
+
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
@@ -75,6 +87,80 @@ Deno.serve(async req => {
     const { data: profile } = await admin.from('profiles').select('id,nombre,rol,sede,activo').eq('id', user.id).single();
     if (!profile?.activo) return json({ error: 'Usuario inactivo.' }, 403);
     const body = await req.json();
+
+    if (body.action === 'face-test' || body.action === 'face-mark') {
+      const { data: enrolled } = await admin.from('asistencia_biometria').select('descriptor,activa').eq('user_id', user.id).maybeSingle();
+      if (!enrolled?.activa) return json({ error: 'Primero registra tu rostro en la aplicacion.' }, 409);
+      const matchDistance = facialDistance(enrolled.descriptor, body.descriptor);
+      if (matchDistance > 0.48) return json({ error: 'El rostro no coincide con el registro. Intenta con mejor iluminacion.' }, 403);
+      const lat = Number(body.latitude);
+      const lon = Number(body.longitude);
+      const accuracy = Number(body.accuracy || 9999);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return json({ error: 'Ubicacion no valida.' }, 400);
+      if (accuracy > 100) return json({ error: 'La precision del GPS es insuficiente. Acercate a una zona abierta.' }, 400);
+      const now = new Date();
+
+      if (body.action === 'face-test') {
+        const { data: activeSites } = await admin.from('asistencia_sedes').select('*').eq('activa', true);
+        const nearest = (activeSites || []).map(site => ({ site, distance: distanceMeters(lat, lon, site.latitud, site.longitud) })).sort((a, b) => a.distance - b.distance)[0];
+        if (!nearest) return json({ error: 'No hay sedes configuradas.' }, 404);
+        if (nearest.distance > nearest.site.radio_metros) return json({ error: `Estas a ${Math.round(nearest.distance)} m de ${nearest.site.nombre}. El limite es ${nearest.site.radio_metros} m.` }, 403);
+        const { error } = await admin.from('asistencia_pruebas_faciales').insert({ user_id: user.id, sede: nearest.site.codigo, distancia_facial: matchDistance, latitud: lat, longitud: lon, precision_m: accuracy, distancia_sede_m: nearest.distance });
+        if (error) throw error;
+        return json({ ok: true, test: true, site: nearest.site.nombre, distance: Math.round(nearest.distance), faceDistance: matchDistance });
+      }
+
+      if (!['anfitrion', 'tecnico', 'supervisor', 'fortaleza'].includes(profile.rol)) return json({ error: 'Tu cuenta solo puede enviar una marcacion facial de prueba.' }, 403);
+      const type = String(body.type || 'entrada');
+      if (type === 'entrada') {
+        const date = limaDate(now);
+        const { data: schedules } = await admin.from('asistencia_programacion')
+          .select('id,user_id,sede,fecha,estado,asistencia_turnos(id,nombre,hora_inicio,hora_fin,refrigerio_minutos,minutos_jornada,es_nocturno)')
+          .eq('user_id', user.id).in('fecha', [date, previousDate(date)]);
+        const schedule = schedules?.find(item => item.fecha === date)
+          || schedules?.find(item => item.fecha === previousDate(date) && item.asistencia_turnos?.es_nocturno);
+        if (!schedule || schedule.estado !== 'programado' || !schedule.asistencia_turnos) return json({ error: 'No tienes un turno programado hoy.' }, 409);
+        const { data: site } = await admin.from('asistencia_sedes').select('*').eq('codigo', schedule.sede).eq('activa', true).single();
+        if (!site) return json({ error: 'Sede no configurada.' }, 404);
+        const siteDistance = distanceMeters(lat, lon, site.latitud, site.longitud);
+        if (siteDistance > site.radio_metros) return json({ error: `Estas a ${Math.round(siteDistance)} m de la sede. El limite es ${site.radio_metros} m.` }, 403);
+        const { data: existing } = await admin.from('asistencia_registros').select('id').eq('programacion_id', schedule.id).maybeSingle();
+        if (existing) return json({ error: 'La entrada de este turno ya fue registrada.' }, 409);
+        const start = scheduledDate(schedule.fecha, schedule.asistencia_turnos.hora_inicio);
+        const late = Math.max(0, Math.ceil((now.getTime() - start.getTime()) / 60000));
+        const { data: record, error } = await admin.from('asistencia_registros').insert({
+          programacion_id: schedule.id, user_id: user.id, sede: schedule.sede, fecha_laboral: schedule.fecha,
+          entrada_at: now.toISOString(), entrada_lat: lat, entrada_lon: lon, entrada_precision_m: accuracy,
+          distancia_entrada_m: Math.round(siteDistance * 100) / 100, minutos_tardanza: late,
+          metodo_entrada: 'facial', distancia_facial_entrada: matchDistance,
+        }).select('id,entrada_at').single();
+        if (error) throw error;
+        return json({ ok: true, type, record, distance: Math.round(siteDistance), faceDistance: matchDistance, lateMinutes: late });
+      }
+
+      if (type === 'salida') {
+        const { data: record } = await admin.from('asistencia_registros')
+          .select('*,asistencia_programacion(fecha,asistencia_turnos(hora_inicio,hora_fin,refrigerio_minutos,minutos_jornada))')
+          .eq('user_id', user.id).is('salida_at', null).order('entrada_at', { ascending: false }).limit(1).maybeSingle();
+        if (!record) return json({ error: 'No existe una entrada abierta para registrar salida.' }, 409);
+        const { data: site } = await admin.from('asistencia_sedes').select('*').eq('codigo', record.sede).eq('activa', true).single();
+        if (!site) return json({ error: 'Sede no configurada.' }, 404);
+        const siteDistance = distanceMeters(lat, lon, site.latitud, site.longitud);
+        if (siteDistance > site.radio_metros) return json({ error: `Estas a ${Math.round(siteDistance)} m de la sede. El limite es ${site.radio_metros} m.` }, 403);
+        const shift = record.asistencia_programacion?.asistencia_turnos;
+        const worked = Math.max(0, Math.floor((now.getTime() - new Date(record.entrada_at).getTime()) / 60000) - Number(shift?.refrigerio_minutos || 60));
+        const extraHours = Math.floor(Math.max(0, worked - Number(shift?.minutos_jornada || 480)) / 60);
+        const { data: updated, error } = await admin.from('asistencia_registros').update({
+          salida_at: now.toISOString(), salida_lat: lat, salida_lon: lon, salida_precision_m: accuracy,
+          distancia_salida_m: Math.round(siteDistance * 100) / 100, minutos_trabajados: worked,
+          horas_extra_solicitadas: extraHours, estado_extra: extraHours > 0 ? 'pendiente' : 'sin_extra',
+          metodo_salida: 'facial', distancia_facial_salida: matchDistance, updated_at: now.toISOString(),
+        }).eq('id', record.id).select('id,salida_at,minutos_trabajados,horas_extra_solicitadas,estado_extra').single();
+        if (error) throw error;
+        return json({ ok: true, type, record: updated, distance: Math.round(siteDistance), faceDistance: matchDistance });
+      }
+      return json({ error: 'Tipo de marcacion no valido.' }, 400);
+    }
 
     if (body.action === 'generate') {
       const site = String(body.site || '');

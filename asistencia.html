@@ -12,6 +12,7 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="assets/face-api.min.js"></script>
   <script src="asistencia.js" defer></script>
 </head>
 <body>
@@ -31,6 +32,24 @@
       </div>
       <p id="markHelp" class="mark-help" role="status"></p>
       <h3>Programación semanal</h3><div id="workerWeek" class="week-list"></div>
+    </section>
+
+    <section id="biometricPanel" class="attendance-panel biometric-panel" hidden>
+      <div class="section-heading">
+        <div><p class="eyebrow">PRUEBA CONTROLADA</p><h2>Marcación facial</h2></div>
+        <span id="biometricBadge" class="biometric-badge">Sin registrar</span>
+      </div>
+      <p class="helper">El teléfono procesa tu rostro y guarda únicamente una plantilla matemática. No se almacena la fotografía.</p>
+      <div class="biometric-actions">
+        <button id="enrollFace" type="button">Registrar mi rostro</button>
+        <button id="deleteFace" type="button" class="secondary" hidden>Eliminar registro facial</button>
+      </div>
+      <div id="faceOfficialActions" class="mark-actions" hidden>
+        <button id="faceEntry" type="button">Entrada con rostro</button>
+        <button id="faceExit" type="button" class="exit">Salida con rostro</button>
+      </div>
+      <button id="faceTest" type="button" class="face-test" hidden>Enviar marcación facial de prueba</button>
+      <p id="faceHelp" class="mark-help" role="status" aria-live="polite"></p>
     </section>
 
     <section id="adminPanel" class="attendance-panel" hidden>
@@ -58,6 +77,16 @@
 
   <section id="scannerModal" class="scanner-modal" hidden aria-modal="true" role="dialog" aria-labelledby="scannerTitle">
     <div class="scanner-card"><button id="closeScanner" class="close" type="button" aria-label="Cerrar">&times;</button><h2 id="scannerTitle">Escanea el QR de la sede</h2><video id="scannerVideo" playsinline muted></video><canvas id="scannerCanvas" hidden></canvas><p id="scannerStatus">Activa la cámara y apunta al QR.</p></div>
+  </section>
+  <section id="faceModal" class="scanner-modal" hidden aria-modal="true" role="dialog" aria-labelledby="faceModalTitle">
+    <div class="scanner-card face-card">
+      <button id="closeFace" class="close" type="button" aria-label="Cerrar">&times;</button>
+      <h2 id="faceModalTitle">Verificación facial</h2>
+      <div class="face-camera"><video id="faceVideo" playsinline muted></video><div class="face-guide" aria-hidden="true"></div></div>
+      <label id="faceConsentRow" class="face-consent"><input id="faceConsent" type="checkbox"> Autorizo el registro de mi plantilla facial para esta prueba de asistencia.</label>
+      <p id="faceModalStatus" role="status" aria-live="polite">Mira de frente y mantén el rostro dentro del marco.</p>
+      <button id="captureFace" type="button">Capturar rostro</button>
+    </div>
   </section>
 </body>
 </html>
