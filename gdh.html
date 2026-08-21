@@ -8,6 +8,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
     <link rel="stylesheet" href="gdh.css">
     <link rel="stylesheet" href="gdh-media.css">
+    <link rel="stylesheet" href="gdh-expedientes.css">
 </head>
 <body>
     <header class="gdh-header">
@@ -26,6 +27,7 @@
         <nav class="gdh-tabs" aria-label="Secciones de GDH">
             <button class="active" type="button" data-gdh-tab="documentos">Mis documentos</button>
             <button type="button" data-gdh-tab="comunicados">Comunicados</button>
+            <button type="button" data-gdh-tab="expedientes" id="gdhFilesTab" hidden>Expedientes</button>
             <button type="button" data-gdh-tab="gestion" id="gdhManagementTab" hidden>Gestion GDH</button>
         </nav>
 
@@ -40,13 +42,27 @@
             <div class="card-list" id="announcementsList" aria-live="polite"></div>
         </section>
 
+        <section class="gdh-panel personnel-directory-panel" data-gdh-panel="expedientes" hidden>
+            <div class="panel-heading">
+                <div><p>Archivo digital</p><h2>Expedientes por colaborador</h2></div>
+                <button type="button" class="secondary-button" id="refreshPersonnelFiles">Actualizar</button>
+            </div>
+            <div class="directory-filters">
+                <label>Sede<select id="personnelFileSite"></select></label>
+                <label>Personal<select id="personnelFileRole"><option value="anfitrion">Anfitriones</option><option value="todos">Todos los roles</option></select></label>
+                <label>Buscar<input id="personnelFileSearch" type="search" placeholder="Nombre o DNI"></label>
+            </div>
+            <div class="directory-summary" id="personnelFileSummary" aria-live="polite"></div>
+            <div class="personnel-directory" id="personnelDirectory" aria-live="polite"></div>
+        </section>
+
         <section class="gdh-panel" data-gdh-panel="gestion" hidden>
             <div class="management-grid">
                 <form class="tool-panel" id="documentUploadForm">
                     <p>Expediente digital</p><h2>Cargar documento</h2>
                     <label>Colaborador<select id="documentUser" required></select></label>
                     <div class="form-grid">
-                        <label>Categoria<select id="documentCategory" required><option value="boleta">Boleta</option><option value="contrato">Contrato</option><option value="formulario">Formulario firmado</option><option value="constancia">Constancia</option><option value="politica">Politica o reglamento</option><option value="otro">Otro</option></select></label>
+                        <label>Categoria<select id="documentCategory" required><option value="reclutamiento">Reclutamiento y seleccion</option><option value="datos_personales">Datos personales</option><option value="familiares">Familiares directos</option><option value="experiencia">Experiencia laboral</option><option value="formacion">Formacion y capacitacion</option><option value="ingreso">Documentos de ingreso</option><option value="contrato">Contrato y anexos</option><option value="organizacional">Documentos organizacionales</option><option value="politica">Politicas y reglamentos</option><option value="sst">Seguridad y salud en el trabajo</option><option value="desempeno">Evaluacion de desempeno</option><option value="disciplinario">Gestion disciplinaria</option><option value="boleta">Boleta</option><option value="formulario">Formulario firmado</option><option value="constancia">Constancia</option><option value="otro">Otro</option></select></label>
                         <label>Periodo<input id="documentPeriod" type="month"></label>
                     </div>
                     <label>Titulo<input id="documentTitle" type="text" maxlength="180" required placeholder="Ej. Boleta de julio 2026"></label>
@@ -178,6 +194,19 @@
             <p id="documentViewerTag">Documento laboral</p><h2 id="documentViewerTitle"></h2>
             <div id="documentViewerContent"></div>
             <div class="viewer-actions" id="documentViewerActions"></div>
+        </div>
+    </div>
+
+    <div class="viewer personnel-file-viewer" id="personnelFileViewer" hidden>
+        <div class="viewer-card personnel-file-card" role="dialog" aria-modal="true" aria-labelledby="personnelFileName">
+            <button class="viewer-close" id="closePersonnelFile" type="button" aria-label="Cerrar expediente">&times;</button>
+            <header class="personnel-file-header">
+                <div class="personnel-avatar" id="personnelFileAvatar" aria-hidden="true"></div>
+                <div><p>Expediente laboral</p><h2 id="personnelFileName"></h2><div class="personnel-file-meta" id="personnelFileMeta"></div></div>
+            </header>
+            <div class="personnel-file-stats" id="personnelFileStats"></div>
+            <div class="personnel-file-actions"><button type="button" class="primary-button" id="addPersonnelDocument">Agregar documento</button></div>
+            <div class="personnel-file-groups" id="personnelFileGroups"></div>
         </div>
     </div>
 
