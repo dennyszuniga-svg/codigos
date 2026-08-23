@@ -3164,26 +3164,95 @@ function cerrarPanelOcupabilidadOperaciones() {
     else establecerPanelOcupabilidadOperaciones(false);
 }
 
-const ZONAS_OCUPABILIDAD_SALAVERRY = Object.freeze([
-    { id: 'sotano-1', nombre: 'Sotano 1', tipo: 'vehiculos', capacidad: 273, color: '#2f75b5' },
-    { id: 'sotano-2', nombre: 'Sotano 2', tipo: 'vehiculos', capacidad: 398, color: '#ffc000' },
-    { id: 'sotano-3', nombre: 'Sotano 3', tipo: 'vehiculos', capacidad: 568, color: '#92d050' },
-    { id: 'sotano-4', nombre: 'Sotano 4', tipo: 'vehiculos', capacidad: 482, color: '#19a7d8' },
-    { id: 'parking-vip', nombre: 'Parking VIP', tipo: 'vehiculos', capacidad: 28, color: '#2f75b5' },
-    { id: 'bicicletas', nombre: 'Bicicletas', tipo: 'bicicletas', capacidad: 508, color: '#17212b' },
-    { id: 'motos', nombre: 'Motos', tipo: 'motos', capacidad: 107, color: '#17212b' }
-]);
+const CONFIGURACION_OCUPABILIDAD_SEDES = Object.freeze({
+    salaverry: Object.freeze({
+        nombre: 'Real Plaza Salaverry', archivo: 'Salaverry', aviso: '60% SE ABRE EL SIGUIENTE SÓTANO', mostrarYaris: false,
+        zonas: Object.freeze([
+            { id: 'sotano-1', nombre: 'Sótano 1', tipo: 'vehiculos', capacidad: 273, color: '#2f75b5' },
+            { id: 'sotano-2', nombre: 'Sótano 2', tipo: 'vehiculos', capacidad: 398, color: '#ffc000' },
+            { id: 'sotano-3', nombre: 'Sótano 3', tipo: 'vehiculos', capacidad: 568, color: '#92d050' },
+            { id: 'sotano-4', nombre: 'Sótano 4', tipo: 'vehiculos', capacidad: 482, color: '#19a7d8' },
+            { id: 'parking-vip', nombre: 'Parking VIP', tipo: 'vehiculos', capacidad: 28, color: '#2f75b5', textoClaro: true },
+            { id: 'bicicletas', nombre: 'Bicicletas', tipo: 'bicicletas', capacidad: 508, color: '#17212b' },
+            { id: 'motos', nombre: 'Motos', tipo: 'motos', capacidad: 107, color: '#17212b' }
+        ])
+    }),
+    puruchuco: Object.freeze({
+        nombre: 'Real Plaza Puruchuco', archivo: 'Puruchuco', aviso: 'CONTROL DE OCUPABILIDAD POR ZONAS', mostrarYaris: true,
+        zonas: Object.freeze([
+            { id: 'rojo', nombre: 'Rojo', tipo: 'vehiculos', capacidad: 225, color: '#ef1818' },
+            { id: 'verde', nombre: 'Verde', tipo: 'vehiculos', capacidad: 271, color: '#92d050' },
+            { id: 'azul', nombre: 'Azul', tipo: 'vehiculos', capacidad: 261, color: '#19a7d8' },
+            { id: 'naranja', nombre: 'Naranja', tipo: 'vehiculos', capacidad: 207, color: '#ed7d31' },
+            { id: 'rosado', nombre: 'Rosado', tipo: 'vehiculos', capacidad: 73, color: '#efb5ef' },
+            { id: 'amarillo', nombre: 'Amarillo', tipo: 'vehiculos', capacidad: 177, color: '#fff200' },
+            { id: 'externo-ipae', nombre: 'Externo IPAE', tipo: 'vehiculos', capacidad: 62, color: '#d9e2f3' },
+            { id: 'externo-paris', nombre: 'Externo Paris', tipo: 'vehiculos', capacidad: 100, color: '#f2f2f2' },
+            { id: 'externo-sodimac', nombre: 'Externo Sodimac', tipo: 'vehiculos', capacidad: 132, color: '#d9ead3' },
+            { id: 'externo-ripley', nombre: 'Externo Ripley', tipo: 'vehiculos', capacidad: 62, color: '#fce5cd' },
+            { id: 'zona-deck', nombre: 'Zona Deck', tipo: 'vehiculos', capacidad: 220, color: '#cfe2f3' },
+            { id: 'zona-helsinki', nombre: 'Zona Helsinki', tipo: 'vehiculos', capacidad: 56, color: '#ead1dc' },
+            { id: 'externo-smartfit', nombre: 'Externo Smartfit', tipo: 'vehiculos', capacidad: 54, color: '#d0e0e3' },
+            { id: 'zona-carga-vista-alegre', nombre: 'Zona de Carga Vista Alegre', tipo: 'vehiculos', capacidad: 85, color: '#fff2cc' },
+            { id: 'bicicletas-sodimac', nombre: 'Bicicletas Sodimac', tipo: 'bicicletas', capacidad: 144, color: '#17212b' },
+            { id: 'bicicletas-ipae', nombre: 'Bicicletas IPAE', tipo: 'bicicletas', capacidad: 64, color: '#17212b' },
+            { id: 'motos-rojo', nombre: 'Motos (Rojo)', tipo: 'motos', capacidad: 205, color: '#17212b' },
+            { id: 'motos-ipae', nombre: 'Motos IPAE', tipo: 'motos', capacidad: 58, color: '#17212b' },
+            { id: 'mototaxis-rosado', nombre: 'Mototaxis Rosado', tipo: 'motos', capacidad: 29, color: '#17212b' }
+        ])
+    }),
+    civico: Object.freeze({
+        nombre: 'Real Plaza Cívico', archivo: 'Civico', aviso: 'OCUPABILIDAD REAL PLAZA CÍVICO', mostrarYaris: false,
+        zonas: Object.freeze([
+            { id: 'sotano-1', nombre: 'Sótano 1', tipo: 'vehiculos', capacidad: 169, color: '#2f75b5' },
+            { id: 'sotano-2', nombre: 'Sótano 2', tipo: 'vehiculos', capacidad: 332, color: '#19a7d8' },
+            { id: 'bicicletas', nombre: 'Bicicletas', tipo: 'bicicletas', capacidad: 220, color: '#17212b' },
+            { id: 'motos', nombre: 'Motos', tipo: 'motos', capacidad: 54, color: '#17212b' }
+        ])
+    }),
+    gama: Object.freeze({
+        nombre: 'GAMA', archivo: 'GAMA', aviso: 'OCUPABILIDAD GAMA', mostrarYaris: false,
+        zonas: Object.freeze([
+            { id: 'sotano-1', nombre: 'Sótano 1', tipo: 'vehiculos', capacidad: 283, color: '#2f75b5' },
+            { id: 'sotano-2', nombre: 'Sótano 2', tipo: 'vehiculos', capacidad: 151, color: '#ffc000' },
+            { id: 'motos', nombre: 'Motos', tipo: 'motos', capacidad: 40, color: '#17212b' }
+        ])
+    }),
+    primavera: Object.freeze({
+        nombre: 'Real Plaza Primavera', archivo: 'Primavera', aviso: '60% SE ABRE EL SIGUIENTE SÓTANO', mostrarYaris: false,
+        zonas: Object.freeze([
+            { id: 'sotano-1', nombre: 'Sótano 1', tipo: 'vehiculos', capacidad: 114, color: '#2f75b5' },
+            { id: 'sotano-2', nombre: 'Sótano 2', tipo: 'vehiculos', capacidad: 189, color: '#ffc000' },
+            { id: 'sotano-3', nombre: 'Sótano 3', tipo: 'vehiculos', capacidad: 195, color: '#92d050' },
+            { id: 'sotano-4', nombre: 'Sótano 4', tipo: 'vehiculos', capacidad: 134, color: '#19a7d8' },
+            { id: 'bicicletas', nombre: 'Bicicletas', tipo: 'bicicletas', capacidad: 147, color: '#17212b' },
+            { id: 'motos', nombre: 'Motos', tipo: 'motos', capacidad: 60, color: '#17212b' }
+        ])
+    })
+});
+
+function obtenerConfiguracionOcupabilidad(sede = obtenerSedeOcupabilidad()) {
+    return CONFIGURACION_OCUPABILIDAD_SEDES[sede] || CONFIGURACION_OCUPABILIDAD_SEDES.salaverry;
+}
 
 function configurarSelectSedesOcupabilidad() {
     const select = obtenerElemento('operationsOccupancySite');
     if (!select) return;
+    const seleccionAnterior = select.value;
+    const puedeElegir = usuarioPuedeElegirSedeChecklistOperaciones();
+    const sedePerfil = CONFIGURACION_OCUPABILIDAD_SEDES[perfilActual?.sede] ? perfilActual.sede : 'salaverry';
+    const sedes = puedeElegir
+        ? SEDES_OPERACION.filter(sede => CONFIGURACION_OCUPABILIDAD_SEDES[sede.id])
+        : SEDES_OPERACION.filter(sede => sede.id === sedePerfil);
     limpiarElemento(select);
-    const opcion = document.createElement('option');
-    opcion.value = 'salaverry';
-    opcion.textContent = 'Real Plaza Salaverry';
-    select.appendChild(opcion);
-    select.value = 'salaverry';
-    select.disabled = true;
+    sedes.forEach(sede => {
+        const opcion = document.createElement('option');
+        opcion.value = sede.id;
+        opcion.textContent = obtenerConfiguracionOcupabilidad(sede.id).nombre;
+        select.appendChild(opcion);
+    });
+    select.value = sedes.some(sede => sede.id === seleccionAnterior) ? seleccionAnterior : (sedes[0]?.id || 'salaverry');
+    select.disabled = sedes.length <= 1;
     const fecha = obtenerElemento('operationsOccupancyDate');
     const hora = obtenerElemento('operationsOccupancyTime');
     if (fecha) fecha.value = fechaLocalISO();
@@ -3191,7 +3260,8 @@ function configurarSelectSedesOcupabilidad() {
 }
 
 function obtenerSedeOcupabilidad() {
-    return 'salaverry';
+    const sede = obtenerElemento('operationsOccupancySite')?.value || perfilActual?.sede;
+    return CONFIGURACION_OCUPABILIDAD_SEDES[sede] ? sede : 'salaverry';
 }
 
 function obtenerZonaGuardadaOcupabilidad(id, hora = obtenerElemento('operationsOccupancyTime')?.value) {
@@ -3200,7 +3270,7 @@ function obtenerZonaGuardadaOcupabilidad(id, hora = obtenerElemento('operationsO
 }
 
 function claveBorradorZonaOcupabilidad(id) {
-    return `${STORAGE_KEYS.occupancyDraft}:${sesionActual?.user?.id || 'local'}:${fechaLocalISO()}:${horaCorteOcupabilidad()}:${id}`;
+    return `${STORAGE_KEYS.occupancyDraft}:${sesionActual?.user?.id || 'local'}:${obtenerSedeOcupabilidad()}:${fechaLocalISO()}:${horaCorteOcupabilidad()}:${id}`;
 }
 
 function zonaOcupabilidadCompleta(configuracion, datos = {}) {
@@ -3248,7 +3318,8 @@ function renderizarZonasOcupabilidad() {
     const contenedor = obtenerElemento('operationsOccupancyZones');
     if (!contenedor) return;
     limpiarElemento(contenedor);
-    zonasOcupabilidadActual = ZONAS_OCUPABILIDAD_SALAVERRY.map(obtenerDatosZonaActual);
+    const configuracion = obtenerConfiguracionOcupabilidad();
+    zonasOcupabilidadActual = configuracion.zonas.map(obtenerDatosZonaActual);
     zonasOcupabilidadActual.forEach(zona => {
         const guardada = obtenerZonaGuardadaOcupabilidad(zona.id);
         const tarjeta = document.createElement('article');
@@ -3273,11 +3344,8 @@ function renderizarZonasOcupabilidad() {
             crearCampoConteoOcupabilidad(zona, 'ocupados', 'Ocupados'),
             crearCampoConteoOcupabilidad(zona, 'libres', 'Disponibles')
         );
-        if (zona.tipo === 'vehiculos') {
-            campos.append(
-                crearCampoConteoOcupabilidad(zona, 'yaris', 'Toyota Yaris'),
-                crearCampoConteoOcupabilidad(zona, 'otrosVulnerables', 'Otros vulnerables')
-            );
+        if (zona.tipo === 'vehiculos' && configuracion.mostrarYaris) {
+            campos.append(crearCampoConteoOcupabilidad(zona, 'yaris', 'Toyota Yaris'));
         }
 
         const observacion = document.createElement('label');
@@ -3323,26 +3391,27 @@ function calcularTotalesOcupabilidad(zonas = zonasOcupabilidadActual) {
             total.ocupados += numeroEnteroSeguro(zona.ocupados);
             total.libres += numeroEnteroSeguro(zona.libres);
         }
-        if (zona.tipo === 'bicicletas') total.bicicletas = numeroEnteroSeguro(zona.ocupados);
-        if (zona.tipo === 'motos') total.motos = numeroEnteroSeguro(zona.ocupados);
+        if (zona.tipo === 'bicicletas') total.bicicletas += numeroEnteroSeguro(zona.ocupados);
+        if (zona.tipo === 'motos') total.motos += numeroEnteroSeguro(zona.ocupados);
         return total;
     }, { capacidad: 0, ocupados: 0, libres: 0, bicicletas: 0, motos: 0 });
 }
 
 function actualizarResumenOcupabilidad() {
-    const zonasGuardadas = ZONAS_OCUPABILIDAD_SALAVERRY.filter(zona => obtenerZonaGuardadaOcupabilidad(zona.id));
-    const datosGuardados = ZONAS_OCUPABILIDAD_SALAVERRY.map(config => {
+    const configuracion = obtenerConfiguracionOcupabilidad();
+    const zonasGuardadas = configuracion.zonas.filter(zona => obtenerZonaGuardadaOcupabilidad(zona.id));
+    const datosGuardados = configuracion.zonas.map(config => {
         const guardada = obtenerZonaGuardadaOcupabilidad(config.id);
         return zonaOcupabilidadCompleta(config, guardada || {});
     });
     const totales = calcularTotalesOcupabilidad(datosGuardados);
     const porcentaje = totales.capacidad ? totales.ocupados / totales.capacidad * 100 : 0;
-    obtenerElemento('occupancyZonesReported').textContent = `${zonasGuardadas.length}/7`;
+    obtenerElemento('occupancyZonesReported').textContent = `${zonasGuardadas.length}/${configuracion.zonas.length}`;
     obtenerElemento('occupancyTotalOccupied').textContent = totales.ocupados.toLocaleString('es-PE');
     obtenerElemento('occupancyTotalAvailable').textContent = totales.libres.toLocaleString('es-PE');
     obtenerElemento('occupancyRate').textContent = `${porcentaje.toFixed(1)}%`;
     obtenerElemento('occupancyMobilityTotal').textContent = `${totales.bicicletas} / ${totales.motos}`;
-    const faltantes = ZONAS_OCUPABILIDAD_SALAVERRY.filter(zona => !obtenerZonaGuardadaOcupabilidad(zona.id)).map(zona => zona.nombre);
+    const faltantes = configuracion.zonas.filter(zona => !obtenerZonaGuardadaOcupabilidad(zona.id)).map(zona => zona.nombre);
     const mensaje = obtenerElemento('operationsOccupancyHourStatus');
     if (mensaje) {
         mensaje.className = `occupancy-hour-status${faltantes.length ? '' : ' is-complete'}`;
@@ -3383,7 +3452,7 @@ async function guardarZonaOcupabilidad(id) {
         otrosVulnerables: zona.otrosVulnerables, observacion: zona.observacion
     };
     const { data, error } = await supabaseClient.rpc('guardar_zona_ocupabilidad', {
-        sede_arg: 'salaverry', fecha_arg: fechaLocalISO(), hora_arg: horaCorteOcupabilidad(), zona_arg: payload
+        sede_arg: obtenerSedeOcupabilidad(), fecha_arg: fechaLocalISO(), hora_arg: horaCorteOcupabilidad(), zona_arg: payload
     });
     boton.disabled = false;
     if (error) {
@@ -3409,9 +3478,10 @@ function renderizarHistorialOcupabilidad() {
         obtenerElemento('operationsOccupancyDailyAverage').textContent = 'Promedio diario: 0%';
         return;
     }
+    const configuracion = obtenerConfiguracionOcupabilidad();
     let suma = 0;
     cortes.forEach(corte => {
-        const zonas = ZONAS_OCUPABILIDAD_SALAVERRY.map(config => zonaOcupabilidadCompleta(config, (corte.zonas || []).find(z => z.id === config.id) || {}));
+        const zonas = configuracion.zonas.map(config => zonaOcupabilidadCompleta(config, (corte.zonas || []).find(z => z.id === config.id) || {}));
         const totales = calcularTotalesOcupabilidad(zonas);
         const porcentaje = totales.capacidad ? totales.ocupados / totales.capacidad * 100 : 0;
         suma += porcentaje;
@@ -3419,7 +3489,7 @@ function renderizarHistorialOcupabilidad() {
         elemento.className = 'occupancy-history-item';
         elemento.append(
             crearTextoElemento('strong', corte.hora),
-            crearTextoElemento('span', `${(corte.zonas || []).length}/7 zonas`),
+            crearTextoElemento('span', `${(corte.zonas || []).length}/${configuracion.zonas.length} zonas`),
             crearTextoElemento('span', `${porcentaje.toFixed(1)}% de ocupabilidad`),
             crearTextoElemento('small', `${totales.ocupados} autos ocupados`)
         );
@@ -3446,19 +3516,21 @@ async function cargarOcupabilidadDiaria() {
     if (!supabaseClient) return;
     configurarSelectSedesOcupabilidad();
     const estado = obtenerElemento('operationsOccupancyStatus');
-    estado.textContent = 'Actualizando aportes de Salaverry...';
+    const sede = obtenerSedeOcupabilidad();
+    const configuracion = obtenerConfiguracionOcupabilidad(sede);
+    estado.textContent = `Actualizando aportes de ${configuracion.nombre}...`;
     estado.dataset.status = 'info';
     const { data, error } = await supabaseClient.from('operaciones_ocupabilidad_diaria')
-        .select('*').eq('sede', 'salaverry').eq('fecha', fechaLocalISO()).maybeSingle();
+        .select('*').eq('sede', sede).eq('fecha', fechaLocalISO()).maybeSingle();
     if (error) {
-        registroOcupabilidadDiaria = { sede: 'salaverry', fecha: fechaLocalISO(), cortes: [] };
+        registroOcupabilidadDiaria = { sede, fecha: fechaLocalISO(), cortes: [] };
         renderizarZonasOcupabilidad();
         renderizarHistorialOcupabilidad();
         estado.textContent = mensajeErrorSupabase(error, 'No se pudo cargar la ocupabilidad.');
         estado.dataset.status = 'error';
         return;
     }
-    registroOcupabilidadDiaria = data || { sede: 'salaverry', fecha: fechaLocalISO(), cortes: [] };
+    registroOcupabilidadDiaria = data || { sede, fecha: fechaLocalISO(), cortes: [] };
     renderizarZonasOcupabilidad();
     renderizarHistorialOcupabilidad();
     suscribirOcupabilidadOperaciones();
@@ -3469,8 +3541,9 @@ async function cargarOcupabilidadDiaria() {
 function suscribirOcupabilidadOperaciones() {
     if (!supabaseClient) return;
     if (canalOcupabilidadOperaciones) supabaseClient.removeChannel(canalOcupabilidadOperaciones);
-    canalOcupabilidadOperaciones = supabaseClient.channel('ocupabilidad-salaverry-hoy')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'operaciones_ocupabilidad_diaria', filter: 'sede=eq.salaverry' }, payload => {
+    const sede = obtenerSedeOcupabilidad();
+    canalOcupabilidadOperaciones = supabaseClient.channel(`ocupabilidad-${sede}-hoy`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'operaciones_ocupabilidad_diaria', filter: `sede=eq.${sede}` }, payload => {
             const registro = payload.new;
             if (registro?.fecha !== fechaLocalISO()) return;
             registroOcupabilidadDiaria = registro;
@@ -3489,8 +3562,9 @@ function exportarOcupabilidadDiariaExcel() {
     }
     const resumen = [];
     const detalle = [];
+    const configuracion = obtenerConfiguracionOcupabilidad();
     cortes.sort((a, b) => String(a.hora).localeCompare(String(b.hora))).forEach(corte => {
-        const zonas = ZONAS_OCUPABILIDAD_SALAVERRY.map(config => zonaOcupabilidadCompleta(config, (corte.zonas || []).find(z => z.id === config.id) || {}));
+        const zonas = configuracion.zonas.map(config => zonaOcupabilidadCompleta(config, (corte.zonas || []).find(z => z.id === config.id) || {}));
         const totales = calcularTotalesOcupabilidad(zonas);
         const fila = { Fecha: fechaLocalISO(), Hora: corte.hora };
         zonas.forEach(zona => {
@@ -3514,7 +3588,7 @@ function exportarOcupabilidadDiariaExcel() {
     hojaDetalle['!cols'] = [12, 9, 20, 12, 12, 14, 18, 28, 24, 40].map(wch => ({ wch }));
     XLSX.utils.book_append_sheet(libro, hojaResumen, 'Consolidado por hora');
     XLSX.utils.book_append_sheet(libro, hojaDetalle, 'Detalle y responsables');
-    XLSX.writeFile(libro, `Ocupabilidad-Salaverry-${fechaLocalISO()}.xlsx`, { compression: true });
+    XLSX.writeFile(libro, `Ocupabilidad-${configuracion.archivo}-${fechaLocalISO()}.xlsx`, { compression: true });
     estado.textContent = 'Excel diario generado con todos los aportes disponibles.';
     estado.dataset.status = 'success';
 }
@@ -3529,7 +3603,7 @@ function asignarEstiloCeldaXml(xml, referencia, estilo) {
     return xml.replace(patron, `<c r="${referencia}" s="${estilo}"`);
 }
 
-async function aplicarFormatoVisualOcupabilidad(buffer) {
+async function aplicarFormatoVisualOcupabilidad(buffer, esquema = {}) {
     if (!window.JSZip) return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const zip = await window.JSZip.loadAsync(buffer);
     const estilos = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -3578,15 +3652,21 @@ async function aplicarFormatoVisualOcupabilidad(buffer) {
     const estilosPorCelda = {};
     ['A1', 'B1', 'C1', 'D1', 'E1'].forEach(celda => { estilosPorCelda[celda] = 1; });
     ['A7', 'B7', 'C7', 'D7', 'E7'].forEach(celda => { estilosPorCelda[celda] = 2; });
-    Object.assign(estilosPorCelda, { A8: 3, A9: 4, A10: 5, A11: 6, A12: 13, A13: 9, A15: 9, A16: 9,
-        C3: 11, D3: 11, E3: 11, A3: 12 });
-    for (let fila = 8; fila <= 13; fila += 1) {
+    const filasAutos = esquema.filasAutos || [8, 9, 10, 11, 12];
+    const filaTotal = esquema.filaTotal || 13;
+    const filasMovilidad = esquema.filasMovilidad || [15, 16];
+    const estilosZona = [3, 4, 5, 6, 13];
+    filasAutos.forEach((fila, indice) => { estilosPorCelda[`A${fila}`] = estilosZona[indice % estilosZona.length]; });
+    estilosPorCelda[`A${filaTotal}`] = 9;
+    filasMovilidad.forEach(fila => { estilosPorCelda[`A${fila}`] = 9; });
+    Object.assign(estilosPorCelda, { C3: 11, D3: 11, E3: 11, A3: 12 });
+    for (const fila of [...filasAutos, filaTotal]) {
         estilosPorCelda[`B${fila}`] = 7;
         estilosPorCelda[`C${fila}`] = 8;
         estilosPorCelda[`D${fila}`] = 9;
         estilosPorCelda[`E${fila}`] = 10;
     }
-    for (const fila of [15, 16]) {
+    for (const fila of filasMovilidad) {
         estilosPorCelda[`B${fila}`] = 7;
         estilosPorCelda[`C${fila}`] = 8;
         estilosPorCelda[`D${fila}`] = 9;
@@ -3635,10 +3715,16 @@ function convertirCanvasABlobSincrono(canvas) {
     return new Blob([bytes], { type: 'image/png' });
 }
 
-function crearImagenCorteOcupabilidad(zonas, hora, fechaTexto) {
+function crearImagenCorteOcupabilidad(zonas, hora, fechaTexto, configuracion = obtenerConfiguracionOcupabilidad()) {
+    const autos = zonas.filter(zona => zona.tipo === 'vehiculos');
+    const movilidad = zonas.filter(zona => zona.tipo !== 'vehiculos');
+    const altoFila = autos.length > 10 ? 48 : 58;
+    const yTabla = 270;
+    const yTotal = yTabla + altoFila * (autos.length + 1);
+    const altoNecesario = yTotal + altoFila + (movilidad.length ? 22 + altoFila * movilidad.length : 0) + 35;
     const canvas = document.createElement('canvas');
     canvas.width = 1100;
-    canvas.height = 860;
+    canvas.height = Math.max(720, altoNecesario);
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -3649,7 +3735,7 @@ function crearImagenCorteOcupabilidad(zonas, hora, fechaTexto) {
     ctx.font = '800 34px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('60% SE ABRE EL SIGUIENTE SOTANO', canvas.width / 2, 36);
+    ctx.fillText(configuracion.aviso, canvas.width / 2, 36, canvas.width - 50);
 
     const logo = document.querySelector('img[src*="urbapark-logo.png"]');
     if (logo?.complete && logo.naturalWidth) {
@@ -3671,8 +3757,7 @@ function crearImagenCorteOcupabilidad(zonas, hora, fechaTexto) {
     dibujarCeldaOcupabilidad(ctx, 805, 105, 275, 55, '#000000', horaGeneracion, '#ffffff', 27);
 
     const x = 20;
-    const yTabla = 270;
-    const altos = 58;
+    const altos = altoFila;
     const anchos = [350, 205, 190, 175, 140];
     const posiciones = anchos.reduce((lista, ancho, indice) => {
         lista.push(indice ? lista[indice - 1] + anchos[indice - 1] : x);
@@ -3682,32 +3767,30 @@ function crearImagenCorteOcupabilidad(zonas, hora, fechaTexto) {
         dibujarCeldaOcupabilidad(ctx, posiciones[indice], yTabla, anchos[indice], altos, '#000000', texto, '#ffffff', indice ? 25 : 24);
     });
 
-    const autos = zonas.filter(zona => zona.tipo === 'vehiculos');
     autos.forEach((zona, indice) => {
         const y = yTabla + altos * (indice + 1);
-        const colorTexto = zona.id === 'parking-vip' ? '#ffffff' : '#000000';
-        dibujarCeldaOcupabilidad(ctx, posiciones[0], y, anchos[0], altos, zona.color, zona.nombre.toUpperCase(), colorTexto, 27);
-        dibujarCeldaOcupabilidad(ctx, posiciones[1], y, anchos[1], altos, '#ff0000', zona.ocupados, '#ffffff', 28);
-        dibujarCeldaOcupabilidad(ctx, posiciones[2], y, anchos[2], altos, '#92d050', zona.libres, '#000000', 28);
-        dibujarCeldaOcupabilidad(ctx, posiciones[3], y, anchos[3], altos, '#000000', zona.capacidad, '#ffffff', 28);
-        dibujarCeldaOcupabilidad(ctx, posiciones[4], y, anchos[4], altos, '#ffffff', `${Math.round(zona.ocupados / zona.capacidad * 100)}%`, '#000000', 28);
+        const colorTexto = zona.textoClaro ? '#ffffff' : '#000000';
+        const tamano = altos < 55 ? 20 : 27;
+        dibujarCeldaOcupabilidad(ctx, posiciones[0], y, anchos[0], altos, zona.color, zona.nombre.toUpperCase(), colorTexto, tamano);
+        dibujarCeldaOcupabilidad(ctx, posiciones[1], y, anchos[1], altos, '#ff0000', zona.ocupados, '#ffffff', tamano + 1);
+        dibujarCeldaOcupabilidad(ctx, posiciones[2], y, anchos[2], altos, '#92d050', zona.libres, '#000000', tamano + 1);
+        dibujarCeldaOcupabilidad(ctx, posiciones[3], y, anchos[3], altos, '#000000', zona.capacidad, '#ffffff', tamano + 1);
+        dibujarCeldaOcupabilidad(ctx, posiciones[4], y, anchos[4], altos, '#ffffff', `${zona.capacidad ? Math.round(zona.ocupados / zona.capacidad * 100) : 0}%`, '#000000', tamano + 1);
     });
     const totales = calcularTotalesOcupabilidad(zonas);
-    const yTotal = yTabla + altos * 6;
     dibujarCeldaOcupabilidad(ctx, posiciones[0], yTotal, anchos[0], altos, '#000000', 'TOTAL', '#ffffff', 28);
     dibujarCeldaOcupabilidad(ctx, posiciones[1], yTotal, anchos[1], altos, '#ff0000', totales.ocupados, '#ffffff', 28);
     dibujarCeldaOcupabilidad(ctx, posiciones[2], yTotal, anchos[2], altos, '#92d050', totales.libres, '#000000', 28);
     dibujarCeldaOcupabilidad(ctx, posiciones[3], yTotal, anchos[3], altos, '#000000', totales.capacidad, '#ffffff', 28);
-    dibujarCeldaOcupabilidad(ctx, posiciones[4], yTotal, anchos[4], altos, '#ffffff', `${Math.round(totales.ocupados / totales.capacidad * 100)}%`, '#000000', 28);
+    dibujarCeldaOcupabilidad(ctx, posiciones[4], yTotal, anchos[4], altos, '#ffffff', `${totales.capacidad ? Math.round(totales.ocupados / totales.capacidad * 100) : 0}%`, '#000000', 28);
 
-    const movilidad = [zonas.find(zona => zona.id === 'bicicletas'), zonas.find(zona => zona.id === 'motos')];
     movilidad.forEach((zona, indice) => {
         const y = yTotal + altos + 22 + altos * indice;
         dibujarCeldaOcupabilidad(ctx, posiciones[0], y, anchos[0], altos, '#000000', zona.nombre.toUpperCase(), '#ffffff', 28);
         dibujarCeldaOcupabilidad(ctx, posiciones[1], y, anchos[1], altos, '#ff0000', zona.ocupados, '#ffffff', 28);
         dibujarCeldaOcupabilidad(ctx, posiciones[2], y, anchos[2], altos, '#92d050', zona.libres, '#000000', 28);
         dibujarCeldaOcupabilidad(ctx, posiciones[3], y, anchos[3], altos, '#000000', zona.capacidad, '#ffffff', 28);
-        dibujarCeldaOcupabilidad(ctx, posiciones[4], y, anchos[4], altos, '#ffffff', `${Math.round(zona.ocupados / zona.capacidad * 100)}%`, '#000000', 28);
+        dibujarCeldaOcupabilidad(ctx, posiciones[4], y, anchos[4], altos, '#ffffff', `${zona.capacidad ? Math.round(zona.ocupados / zona.capacidad * 100) : 0}%`, '#000000', 28);
     });
 
     return convertirCanvasABlobSincrono(canvas);
@@ -3715,24 +3798,24 @@ function crearImagenCorteOcupabilidad(zonas, hora, fechaTexto) {
 
 async function exportarCorteOcupabilidadExcel(horaSeleccionada = '', compartir = false) {
     const estado = obtenerElemento('operationsOccupancyStatus');
+    const configuracion = obtenerConfiguracionOcupabilidad();
     const hora = typeof horaSeleccionada === 'string' && horaSeleccionada ? horaSeleccionada : horaCorteOcupabilidad();
     const corte = (registroOcupabilidadDiaria?.cortes || []).find(item => item.hora === hora);
     const reportadas = corte?.zonas || [];
-    const faltantes = ZONAS_OCUPABILIDAD_SALAVERRY.filter(config => !reportadas.some(zona => zona.id === config.id));
+    const faltantes = configuracion.zonas.filter(config => !reportadas.some(zona => zona.id === config.id));
     if (!window.XLSX) {
         estado.textContent = 'No se pudo cargar el generador de Excel.';
         estado.dataset.status = 'error';
         return;
     }
     if (!corte || faltantes.length) {
-        estado.textContent = `Completa las 7 zonas antes de generar el Excel. Faltan: ${faltantes.map(zona => zona.nombre).join(', ') || 'todas'}.`;
+        estado.textContent = `Completa las ${configuracion.zonas.length} zonas antes de generar el archivo. Faltan: ${faltantes.map(zona => zona.nombre).join(', ') || 'todas'}.`;
         estado.dataset.status = 'error';
         return;
     }
-    const zonas = ZONAS_OCUPABILIDAD_SALAVERRY.map(config => zonaOcupabilidadCompleta(config, reportadas.find(zona => zona.id === config.id)));
+    const zonas = configuracion.zonas.map(config => zonaOcupabilidadCompleta(config, reportadas.find(zona => zona.id === config.id)));
     const autos = zonas.filter(zona => zona.tipo === 'vehiculos');
-    const bicicletas = zonas.find(zona => zona.id === 'bicicletas');
-    const motos = zonas.find(zona => zona.id === 'motos');
+    const movilidad = zonas.filter(zona => zona.tipo !== 'vehiculos');
     const fecha = new Date(`${fechaLocalISO()}T12:00:00`);
     const fechaTexto = fecha.toLocaleDateString('es-PE');
     const horaTexto = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -3740,8 +3823,8 @@ async function exportarCorteOcupabilidadExcel(horaSeleccionada = '', compartir =
         estado.textContent = 'Preparando la imagen para WhatsApp...';
         estado.dataset.status = 'info';
         try {
-            const imagen = crearImagenCorteOcupabilidad(zonas, hora, fechaTexto);
-            const nombreImagen = `Ocupabilidad-Salaverry-${fechaLocalISO()}-${hora.replace(':', '')}.png`;
+            const imagen = crearImagenCorteOcupabilidad(zonas, hora, fechaTexto, configuracion);
+            const nombreImagen = `Ocupabilidad-${configuracion.archivo}-${fechaLocalISO()}-${hora.replace(':', '')}.png`;
             const imagenCompartible = new File([imagen], nombreImagen, { type: 'image/png' });
             if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [imagenCompartible] }))) {
                 const enlace = document.createElement('a');
@@ -3758,8 +3841,8 @@ async function exportarCorteOcupabilidadExcel(horaSeleccionada = '', compartir =
             }
             await navigator.share({
                 files: [imagenCompartible],
-                title: `Ocupabilidad Salaverry ${hora}`,
-                text: `Ocupabilidad Real Plaza Salaverry - ${fechaTexto} ${hora}`
+                title: `Ocupabilidad ${configuracion.nombre} ${hora}`,
+                text: `Ocupabilidad ${configuracion.nombre} - ${fechaTexto} ${hora}`
             });
             estado.textContent = `Imagen del corte ${hora} compartida.`;
             estado.dataset.status = 'success';
@@ -3778,35 +3861,53 @@ async function exportarCorteOcupabilidadExcel(horaSeleccionada = '', compartir =
         }
         return;
     }
+    const primeraFilaDatos = 8;
+    const filaTotal = primeraFilaDatos + autos.length;
+    const primeraFilaMovilidad = filaTotal + 2;
+    const filasAutos = autos.map((zona, indice) => {
+        const fila = primeraFilaDatos + indice;
+        return [zona.nombre.toUpperCase(), zona.ocupados, zona.libres, zona.capacidad,
+            { f: `IFERROR(B${fila}/D${fila},0)`, v: zona.capacidad ? zona.ocupados / zona.capacidad : 0 }];
+    });
+    const totalOcupados = autos.reduce((suma, zona) => suma + zona.ocupados, 0);
+    const totalLibres = autos.reduce((suma, zona) => suma + zona.libres, 0);
+    const totalCapacidad = autos.reduce((suma, zona) => suma + zona.capacidad, 0);
+    const filasMovilidad = movilidad.map((zona, indice) => {
+        const fila = primeraFilaMovilidad + indice;
+        return [zona.nombre.toUpperCase(), zona.ocupados, zona.libres, zona.capacidad,
+            { f: `IFERROR(B${fila}/D${fila},0)`, v: zona.capacidad ? zona.ocupados / zona.capacidad : 0 }];
+    });
     const filas = [
-        ['60% SE ABRE EL SIGUIENTE SOTANO', '', '', '', ''],
+        [configuracion.aviso, '', '', '', ''],
         ['', '', '', '', ''],
         ['UrbaPark', '', fechaTexto, horaTexto, ''],
         ['', '', '', '', ''], ['', '', '', '', ''], ['', '', '', '', ''],
         [`OCUPABILIDAD ${hora}`, 'OCUPADOS', 'DISPO.', 'TOT.', '%'],
-        ...autos.map(zona => [zona.nombre.toUpperCase(), zona.ocupados, zona.libres, zona.capacidad, { f: `IFERROR(B${autos.indexOf(zona) + 8}/D${autos.indexOf(zona) + 8},0)`, v: zona.ocupados / zona.capacidad }]),
-        ['TOTAL', { f: 'SUM(B8:B12)', v: autos.reduce((suma, zona) => suma + zona.ocupados, 0) },
-            { f: 'SUM(C8:C12)', v: autos.reduce((suma, zona) => suma + zona.libres, 0) },
-            { f: 'SUM(D8:D12)', v: autos.reduce((suma, zona) => suma + zona.capacidad, 0) },
-            { f: 'IFERROR(B13/D13,0)', v: autos.reduce((suma, zona) => suma + zona.ocupados, 0) / 1749 }],
+        ...filasAutos,
+        ['TOTAL', { f: `SUM(B${primeraFilaDatos}:B${filaTotal - 1})`, v: totalOcupados },
+            { f: `SUM(C${primeraFilaDatos}:C${filaTotal - 1})`, v: totalLibres },
+            { f: `SUM(D${primeraFilaDatos}:D${filaTotal - 1})`, v: totalCapacidad },
+            { f: `IFERROR(B${filaTotal}/D${filaTotal},0)`, v: totalCapacidad ? totalOcupados / totalCapacidad : 0 }],
         ['', '', '', '', ''],
-        ['BICICLETAS', bicicletas.ocupados, bicicletas.libres, bicicletas.capacidad, { f: 'IFERROR(B15/D15,0)', v: bicicletas.ocupados / bicicletas.capacidad }],
-        ['MOTOS', motos.ocupados, motos.libres, motos.capacidad, { f: 'IFERROR(B16/D16,0)', v: motos.ocupados / motos.capacidad }]
+        ...filasMovilidad
     ];
     const hoja = XLSX.utils.aoa_to_sheet(filas);
     hoja['!merges'] = [XLSX.utils.decode_range('A1:E1'), XLSX.utils.decode_range('A3:B5'), XLSX.utils.decode_range('D3:E3')];
     hoja['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 16 }, { wch: 15 }, { wch: 13 }];
-    hoja['!rows'] = [{ hpt: 34 }, { hpt: 8 }, { hpt: 28 }, { hpt: 24 }, { hpt: 24 }, { hpt: 9 }, { hpt: 28 },
-        { hpt: 27 }, { hpt: 27 }, { hpt: 27 }, { hpt: 27 }, { hpt: 27 }, { hpt: 29 }, { hpt: 12 }, { hpt: 27 }, { hpt: 27 }];
-    hoja['!ref'] = 'A1:E16';
+    hoja['!rows'] = filas.map((fila, indice) => ({ hpt: indice === 0 ? 34 : (indice === 1 || indice === filaTotal ? 10 : 27) }));
+    hoja['!ref'] = `A1:E${filas.length}`;
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, hoja, `Ocupabilidad ${hora.replace(':', '')}`);
     const buffer = XLSX.write(libro, { bookType: 'xlsx', type: 'array', compression: true });
     estado.textContent = 'Preparando el Excel de la hora...';
     estado.dataset.status = 'info';
     try {
-        const archivo = await aplicarFormatoVisualOcupabilidad(buffer);
-        const nombreArchivo = `Ocupabilidad-Salaverry-${fechaLocalISO()}-${hora.replace(':', '')}.xlsx`;
+        const archivo = await aplicarFormatoVisualOcupabilidad(buffer, {
+            filasAutos: autos.map((_, indice) => primeraFilaDatos + indice),
+            filaTotal,
+            filasMovilidad: movilidad.map((_, indice) => primeraFilaMovilidad + indice)
+        });
+        const nombreArchivo = `Ocupabilidad-${configuracion.archivo}-${fechaLocalISO()}-${hora.replace(':', '')}.xlsx`;
         const enlace = document.createElement('a');
         const url = URL.createObjectURL(archivo);
         enlace.href = url;
@@ -12069,6 +12170,7 @@ function configurarEventos() {
     obtenerElemento('openOperationsOccupancy')?.addEventListener('click', () => establecerPanelOcupabilidadOperaciones(true));
     obtenerElemento('closeOperationsOccupancy')?.addEventListener('click', cerrarPanelOcupabilidadOperaciones);
     obtenerElemento('loadOperationsOccupancy')?.addEventListener('click', cargarOcupabilidadDiaria);
+    obtenerElemento('operationsOccupancySite')?.addEventListener('change', cargarOcupabilidadDiaria);
     obtenerElemento('exportOperationsOccupancyExcel')?.addEventListener('click', () => exportarCorteOcupabilidadExcel());
     obtenerElemento('shareOperationsOccupancyWhatsApp')?.addEventListener('click', () => exportarCorteOcupabilidadExcel('', true));
     obtenerElemento('reportingTypeSelector')?.addEventListener('click', event => {
