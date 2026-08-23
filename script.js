@@ -524,10 +524,10 @@ const TIPOS_REPORTERIA = {
         anchos: [14, 13, 14, 72]
     },
     tickets: {
-        nombre: 'Tickets abiertos',
-        tituloExcel: 'REPORTE DE TICKETS ABIERTOS',
-        encabezados: null,
-        anchos: []
+        nombre: 'Analisis de tickets abiertos',
+        tituloExcel: 'ANÁLISIS DE TICKETS ABIERTOS',
+        encabezados: ['FECHA DE EMISIÓN', 'MATRÍCULA', 'SÍ/NO', 'NÚMERO DE TICKET', 'OBSERVACIÓN'],
+        anchos: [20, 16, 10, 20, 68]
     }
 };
 let reporteCapturaActual = {
@@ -9339,6 +9339,16 @@ function seleccionarTipoReporteria(tipo) {
         boton.setAttribute('aria-pressed', String(activo));
     });
     obtenerElemento('reportingTableCard').hidden = true;
+    const entradaExcel = obtenerElemento('reportingExcelInput');
+    const botonExcel = obtenerElemento('chooseReportingExcel');
+    const nota = document.querySelector('.reporting-source-note');
+    if (entradaExcel) entradaExcel.multiple = tipo === 'tickets';
+    if (botonExcel) botonExcel.textContent = tipo === 'tickets' ? 'Cargar informes CU30, RE18, CU14 y CU16' : 'Cargar Excel original';
+    if (nota) nota.textContent = tipo === 'tickets'
+        ? 'Selecciona los cuatro informes juntos. CU30 será la base y los demás validarán el motivo de cada ticket abierto.'
+        : 'Recomendado: filtra automáticamente solo las órdenes 2/7 - Posición barrera.';
+    const resumen = obtenerElemento('reportingSourceSummary');
+    if (resumen) resumen.textContent = '';
     establecerEstadoReporteria('reportingExportStatus', '');
 }
 
@@ -9604,18 +9614,169 @@ function extraerOrdenesManualesDesdeMatriz(matriz) {
     return filas;
 }
 
-async function cargarExcelReporteria(archivo) {
-    if (!archivo) return;
+function detectarTipoInformeTickets(nombreArchivo, matriz) {
+    const muestra = `${nombreArchivo || ''} ${(matriz || []).slice(0, 35).flat().join(' ')}`;
+    const texto = normalizarTextoReporteria(muestra);
+    if (/\bCU\s*30\b/.test(texto) || texto.includes('TODOS LOS TICKETS ABIERTOS') || texto.includes('TICKETS ABIERTOS DE LAS ENTRADAS') || texto.includes('IDENTIFICADOR DEL TICKET')) return 'CU30';
+    if (/\bRE\s*18\b/.test(texto) || texto.includes('COBRO TICKET PERDIDO') || texto.includes('TICKET PERDIDO')) return 'RE18';
+    if (/\bCU\s*14\b/.test(texto) || texto.includes('LEVANTAMIENTO MANUAL') || texto.includes('ORDENES MANUALES DE EQUIPOS')) return 'CU14';
+    if (/\bCU\s*16\b/.test(texto) || texto.includes('TARJETAS MAESTRAS') || texto.includes('TARJETA MAESTRA')
+        || (texto.includes('ABONO CONTRATADO') && texto.includes('ZONA SALIDA') && texto.includes('ZONA ENTRADA'))) return 'CU16';
+    return '';
+}
+
+function buscarFilaEncabezadosInforme(matriz) {
+    let mejor = { indice: -1, puntuacion: 0, celdas: [] };
+    (matriz || []).forEach((fila, indice) => {
+        const celdas = (fila || []).map(normalizarTextoReporteria);
+        const puntuacion = celdas.reduce((total, celda) => total
+            + (/FECHA|HORA/.test(celda) ? 1 : 0)
+            + (/MATRICULA|PLACA/.test(celda) ? 2 : 0)
+            + (/TICKET|ORDEN|EQUIPO|MOTIVO|OBSERVACION|CONCEPTO.*COBRO/.test(celda) ? 1 : 0), 0);
+        if (puntuacion > mejor.puntuacion) mejor = { indice, puntuacion, celdas };
+    });
+    return mejor;
+}
+
+function indiceColumnaInforme(encabezados, patrones) {
+    return encabezados.findIndex(celda => patrones.some(patron => patron.test(celda)));
+}
+
+function normalizarPlacaCruce(valor) {
+    const texto = normalizarTextoReporteria(valor).replace(/[^A-Z0-9]/g, '');
+    const coincidencia = texto.match(/(?=[A-Z0-9]{5,7}$)(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*\d)[A-Z0-9]{5,7}$/);
+    return coincidencia?.[0] || '';
+}
+
+function normalizarTicketCruce(valor) {
+    const texto = String(valor ?? '');
+    const grupos = texto.match(/\b\d{7}\b/g);
+    if (grupos?.length) return grupos[0];
+    const digitos = texto.replace(/\D/g, '');
+    return digitos && digitos.length <= 12 ? digitos.padStart(7, '0') : '';
+}
+
+function obtenerHoraDesdeTextoInforme(valor) {
+    const texto = String(valor ?? '');
+    const coincidencia = texto.match(/\b([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?\b/);
+    return coincidencia ? Number(coincidencia[1]) * 60 + Number(coincidencia[2]) : null;
+}
+
+function extraerRegistrosInformeTickets(matriz, tipoInforme = '') {
+    const encabezado = buscarFilaEncabezadosInforme(matriz);
+    if (encabezado.indice < 0 || encabezado.puntuacion < 2) return [];
+    const indiceFecha = indiceColumnaInforme(encabezado.celdas, [/FECHA.*EMISION/, /FECHA.*ENTRADA/, /^FECHA/]);
+    const indiceHora = indiceColumnaInforme(encabezado.celdas, [/^HORA/, /HORA.*ENTRADA/]);
+    const indicePlaca = indiceColumnaInforme(encabezado.celdas, [/MATRICULA/, /PLACA/]);
+    const indiceVehiculo = indiceColumnaInforme(encabezado.celdas, [/VEHICULO/, /TIPO.*VEHICULO/]);
+    const indiceTicket = indiceColumnaInforme(encabezado.celdas, [/IDENTIFICADOR.*TICKET/, /NUMERO.*TICKET/, /NRO.*TICKET/, /^TICKET/]);
+    const indicePagado = indiceColumnaInforme(encabezado.celdas, [/PAGADO/, /PAGO/]);
+    const indiceMotivo = indiceColumnaInforme(encabezado.celdas, [/MOTIVO/, /OBSERVACION/, /DETALLE/, /DESCRIPCION/, /CONCEPTO.*COBRO/]);
+    const indiceEquipo = indiceColumnaInforme(encabezado.celdas, [/EQUIPO/, /ENTRADA/, /TERMINAL/]);
+    const contexto = normalizarTextoReporteria((matriz || []).slice(0, encabezado.indice + 1).flat().join(' '));
+    return (matriz || []).slice(encabezado.indice + 1).map(fila => {
+        const valores = Array.isArray(fila) ? fila.map(valor => String(valor ?? '').trim()) : [];
+        const textoFila = valores.filter(Boolean).join(' ');
+        const fecha = indiceFecha >= 0 ? valores[indiceFecha] : (textoFila.match(/\b\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/)?.[0] || '');
+        const hora = indiceHora >= 0 ? valores[indiceHora] : fecha;
+        const placaDirecta = indicePlaca >= 0 ? valores[indicePlaca] : '';
+        const placaDetectada = normalizarPlacaCruce(placaDirecta)
+            || (tipoInforme === 'CU30' ? '' : extraerPlacaYMotivoReporteria(textoFila).placa);
+        const vehiculo = indiceVehiculo >= 0 ? valores[indiceVehiculo] : '';
+        const placa = placaDetectada || (tipoInforme === 'CU30' ? vehiculo : '');
+        const ticket = indiceTicket >= 0 ? normalizarTicketCruce(valores[indiceTicket]) : '';
+        return {
+            fecha, hora, placa, ticket,
+            pagado: indicePagado >= 0 ? valores[indicePagado] : '',
+            motivo: indiceMotivo >= 0 ? valores[indiceMotivo] : textoFila,
+            equipo: indiceEquipo >= 0 ? valores[indiceEquipo] : '',
+            texto: normalizarTextoReporteria(textoFila), contexto
+        };
+    }).filter(registro => registro.fecha || registro.placa || registro.ticket);
+}
+
+function buscarCoincidenciaInforme(base, registros) {
+    return (registros || []).find(registro => (base.ticket && registro.ticket === base.ticket)
+        || (base.placa && registro.placa === base.placa));
+}
+
+function observacionTicketAbierto(base, fuentes) {
+    const evidencias = [];
+    const re18 = buscarCoincidenciaInforme(base, fuentes.RE18);
+    const cu14 = buscarCoincidenciaInforme(base, fuentes.CU14);
+    const cu16 = buscarCoincidenciaInforme(base, fuentes.CU16);
+    const textoLevantamiento = `${cu14?.texto || ''} ${cu16?.texto || ''} ${cu16?.contexto || ''}`;
+    if (re18) evidencias.push('COBRO POR TICKET PERDIDO VALIDADO EN RE18');
+    if (cu14 || cu16) {
+        if (textoLevantamiento.includes('REINIEC')) evidencias.push('LEVANTAMIENTO MANUAL POR REINIEC');
+        else if (textoLevantamiento.includes('ONPE')) evidencias.push('LEVANTAMIENTO MANUAL POR ONPE');
+        else if (cu14 && cu16) evidencias.push('LEVANTAMIENTO MANUAL CON TARJETA MAESTRA (CU14/CU16)');
+        else evidencias.push(cu14 ? 'LEVANTAMIENTO MANUAL VALIDADO EN CU14' : 'MOVIMIENTO DE TARJETA MAESTRA VALIDADO EN CU16');
+    }
+    const minutos = obtenerHoraDesdeTextoInforme(`${base.fecha} ${base.hora}`);
+    if (minutos !== null && minutos >= 120 && minutos < 600) evidencias.push('CONTRATA SALE DESPUÉS DE LAS 02:00 AM');
+    else if (minutos !== null && (minutos >= 1320 || minutos < 120)) evidencias.push('REVISAR SALIDA: INGRESO ENTRE EL CIERRE (22:00) Y LAS 02:00 AM');
+    if (!evidencias.length) evidencias.push('PENDIENTE DE VALIDAR EL MOTIVO DE SALIDA');
+    return { validado: Boolean(re18 || cu14 || cu16), observacion: evidencias.join(' | ') };
+}
+
+function construirAnalisisTicketsAbiertos(fuentes) {
+    return (fuentes.CU30 || []).map(base => {
+        const resultado = observacionTicketAbierto(base, fuentes);
+        const fecha = String(base.fecha || '').match(/\b\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\b/)?.[0] || base.fecha;
+        const pagado = /^(SI|SÍ)$/i.test(String(base.pagado || '').trim())
+            ? 'Sí'
+            : (/^NO$/i.test(String(base.pagado || '').trim()) ? 'No' : (resultado.validado ? 'Sí' : 'No'));
+        return [fecha, base.placa, pagado, base.ticket, resultado.observacion];
+    });
+}
+
+async function cargarInformesTicketsAbiertos(archivos) {
+    const fuentes = { CU30: [], RE18: [], CU14: [], CU16: [] };
+    const detectados = [];
+    for (const archivo of archivos) {
+        const libro = XLSX.read(await archivo.arrayBuffer(), { type: 'array', cellDates: false });
+        const matriz = libro.SheetNames.flatMap(nombre => XLSX.utils.sheet_to_json(libro.Sheets[nombre], { header: 1, raw: false, defval: '' }));
+        const tipo = detectarTipoInformeTickets(archivo.name, matriz);
+        if (!tipo) continue;
+        const registros = extraerRegistrosInformeTickets(matriz, tipo);
+        fuentes[tipo].push(...registros);
+        detectados.push(`${tipo}: ${registros.length}`);
+    }
+    if (!fuentes.CU30.length) throw new Error('No se identificó el informe CU30. Inclúyelo o agrega CU30 al nombre del archivo.');
+    reporteCapturaActual.fuenteExcel = archivos.map(archivo => archivo.name).join(', ');
+    reporteCapturaActual.encabezados = [...TIPOS_REPORTERIA.tickets.encabezados];
+    reporteCapturaActual.filas = construirAnalisisTicketsAbiertos(fuentes);
+    const faltantes = ['RE18', 'CU14', 'CU16'].filter(tipo => !fuentes[tipo].length);
+    const resumen = obtenerElemento('reportingSourceSummary');
+    if (resumen) resumen.textContent = `Informes reconocidos: ${detectados.join(' · ')}${faltantes.length ? ` · Faltan: ${faltantes.join(', ')}` : ''}`;
+    return { filas: reporteCapturaActual.filas.length, faltantes };
+}
+
+async function cargarExcelReporteria(archivosSeleccionados) {
+    const archivos = Array.from(archivosSeleccionados || []).filter(Boolean);
+    if (!archivos.length) return;
     if (!window.XLSX) {
         establecerEstadoReporteria('reportingOcrStatus', 'El lector de Excel no esta disponible.', 'error');
         return;
     }
-    if (!/\.(xls|xlsx)$/i.test(archivo.name || '')) {
+    if (archivos.some(archivo => !/\.(xls|xlsx)$/i.test(archivo.name || ''))) {
         establecerEstadoReporteria('reportingOcrStatus', 'Selecciona un archivo Excel .xls o .xlsx.', 'error');
         return;
     }
     establecerEstadoReporteria('reportingOcrStatus', 'Leyendo el Excel original...', 'pending');
     try {
+        if (reporteCapturaActual.tipo === 'tickets') {
+            const resultado = await cargarInformesTicketsAbiertos(archivos);
+            liberarVistaPreviaReporteria();
+            reporteCapturaActual.archivos = [];
+            renderizarTablaReporteria();
+            obtenerElemento('reportingTableCard').hidden = false;
+            establecerEstadoReporteria('reportingOcrStatus', `${resultado.filas} tickets abiertos analizados.${resultado.faltantes.length ? ' Puedes completar el cruce cargando los informes faltantes.' : ' Cruce completo.'}`, resultado.faltantes.length ? 'pending' : 'success');
+            obtenerElemento('reportingTableCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+        const archivo = archivos[0];
         const libro = XLSX.read(await archivo.arrayBuffer(), { type: 'array', cellDates: false });
         const filas = libro.SheetNames.flatMap(nombre => XLSX.utils.sheet_to_json(libro.Sheets[nombre], {
             header: 1,
@@ -9748,6 +9909,9 @@ function renderizarTablaReporteria() {
 
     reporteCapturaActual.filas.forEach((fila, indiceFila) => {
         const tr = document.createElement('tr');
+        if (fila.some(valor => normalizarTextoReporteria(valor).includes('REVISAR SALIDA'))) {
+            tr.classList.add('is-review-window');
+        }
         const indice = document.createElement('td');
         indice.className = 'reporting-row-number';
         indice.textContent = String(indiceFila + 1);
@@ -9793,16 +9957,16 @@ function eliminarFilaReporteria(indice) {
     renderizarTablaReporteria();
 }
 
-async function aplicarFormatoExcelReporteria(buffer, filas, columnas) {
+async function aplicarFormatoExcelReporteria(buffer, filas, columnas, filasAlerta = []) {
     if (!window.JSZip) return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const zip = await window.JSZip.loadAsync(buffer);
     const estilos = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <fonts count="4"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="15"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><sz val="10"/><name val="Calibri"/></font></fonts>
-<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF92D050"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFC6E0B4"/></patternFill></fill></fills>
+<fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF92D050"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFC6E0B4"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFE699"/></patternFill></fill></fills>
 <borders count="2"><border/><border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs>
+<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="3" fillId="4" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
     zip.file('xl/styles.xml', estilos);
     let hojaXml = await zip.file('xl/worksheets/sheet1.xml').async('string');
@@ -9810,7 +9974,9 @@ async function aplicarFormatoExcelReporteria(buffer, filas, columnas) {
     for (let columna = 0; columna < columnas; columna += 1) {
         const letra = XLSX.utils.encode_col(columna);
         hojaXml = asignarEstiloCeldaXml(hojaXml, `${letra}2`, 2);
-        for (let fila = 3; fila <= filas + 2; fila += 1) hojaXml = asignarEstiloCeldaXml(hojaXml, `${letra}${fila}`, 3);
+        for (let fila = 3; fila <= filas + 2; fila += 1) {
+            hojaXml = asignarEstiloCeldaXml(hojaXml, `${letra}${fila}`, filasAlerta.includes(fila - 3) ? 4 : 3);
+        }
     }
     zip.file('xl/worksheets/sheet1.xml', hojaXml);
     return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', compression: 'DEFLATE' });
@@ -9844,7 +10010,11 @@ async function exportarExcelReporteria() {
         CreatedDate: new Date()
     };
     const buffer = XLSX.write(libro, { bookType: 'xlsx', type: 'array', compression: true });
-    const blob = await aplicarFormatoExcelReporteria(buffer, filas.length, encabezados.length);
+    const filasAlerta = filas.reduce((indices, fila, indice) => {
+        if (fila.some(valor => normalizarTextoReporteria(valor).includes('REVISAR SALIDA'))) indices.push(indice);
+        return indices;
+    }, []);
+    const blob = await aplicarFormatoExcelReporteria(buffer, filas.length, encabezados.length, filasAlerta);
     const nombre = `${configuracion.nombre.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')}-${fechaLocalISO()}.xlsx`;
     descargarBlob(blob, nombre);
     establecerEstadoReporteria('reportingExportStatus', `Excel generado con ${filas.length} registros.`, 'success');
@@ -9871,6 +10041,8 @@ function limpiarReporteria(confirmar = true) {
     actualizarProgresoReporteria(0, false);
     establecerEstadoReporteria('reportingOcrStatus', '');
     establecerEstadoReporteria('reportingExportStatus', '');
+    const resumen = obtenerElemento('reportingSourceSummary');
+    if (resumen) resumen.textContent = '';
 }
 
 function asegurarControlesVentanaModulo(seccion) {
@@ -12179,7 +12351,7 @@ function configurarEventos() {
     });
     obtenerElemento('takeReportingPhoto')?.addEventListener('click', () => obtenerElemento('reportingCameraInput').click());
     obtenerElemento('chooseReportingExcel')?.addEventListener('click', () => obtenerElemento('reportingExcelInput').click());
-    obtenerElemento('reportingExcelInput')?.addEventListener('change', event => cargarExcelReporteria(event.target.files?.[0]));
+    obtenerElemento('reportingExcelInput')?.addEventListener('change', event => cargarExcelReporteria(event.target.files));
     obtenerElemento('chooseReportingImage')?.addEventListener('click', () => obtenerElemento('reportingGalleryInput').click());
     obtenerElemento('pasteReportingImage')?.addEventListener('click', pegarCapturaReporteria);
     obtenerElemento('reportingCameraInput')?.addEventListener('change', event => seleccionarCapturaReporteria(event.target.files, { agregar: true }));

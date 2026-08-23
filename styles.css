@@ -865,6 +865,15 @@ body.dark-theme .module-button-primary {
     color: #172b3a;
 }
 
+.reporting-table tr.is-review-window td,
+.reporting-table tr.is-review-window input {
+    background: #fff4cc;
+}
+
+.reporting-table tr.is-review-window td:first-child {
+    box-shadow: inset 4px 0 0 #d97706;
+}
+
 .reporting-table .reporting-row-number {
     width: 48px;
     min-width: 48px;
@@ -923,6 +932,12 @@ body.dark-theme .reporting-table input {
     border-color: #506174;
     background: #111b27;
     color: #f3f8fc;
+}
+
+body.dark-theme .reporting-table tr.is-review-window td,
+body.dark-theme .reporting-table tr.is-review-window input {
+    background: #493817;
+    color: #fff7db;
 }
 
 @media (max-width: 760px) {
