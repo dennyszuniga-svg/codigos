@@ -1047,3 +1047,45 @@ body {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
+
+/* Campos de captura consistentes con el resto de la aplicacion. */
+body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+body select,
+body textarea {
+    max-width: 100%;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background-color: var(--surface);
+    color: var(--text);
+    box-shadow: 0 1px 2px rgba(20, 79, 112, 0.06);
+    transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):hover:not(:disabled):not([readonly]),
+body select:hover:not(:disabled),
+body textarea:hover:not(:disabled):not([readonly]) {
+    border-color: #8fc4dc;
+    background-color: #f8fcfe;
+}
+
+body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):focus,
+body select:focus,
+body textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    background-color: var(--surface);
+    box-shadow: 0 0 0 3px rgba(23, 155, 215, 0.16), 0 2px 7px rgba(20, 79, 112, 0.08);
+}
+
+body input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):disabled,
+body input:not([type="checkbox"]):not([type="radio"]):not([type="file"])[readonly],
+body select:disabled,
+body textarea:disabled,
+body textarea[readonly] {
+    background-color: #eaf2f6;
+    color: var(--muted);
+    box-shadow: none;
+    cursor: not-allowed;
+    opacity: 1;
+}

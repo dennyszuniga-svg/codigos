@@ -122,3 +122,45 @@ button:disabled { cursor: wait; opacity: .68; }
 @media (max-width: 560px) { .control-header { grid-template-columns: auto 1fr; } .control-header img { width: 110px; } .control-header div { grid-column: 1 / -1; } .control-shell { width: min(100% - 16px, 1280px); margin-top: 8px; } .control-filters > label, .control-filters > button { width: 100%; } .control-filters select, .control-filters input { width: 100%; } .control-tabs { display: grid; grid-template-columns: repeat(2, 1fr); } .control-tabs button { padding: 7px; } .control-view { padding: 12px; } .metric-grid { grid-template-columns: repeat(2, 1fr); } .panel-title-row { align-items: stretch; flex-direction: column; } .panel-title-row input { width: 100%; } .inventory-form, .inventory-movement-form, .manual-maintenance-form, .meypar-form { grid-template-columns: minmax(0, 1fr); } .manual-wide, .meypar-note, .inventory-serials-input { grid-column: auto; } .manual-actions, .meypar-form-actions { flex-direction: column; align-items: stretch; } .manual-actions button, .meypar-form-actions button { width: 100%; } .inventory-location, .inventory-warehouses { grid-column: auto; } .inventory-warehouse-options, .movement-serial-options { grid-template-columns: minmax(0, 1fr); } .inventory-movement-panel, .meypar-panel { padding: 12px; } .inventory-movement-form > button { width: min(100%, 280px); justify-self: center; } .inventory-cost-editor { align-items: stretch; flex-direction: column; } .inventory-cost-editor label { max-width: none; } .serial-form { grid-template-columns: 1fr; } .serial-form button { width: 100%; } }
 
 @media print { .control-header .back-link, .control-tabs, .control-filters, button, form { display: none !important; } .control-shell { width: 100%; margin: 0; } .control-view[hidden] { display: block !important; margin-bottom: 14px; } .control-view { break-inside: avoid; } }
+
+/* Tratamiento visual comun para todos los datos editables. */
+body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+body select,
+body textarea {
+    max-width: 100%;
+    min-width: 0;
+    border: 1px solid #c5d8e3;
+    border-radius: 8px;
+    background-color: #fff;
+    color: #142236;
+    box-shadow: 0 1px 2px rgba(20, 79, 112, 0.06);
+    transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):hover:not(:disabled):not([readonly]),
+body select:hover:not(:disabled),
+body textarea:hover:not(:disabled):not([readonly]) {
+    border-color: #8fc4dc;
+    background-color: #f8fcfe;
+}
+
+body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):focus,
+body select:focus,
+body textarea:focus {
+    outline: none;
+    border-color: #1596ce;
+    background-color: #fff;
+    box-shadow: 0 0 0 3px rgba(21, 150, 206, 0.16), 0 2px 7px rgba(20, 79, 112, 0.08);
+}
+
+body input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):disabled,
+body input:not([type="checkbox"]):not([type="radio"]):not([type="file"])[readonly],
+body select:disabled,
+body textarea:disabled,
+body textarea[readonly] {
+    background-color: #e9f0f4;
+    color: #607184;
+    box-shadow: none;
+    cursor: not-allowed;
+    opacity: 1;
+}
