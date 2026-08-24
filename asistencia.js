@@ -24,8 +24,8 @@ async function init(){
  const [siteResult,shiftResult]=await Promise.all([client.from('asistencia_sedes').select('*').eq('activa',true).order('nombre'),client.from('asistencia_turnos').select('*').eq('activo',true).order('hora_inicio')]);
  if(siteResult.error||shiftResult.error){status('No se pudo cargar la configuracion de asistencia.',true);return}
  sites=siteResult.data||[];shifts=shiftResult.data||[];$('attendanceUser').textContent=`${profile.apellidos_nombres||profile.nombre}${profile.dni?` - DNI ${profile.dni}`:''} - ${profile.rol}`;$('attendanceApp').hidden=false;
- if(['anfitrion','tecnico','supervisor','fortaleza','encargado_ti'].includes(profile.rol))$('workerPanel').hidden=false;
- $('biometricPanel').hidden=false;$('faceOfficialActions').hidden=!['anfitrion','tecnico','supervisor','fortaleza','encargado_ti'].includes(profile.rol);$('faceTest').hidden=!isManager();await loadBiometric();
+ if(['anfitrion','tecnico','supervisor','fortaleza','encargado_ti','admin'].includes(profile.rol))$('workerPanel').hidden=false;
+ $('biometricPanel').hidden=false;$('faceOfficialActions').hidden=!['anfitrion','tecnico','supervisor','fortaleza','encargado_ti','admin'].includes(profile.rol);$('faceTest').hidden=!isManager();await loadBiometric();
  if(isManager()){$('adminPanel').hidden=false;['qrSite','scheduleSite','summarySite'].forEach(id=>fillSiteSelect($(id),isGlobalRole()?'puruchuco':profile.sede));$('scheduleWeek').value=dateIso(schedulingMonday());$('summaryMonth').value=dateIso(new Date()).slice(0,7);await loadSchedule()}
  const preloadFace=()=>loadFaceModels().catch(()=>{});if('requestIdleCallback'in window)requestIdleCallback(preloadFace,{timeout:1500});else setTimeout(preloadFace,500);
  status('Asistencia lista.');

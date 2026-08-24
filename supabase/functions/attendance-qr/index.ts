@@ -110,7 +110,7 @@ Deno.serve(async req => {
         return json({ ok: true, test: true, site: nearest.site.nombre, distance: Math.round(nearest.distance), faceDistance: matchDistance });
       }
 
-      if (!['anfitrion', 'tecnico', 'supervisor', 'fortaleza', 'encargado_ti'].includes(profile.rol)) return json({ error: 'Tu cuenta solo puede enviar una marcacion facial de prueba.' }, 403);
+      if (!['anfitrion', 'tecnico', 'supervisor', 'fortaleza', 'encargado_ti', 'admin'].includes(profile.rol)) return json({ error: 'Tu cuenta solo puede enviar una marcacion facial de prueba.' }, 403);
       const type = String(body.type || 'entrada');
       if (type === 'entrada') {
         const date = limaDate(now);
@@ -173,7 +173,7 @@ Deno.serve(async req => {
     }
 
     if (body.action !== 'mark') return json({ error: 'Accion no valida.' }, 400);
-    if (!['anfitrion', 'tecnico', 'supervisor', 'fortaleza', 'encargado_ti'].includes(profile.rol)) return json({ error: 'Tu rol no registra asistencia.' }, 403);
+    if (!['anfitrion', 'tecnico', 'supervisor', 'fortaleza', 'encargado_ti', 'admin'].includes(profile.rol)) return json({ error: 'Tu rol no registra asistencia.' }, 403);
     const qr = await verifyQrToken(String(body.token || ''), qrSecret);
     const lat = Number(body.latitude);
     const lon = Number(body.longitude);
