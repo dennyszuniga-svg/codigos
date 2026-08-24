@@ -9721,7 +9721,14 @@ function extraerCu14DesdeMatriz(matriz) {
         const fecha = fechaDesdeFilaInforme(valores);
         const indiceOrden = valores.findIndex(valor => /^2\s*\/\s*7\s*-?\s*POSICI[ÓO]N BARRERA/i.test(valor));
         if (!fecha || indiceOrden < 0) return null;
-        const motivo = valores.slice(indiceOrden + 1).filter(Boolean).sort((a, b) => b.length - a.length)[0] || '';
+        const indiceEquipo = valores.findIndex((valor, indice) => indice > indiceOrden
+            && /(?:^|\s|\/|-)(?:ENTRADA|SALIDA)\s*\d+/i.test(valor));
+        const candidatosMotivo = valores
+            .slice(indiceEquipo >= 0 ? indiceEquipo + 1 : indiceOrden + 1)
+            .filter(Boolean);
+        const motivo = candidatosMotivo.find(valor => extraerPlacaYMotivoReporteria(valor).placa)
+            || candidatosMotivo.sort((a, b) => b.length - a.length)[0]
+            || '';
         const placa = extraerPlacaYMotivoReporteria(motivo).placa;
         return {
             fecha,
@@ -9730,7 +9737,7 @@ function extraerCu14DesdeMatriz(matriz) {
             ticket: normalizarTicketCruce(motivo),
             pagado: '',
             motivo,
-            equipo: valores.slice(indiceOrden + 1).find(valor => /\b(?:ENTRADA|SALIDA)\s*\d+/i.test(valor)) || '',
+            equipo: indiceEquipo >= 0 ? valores[indiceEquipo] : '',
             texto: normalizarTextoReporteria(valores.filter(Boolean).join(' ')),
             contexto: 'CU14 ORDEN MANUAL'
         };
@@ -9809,8 +9816,24 @@ function extraerRegistrosInformeTickets(matriz, tipoInforme = '') {
 }
 
 function buscarCoincidenciaInforme(base, registros) {
-    return (registros || []).find(registro => (base.ticket && registro.ticket === base.ticket)
-        || (base.placa && registro.placa === base.placa));
+    const ticketBase = normalizarTicketCruce(base.ticket);
+    const placaBase = normalizarPlacaCruce(base.placa);
+    const fechaBase = obtenerFechaCalendarioInforme(base.fecha || base.hora);
+    return (registros || []).find(registro => {
+        const coincideTicket = ticketBase && normalizarTicketCruce(registro.ticket) === ticketBase;
+        if (coincideTicket) return true;
+        const placaRegistro = normalizarPlacaCruce(registro.placa);
+        if (!placaBase || placaRegistro !== placaBase) return false;
+        const fechaRegistro = obtenerFechaCalendarioInforme(registro.fecha || registro.hora);
+        return !fechaBase || !fechaRegistro || fechaRegistro === fechaBase;
+    });
+}
+
+function obtenerFechaCalendarioInforme(valor) {
+    const coincidencia = String(valor ?? '').match(/\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})\b/);
+    if (!coincidencia) return '';
+    const anio = Number(coincidencia[3]) < 100 ? 2000 + Number(coincidencia[3]) : Number(coincidencia[3]);
+    return `${anio}-${String(Number(coincidencia[2])).padStart(2, '0')}-${String(Number(coincidencia[1])).padStart(2, '0')}`;
 }
 
 function obtenerMarcaTiempoInforme(valor) {
@@ -9831,13 +9854,14 @@ function buscarCoincidenciaTarjeta(base, registros) {
     const placaBase = normalizarPlacaCruce(base.placa);
     const inicio = obtenerMarcaTiempoInforme(`${base.fecha || ''} ${base.hora || ''}`);
     if (!placaBase || inicio === null) return null;
-    const limite = 48 * 60 * 60 * 1000;
+    const fechaBase = obtenerFechaCalendarioInforme(base.fecha || base.hora);
     return (registros || [])
         .filter(registro => normalizarPlacaCruce(registro.placa) === placaBase)
         .filter(registro => normalizarTextoReporteria(registro.equipo).includes('SALIDA'))
+        .filter(registro => obtenerFechaCalendarioInforme(registro.fecha || registro.hora) === fechaBase)
         .map(registro => ({ registro, momento: obtenerMarcaTiempoInforme(`${registro.fecha || ''} ${registro.hora || ''}`) }))
-        .filter(item => item.momento !== null && item.momento >= inicio && item.momento - inicio <= limite)
-        .sort((a, b) => a.momento - b.momento)[0]?.registro || null;
+        .filter(item => item.momento !== null)
+        .sort((a, b) => Math.abs(a.momento - inicio) - Math.abs(b.momento - inicio))[0]?.registro || null;
 }
 
 function observacionTicketAbierto(base, fuentes) {
