@@ -5010,28 +5010,190 @@ async function crearDocumentoPdfOperaciones(titulo, subtitulo = '') {
 }
 
 async function crearPdfChecklistOperaciones(registro) {
-    const reporte = await crearDocumentoPdfOperaciones(
-        'CHECKLIST OPERATIVO',
-        `${obtenerNombreSede(registro.sede)} | ${registro.fecha} | ${String(registro.turno || '').toUpperCase()}`
-    );
+    if (!window.PDFLib) throw new Error('El generador de PDF no esta disponible.');
+    await hidratarEvidenciasChecklistOperaciones(registro);
+    const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
+    const pdf = await PDFDocument.create();
+    const normal = await pdf.embedFont(StandardFonts.Helvetica);
+    const negrita = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const anchoPagina = 595.28;
+    const altoPagina = 841.89;
+    const margen = 38;
+    const anchoUtil = anchoPagina - (margen * 2);
+    const colores = {
+        azul: rgb(0.04, 0.25, 0.39),
+        celeste: rgb(0.08, 0.48, 0.67),
+        naranja: rgb(0.94, 0.29, 0.11),
+        texto: rgb(0.12, 0.18, 0.24),
+        gris: rgb(0.37, 0.43, 0.49),
+        borde: rgb(0.77, 0.82, 0.86),
+        fondo: rgb(0.96, 0.98, 0.99),
+        verde: rgb(0.88, 0.96, 0.91),
+        verdeTexto: rgb(0.03, 0.42, 0.23),
+        rojo: rgb(0.99, 0.90, 0.89),
+        rojoTexto: rgb(0.70, 0.12, 0.08),
+        neutro: rgb(0.92, 0.94, 0.96)
+    };
+    let pagina;
+    let y;
+
+    const nuevaPagina = () => {
+        pagina = pdf.addPage([anchoPagina, altoPagina]);
+        pagina.drawRectangle({ x: 0, y: altoPagina - 18, width: anchoPagina, height: 18, color: colores.naranja });
+        pagina.drawText('URBAPARK', { x: margen, y: altoPagina - 52, size: 16, font: negrita, color: colores.celeste });
+        y = altoPagina - 74;
+    };
+    const asegurarEspacio = alto => {
+        if (y - alto < 42) nuevaPagina();
+    };
+    const dividirTexto = (texto, fuente, tamano, anchoMaximo) => {
+        const lineas = [];
+        limpiarTextoReporte(texto || '').split(/\n/).forEach(parrafo => {
+            const palabras = parrafo.split(/\s+/).filter(Boolean);
+            let linea = '';
+            palabras.forEach(palabra => {
+                const candidata = linea ? `${linea} ${palabra}` : palabra;
+                if (linea && fuente.widthOfTextAtSize(candidata, tamano) > anchoMaximo) {
+                    lineas.push(linea);
+                    linea = palabra;
+                } else linea = candidata;
+            });
+            lineas.push(linea || ' ');
+        });
+        return lineas;
+    };
+    const dibujarLineas = (lineas, x, inicioY, opciones = {}) => {
+        const tamano = opciones.tamano || 9;
+        const fuente = opciones.fuente || normal;
+        const color = opciones.color || colores.texto;
+        const interlineado = opciones.interlineado || tamano + 3;
+        lineas.forEach((linea, indice) => pagina.drawText(linea, {
+            x,
+            y: inicioY - (indice * interlineado),
+            size: tamano,
+            font: fuente,
+            color
+        }));
+    };
+    const escribir = (texto, opciones = {}) => {
+        const tamano = opciones.tamano || 9;
+        const fuente = opciones.negrita ? negrita : normal;
+        const lineas = dividirTexto(texto, fuente, tamano, opciones.ancho || anchoUtil);
+        const alto = lineas.length * (opciones.interlineado || tamano + 3);
+        asegurarEspacio(alto + (opciones.despues || 3));
+        dibujarLineas(lineas, opciones.x || margen, y, { tamano, fuente, color: opciones.color, interlineado: opciones.interlineado });
+        y -= alto + (opciones.despues || 3);
+    };
+    const incrustarFoto = async foto => {
+        const fuente = foto?.url || foto?.dataUrl || '';
+        if (!fuente) return null;
+        try {
+            const respuesta = await fetch(fuente);
+            if (!respuesta.ok) return null;
+            const bytes = new Uint8Array(await respuesta.arrayBuffer());
+            const esPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+            return esPng ? pdf.embedPng(bytes) : pdf.embedJpg(bytes);
+        } catch (error) {
+            console.warn('No se pudo agregar una evidencia al PDF:', error);
+            return null;
+        }
+    };
+
+    nuevaPagina();
+    escribir('CHECKLIST OPERATIVO DE SEDE', { tamano: 18, negrita: true, color: colores.azul, despues: 3 });
+    escribir(`${obtenerNombreSede(registro.sede)} | ${registro.fecha} | ${String(registro.turno || '').toUpperCase()}`, { tamano: 10, color: colores.gris, despues: 9 });
     const duracion = calcularDuracionChecklistOperaciones(registro);
-    reporte.escribir(`Responsable: ${registro.responsable_nombre}`, { bold: true });
     const estadoPuntualidad = obtenerPuntualidadChecklistOperaciones(registro);
     const puntualidad = estadoPuntualidad === 'tardanza' ? 'TARDANZA' : estadoPuntualidad === 'a_tiempo' ? 'A TIEMPO' : 'SIN CLASIFICAR';
-    reporte.escribir(`Cargo: ${obtenerEtiquetaRol(registro.responsable_rol)} | Estado horario: ${puntualidad}`);
-    reporte.escribir(`Inicio: ${formatearFechaHoraReporte(registro.inicio_at)} | Fin: ${formatearFechaHoraReporte(registro.fin_at)} | Duracion: ${duracion} min`);
-    reporte.escribir(`Cumplimiento: ${Number(registro.cumplimiento || calcularResumenChecklistOperaciones(registro).cumplimiento).toFixed(1)}%`, { size: 13, bold: true, color: reporte.rgb(0.05, 0.48, 0.29), after: 8 });
-    obtenerSeccionesChecklistOperaciones(registro.sede).forEach(seccion => {
-        reporte.escribir(seccion.nombre.toUpperCase(), { size: 12, bold: true, color: reporte.rgb(0.94, 0.29, 0.11), after: 4 });
+    const resumen = calcularResumenChecklistOperaciones(registro);
+    const altoResumen = 76;
+    pagina.drawRectangle({ x: margen, y: y - altoResumen, width: anchoUtil, height: altoResumen, color: colores.fondo, borderColor: colores.borde, borderWidth: 0.7 });
+    pagina.drawText(`Responsable: ${limpiarTextoReporte(registro.responsable_nombre)}`, { x: margen + 12, y: y - 18, size: 9.5, font: negrita, color: colores.texto });
+    pagina.drawText(`Cargo: ${limpiarTextoReporte(obtenerEtiquetaRol(registro.responsable_rol))}`, { x: margen + 12, y: y - 35, size: 8.5, font: normal, color: colores.texto });
+    pagina.drawText(`Estado horario: ${puntualidad}`, { x: margen + 300, y: y - 35, size: 8.5, font: normal, color: colores.texto });
+    pagina.drawText(`Inicio: ${formatearFechaHoraReporte(registro.inicio_at)} | Fin: ${formatearFechaHoraReporte(registro.fin_at)} | Duración: ${duracion} min`, { x: margen + 12, y: y - 53, size: 8.5, font: normal, color: colores.texto });
+    pagina.drawText(`Cumplimiento: ${Number(registro.cumplimiento || resumen.cumplimiento).toFixed(1)}%`, { x: margen + 370, y: y - 55, size: 11, font: negrita, color: colores.verdeTexto });
+    y -= altoResumen + 14;
+
+    for (const seccion of obtenerSeccionesChecklistOperaciones(registro.sede)) {
+        asegurarEspacio(74);
+        escribir(seccion.nombre.toUpperCase(), { tamano: 12, negrita: true, color: colores.naranja, despues: 6 });
+        const columnas = [342, 76, anchoUtil - 418];
+        const encabezados = ['PUNTO DE VERIFICACIÓN', 'CRITICIDAD', 'RESULTADO'];
+        let x = margen;
+        encabezados.forEach((encabezado, indice) => {
+            pagina.drawRectangle({ x, y: y - 24, width: columnas[indice], height: 24, color: colores.azul, borderColor: colores.borde, borderWidth: 0.5 });
+            pagina.drawText(encabezado, { x: x + 6, y: y - 16, size: 7.8, font: negrita, color: rgb(1, 1, 1) });
+            x += columnas[indice];
+        });
+        y -= 24;
         seccion.items.forEach(item => {
             const valor = registro.respuestas?.[`${seccion.id}:${item[0]}`] || 'sin_respuesta';
-            const etiqueta = valor === 'cumple' ? 'SI CUMPLE' : valor === 'no_cumple' ? 'NO CUMPLE' : valor === 'na' ? 'N.A.' : 'SIN RESPUESTA';
-            reporte.escribir(`[${etiqueta}] ${item[1]} (${item[2]})`, { indent: 8, size: 9 });
+            const etiqueta = valor === 'cumple' ? 'SÍ CUMPLE' : valor === 'no_cumple' ? 'NO CUMPLE' : valor === 'na' ? 'N.A.' : 'SIN RESPUESTA';
+            const lineasPunto = dividirTexto(item[1], normal, 8.3, columnas[0] - 12);
+            const altoFila = Math.max(27, (lineasPunto.length * 11) + 10);
+            asegurarEspacio(altoFila + 2);
+            const rellenoResultado = valor === 'cumple' ? colores.verde : valor === 'no_cumple' ? colores.rojo : colores.neutro;
+            x = margen;
+            [colores.fondo, colores.fondo, rellenoResultado].forEach((relleno, indice) => {
+                pagina.drawRectangle({ x, y: y - altoFila, width: columnas[indice], height: altoFila, color: relleno, borderColor: colores.borde, borderWidth: 0.5 });
+                x += columnas[indice];
+            });
+            dibujarLineas(lineasPunto, margen + 6, y - 10, { tamano: 8.3, interlineado: 11 });
+            pagina.drawText(String(item[2] || '').toUpperCase(), { x: margen + columnas[0] + 6, y: y - 16, size: 7.5, font: negrita, color: colores.gris });
+            const colorResultado = valor === 'cumple' ? colores.verdeTexto : valor === 'no_cumple' ? colores.rojoTexto : colores.gris;
+            const anchoEtiqueta = negrita.widthOfTextAtSize(etiqueta, 7.5);
+            pagina.drawText(etiqueta, { x: margen + columnas[0] + columnas[1] + Math.max(5, (columnas[2] - anchoEtiqueta) / 2), y: y - 16, size: 7.5, font: negrita, color: colorResultado });
+            y -= altoFila;
         });
         const observacion = String(registro.observaciones?.[seccion.id] || '').trim();
-        if (observacion) reporte.escribir(`Novedad / solucion: ${observacion}`, { indent: 8, size: 9, bold: true, after: 6 });
-    });
-    return reporte.bytes();
+        const textoObservacion = observacion || 'Sin observaciones.';
+        const lineasObservacion = dividirTexto(textoObservacion, normal, 8.5, anchoUtil - 24);
+        const altoObservacion = 25 + (lineasObservacion.length * 11);
+        asegurarEspacio(altoObservacion + 8);
+        pagina.drawRectangle({ x: margen, y: y - altoObservacion, width: anchoUtil, height: altoObservacion, color: rgb(1, 0.97, 0.94), borderColor: rgb(0.96, 0.66, 0.50), borderWidth: 0.7 });
+        pagina.drawText('OBSERVACIONES / NOVEDAD Y SOLUCIÓN', { x: margen + 10, y: y - 15, size: 8, font: negrita, color: colores.naranja });
+        dibujarLineas(lineasObservacion, margen + 10, y - 30, { tamano: 8.5, interlineado: 11 });
+        y -= altoObservacion + 8;
+
+        const fotos = obtenerEvidenciasSeccionOperaciones(registro, seccion.id);
+        escribir(`EVIDENCIAS FOTOGRÁFICAS (${fotos.length})`, { tamano: 9, negrita: true, color: colores.azul, despues: 5 });
+        if (!fotos.length) {
+            escribir('Sin fotografías disponibles para este bloque.', { tamano: 8.5, color: colores.gris, despues: 10 });
+            continue;
+        }
+        const anchoTarjeta = (anchoUtil - 10) / 2;
+        const altoTarjeta = 158;
+        for (let indice = 0; indice < fotos.length; indice += 2) {
+            asegurarEspacio(altoTarjeta + 12);
+            const par = fotos.slice(indice, indice + 2);
+            const imagenes = await Promise.all(par.map(incrustarFoto));
+            par.forEach((foto, indicePar) => {
+                const tarjetaX = margen + (indicePar * (anchoTarjeta + 10));
+                pagina.drawRectangle({ x: tarjetaX, y: y - altoTarjeta, width: anchoTarjeta, height: altoTarjeta, color: colores.fondo, borderColor: colores.borde, borderWidth: 0.7 });
+                const imagen = imagenes[indicePar];
+                if (imagen) {
+                    const escala = Math.min((anchoTarjeta - 12) / imagen.width, 121 / imagen.height);
+                    const anchoImagen = imagen.width * escala;
+                    const altoImagen = imagen.height * escala;
+                    pagina.drawImage(imagen, {
+                        x: tarjetaX + ((anchoTarjeta - anchoImagen) / 2),
+                        y: y - 8 - altoImagen,
+                        width: anchoImagen,
+                        height: altoImagen
+                    });
+                } else {
+                    pagina.drawText('Imagen no disponible', { x: tarjetaX + 55, y: y - 72, size: 9, font: negrita, color: colores.gris });
+                }
+                const pie = `${foto.autor_nombre || 'Personal de sede'} | ${foto.creado_at ? formatearFechaHoraReporte(foto.creado_at) : 'Sin hora'}`;
+                const lineasPie = dividirTexto(pie, normal, 7.2, anchoTarjeta - 12).slice(0, 2);
+                dibujarLineas(lineasPie, tarjetaX + 6, y - 137, { tamano: 7.2, color: colores.gris, interlineado: 9 });
+            });
+            y -= altoTarjeta + 10;
+        }
+        y -= 4;
+    }
+    return pdf.save();
 }
 
 function formatearFechaHoraReporte(valor) {
