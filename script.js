@@ -4906,46 +4906,266 @@ function renderizarDashboardOperaciones() {
     });
 }
 
-function exportarChecklistOperacionesExcel() {
-    if (!historialChecklistsOperaciones.length) {
-        obtenerElemento('operationsDashboardStatus').textContent = 'No hay resultados para exportar.';
-        return;
-    }
-    if (!window.XLSX) {
-        obtenerElemento('operationsDashboardStatus').textContent = 'No se pudo cargar el generador de Excel.';
-        return;
-    }
-    const resumen = historialChecklistsOperaciones.map(registro => ({
-        Fecha: registro.fecha,
-        Sede: obtenerNombreSede(registro.sede),
-        Responsable: registro.responsable_nombre,
-        Cargo: obtenerEtiquetaRol(registro.responsable_rol),
-        Turno: registro.turno,
-        Puntualidad: obtenerPuntualidadChecklistOperaciones(registro) === 'tardanza' ? 'Tardanza' : obtenerPuntualidadChecklistOperaciones(registro) === 'a_tiempo' ? 'A tiempo' : 'Sin clasificar',
-        'Cumplimiento (%)': Number(registro.cumplimiento || 0),
-        'No conformidades': Number(registro.no_cumple_items || 0),
-        'Criticos no conformes': Number(registro.criticos_no_cumple || 0)
-    }));
-    const detalle = [];
-    historialChecklistsOperaciones.forEach(registro => {
-        obtenerSeccionesChecklistOperaciones(registro.sede).forEach(seccion => seccion.items.forEach(item => {
-            detalle.push({
-                Fecha: registro.fecha,
-                Sede: obtenerNombreSede(registro.sede),
-                Responsable: registro.responsable_nombre,
-                Seccion: seccion.nombre,
-                Verificacion: item[1],
-                Criticidad: item[2],
-                Resultado: registro.respuestas?.[`${seccion.id}:${item[0]}`] || '',
-                Observacion: registro.observaciones?.[seccion.id] || ''
-            });
-        }));
+function escaparXmlChecklist(valor = '') {
+    return String(valor)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
+
+function actualizarCeldaXmlChecklist(xml, referencia, valor, opciones = {}) {
+    const patron = new RegExp(`<c\\b([^>]*\\br="${referencia}"[^>]*)\\s*(?:\\/>|>([\\s\\S]*?)<\\/c>)`);
+    return xml.replace(patron, coincidencia => {
+        const apertura = coincidencia.match(/^<c\b([^>]*)/)?.[1] || ` r="${referencia}"`;
+        const atributos = apertura.replace(/\s+t="[^"]*"/g, '').replace(/\s*\/$/, '');
+        if (opciones.texto) {
+            return `<c${atributos} t="inlineStr"><is><t xml:space="preserve">${escaparXmlChecklist(valor)}</t></is></c>`;
+        }
+        const numero = Number.isFinite(Number(valor)) ? Number(valor) : 0;
+        const formula = opciones.formula ? `<f>${escaparXmlChecklist(opciones.formula)}</f>` : '';
+        return `<c${atributos}>${formula}<v>${numero}</v></c>`;
     });
-    const libro = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(resumen), 'Resumen');
-    XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(detalle), 'Detalle');
-    const { mes } = obtenerRangoMesOperaciones();
-    XLSX.writeFile(libro, `Checklist-Operaciones-${obtenerElemento('operationsDashboardSite').value}-${mes}.xlsx`, { compression: true });
+}
+
+function crearCacheNumericoGrafico(valores, formato = 'General') {
+    const puntos = valores.map((valor, indice) => `<c:pt idx="${indice}"><c:v>${Number(valor) || 0}</c:v></c:pt>`).join('');
+    return `<c:numCache><c:formatCode>${formato}</c:formatCode><c:ptCount val="${valores.length}"/>${puntos}</c:numCache>`;
+}
+
+function actualizarCachesGrafico(xml, series) {
+    let indice = 0;
+    return xml.replace(/<c:numCache>[\s\S]*?<\/c:numCache>/g, coincidencia => {
+        const serie = series[indice++];
+        return serie ? crearCacheNumericoGrafico(serie.valores, serie.formato) : coincidencia;
+    });
+}
+
+function nombreColumnaExcel(indice) {
+    let numero = indice + 1;
+    let resultado = '';
+    while (numero > 0) {
+        numero -= 1;
+        resultado = String.fromCharCode(65 + (numero % 26)) + resultado;
+        numero = Math.floor(numero / 26);
+    }
+    return resultado;
+}
+
+function crearXmlHojaChecklist(encabezados, filas, anchos = [], columnasPorcentaje = []) {
+    const ultimaColumna = nombreColumnaExcel(encabezados.length - 1);
+    const totalFilas = Math.max(1, filas.length + 1);
+    const columnas = encabezados.map((_, indice) => {
+        const ancho = Number(anchos[indice] || 18);
+        return `<col min="${indice + 1}" max="${indice + 1}" width="${ancho}" customWidth="1"/>`;
+    }).join('');
+    const crearCelda = (valor, fila, columna, cabecera = false) => {
+        const referencia = `${nombreColumnaExcel(columna)}${fila}`;
+        const esNumero = typeof valor === 'number' && Number.isFinite(valor);
+        const estilo = cabecera ? 1 : columnasPorcentaje.includes(columna) ? 7 : esNumero ? 3 : 2;
+        if (esNumero) return `<c r="${referencia}" s="${estilo}"><v>${valor}</v></c>`;
+        return `<c r="${referencia}" s="${estilo}" t="inlineStr"><is><t xml:space="preserve">${escaparXmlChecklist(valor ?? '')}</t></is></c>`;
+    };
+    const filaCabecera = `<row r="1" ht="30" customHeight="1">${encabezados.map((valor, columna) => crearCelda(valor, 1, columna, true)).join('')}</row>`;
+    const filasXml = filas.map((fila, indice) => {
+        const numeroFila = indice + 2;
+        return `<row r="${numeroFila}" ht="24" customHeight="1">${encabezados.map((_, columna) => crearCelda(fila[columna], numeroFila, columna)).join('')}</row>`;
+    }).join('');
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${ultimaColumna}${totalFilas}"/><sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>${columnas}</cols><sheetData>${filaCabecera}${filasXml}</sheetData><autoFilter ref="A1:${ultimaColumna}${totalFilas}"/><pageMargins left="0.35" right="0.35" top="0.5" bottom="0.5" header="0.2" footer="0.2"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>`;
+}
+
+function obtenerDiasEsperadosChecklist(mes) {
+    const [anio, numeroMes] = mes.split('-').map(Number);
+    const hoy = new Date();
+    const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+    if (mes > mesActual) return 0;
+    if (mes === mesActual) return hoy.getDate();
+    return new Date(anio, numeroMes, 0).getDate();
+}
+
+function obtenerHoraLimaChecklist(fechaIso) {
+    if (!fechaIso) return '';
+    const partes = new Intl.DateTimeFormat('es-PE', {
+        timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit', hour12: false
+    }).formatToParts(new Date(fechaIso));
+    const hora = partes.find(parte => parte.type === 'hour')?.value || '00';
+    const minuto = partes.find(parte => parte.type === 'minute')?.value || '00';
+    return `${hora === '24' ? '00' : hora}:${minuto}`;
+}
+
+function obtenerMinutosTardanzaChecklist(registro) {
+    const hora = obtenerHoraLimaChecklist(registro.inicio_at);
+    if (!hora || obtenerPuntualidadChecklistOperaciones(registro) !== 'tardanza') return 0;
+    const [horas, minutos] = hora.split(':').map(Number);
+    let inicio = horas * 60 + minutos;
+    const limite = registro.turno === 'apertura' ? 10 * 60 : registro.turno === 'intermedio' ? 15 * 60 : 23 * 60;
+    if (registro.turno === 'cierre' && horas < 2) inicio += 24 * 60;
+    return Math.max(0, inicio - limite);
+}
+
+function crearFilasTardanzasChecklist(registros) {
+    return [...registros]
+        .sort((a, b) => String(b.inicio_at || b.fecha).localeCompare(String(a.inicio_at || a.fecha)))
+        .map(registro => {
+            const puntualidad = obtenerPuntualidadChecklistOperaciones(registro);
+            const ventana = VENTANAS_CHECKLIST_OPERACIONES[registro.turno];
+            return [
+                registro.fecha || '',
+                obtenerNombreSede(registro.sede),
+                ventana?.etiqueta || registro.turno || '',
+                obtenerHoraLimaChecklist(registro.inicio_at),
+                registro.responsable_nombre || '',
+                obtenerEtiquetaRol(registro.responsable_rol),
+                ventana ? `${ventana.inicio}-${ventana.cierre} (puntual hasta ${ventana.puntualHasta})` : '',
+                puntualidad === 'tardanza' ? 'TARDANZA' : puntualidad === 'a_tiempo' ? 'A TIEMPO' : 'SIN CLASIFICAR',
+                obtenerMinutosTardanzaChecklist(registro),
+                puntualidad === 'a_tiempo' ? 'SÍ' : puntualidad === 'tardanza' ? 'NO' : 'SIN DATO'
+            ];
+        });
+}
+
+function crearFilasReincidenciasChecklist(registros) {
+    const resumen = new Map();
+    registros.forEach(registro => {
+        obtenerSeccionesChecklistOperaciones(registro.sede).forEach(seccion => {
+            seccion.items.forEach(item => {
+                const resultado = registro.respuestas?.[`${seccion.id}:${item[0]}`];
+                if (!['cumple', 'no_cumple'].includes(resultado)) return;
+                const clave = `${registro.sede}|${seccion.id}|${item[0]}`;
+                if (!resumen.has(clave)) {
+                    resumen.set(clave, {
+                        sede: registro.sede, seccion: seccion.nombre, punto: item[1], criticidad: item[2],
+                        evaluados: 0, noCumple: 0, dias: new Set(), ultimaFecha: '', observaciones: new Set()
+                    });
+                }
+                const dato = resumen.get(clave);
+                dato.evaluados += 1;
+                if (resultado !== 'no_cumple') return;
+                dato.noCumple += 1;
+                if (registro.fecha) dato.dias.add(registro.fecha);
+                if (String(registro.fecha || '') > dato.ultimaFecha) dato.ultimaFecha = registro.fecha;
+                const observacion = String(registro.observaciones?.[seccion.id] || '').trim();
+                if (observacion) dato.observaciones.add(observacion);
+            });
+        });
+    });
+    const filas = [...resumen.values()]
+        .filter(dato => dato.noCumple > 0)
+        .sort((a, b) => b.dias.size - a.dias.size || b.noCumple - a.noCumple || obtenerNombreSede(a.sede).localeCompare(obtenerNombreSede(b.sede)))
+        .map(dato => [
+            obtenerNombreSede(dato.sede), dato.seccion, dato.punto, dato.criticidad,
+            dato.noCumple, dato.dias.size, dato.ultimaFecha,
+            dato.evaluados ? dato.noCumple / dato.evaluados : 0,
+            dato.dias.size >= 2 ? 'RECURRENTE' : 'PUNTUAL',
+            [...dato.observaciones].join(' | ').slice(0, 1000)
+        ]);
+    return filas.length ? filas : [['Todas las sedes', '', 'Sin no conformidades registradas en el periodo.', '', 0, 0, '', 0, 'SIN HALLAZGOS', '']];
+}
+
+async function exportarChecklistOperacionesExcel() {
+    const estado = obtenerElemento('operationsDashboardStatus');
+    if (!supabaseClient || !sesionActual?.user) {
+        estado.textContent = 'La sesión no está disponible para generar el reporte.';
+        return;
+    }
+    if (!window.JSZip) {
+        estado.textContent = 'No se pudo cargar la plantilla de Excel.';
+        return;
+    }
+    const rango = obtenerRangoMesOperaciones();
+    estado.textContent = 'Preparando el consolidado de todas las sedes...';
+    estado.dataset.status = '';
+    try {
+        const { data, error } = await supabaseClient.from('operaciones_checklists')
+            .select('*')
+            .eq('estado', 'finalizado')
+            .gte('fecha', rango.inicio)
+            .lte('fecha', rango.fin)
+            .order('inicio_at', { ascending: false });
+        if (error) throw error;
+        const registros = Array.isArray(data) ? data : [];
+        if (!registros.length) throw new Error('No hay checklists finalizados en el mes elegido.');
+
+        const ordenSedes = ['salaverry', 'puruchuco', 'civico', 'primavera', 'gama'];
+        const agregados = ordenSedes.map(sede => {
+            const registrosSede = registros.filter(registro => registro.sede === sede);
+            const apertura = registrosSede.filter(registro => registro.turno === 'apertura').length;
+            const intermedio = registrosSede.filter(registro => registro.turno === 'intermedio').length;
+            const cierre = registrosSede.filter(registro => registro.turno === 'cierre').length;
+            return { sede, apertura, intermedio, cierre, total: apertura + intermedio + cierre };
+        });
+        const diasEsperados = obtenerDiasEsperadosChecklist(rango.mes);
+        const esperadosPorSede = diasEsperados * 3;
+        const cumplimiento = agregados.map(item => esperadosPorSede ? item.total / esperadosPorSede : 0);
+
+        const respuestaPlantilla = await fetch('assets/reporte-checklist-por-sede.xlsx', { cache: 'no-store' });
+        if (!respuestaPlantilla.ok) throw new Error('No se pudo abrir la plantilla del reporte.');
+        const zip = await window.JSZip.loadAsync(await respuestaPlantilla.arrayBuffer());
+        const leer = ruta => zip.file(ruta).async('string');
+        let resumenXml = await leer('xl/worksheets/sheet1.xml');
+        let datosXml = await leer('xl/worksheets/sheet2.xml');
+        resumenXml = actualizarCeldaXmlChecklist(resumenXml, 'A2', `Cantidad de registros realizados por tipo de control - ${rango.mes}`, { texto: true });
+        resumenXml = actualizarCeldaXmlChecklist(resumenXml, 'I4', esperadosPorSede, { formula: `3*${diasEsperados}` });
+        agregados.forEach((item, indice) => {
+            const filaResumen = indice + 5;
+            const filaDatos = indice + 2;
+            [['B', item.apertura], ['C', item.intermedio], ['D', item.cierre], ['E', item.total]].forEach(([columna, valor]) => {
+                resumenXml = actualizarCeldaXmlChecklist(resumenXml, `${columna}${filaResumen}`, valor);
+                datosXml = actualizarCeldaXmlChecklist(datosXml, `${columna}${filaDatos}`, valor);
+            });
+            resumenXml = actualizarCeldaXmlChecklist(resumenXml, `F${filaResumen}`, cumplimiento[indice], { formula: `E${filaResumen}/$I$4` });
+        });
+        ['B', 'C', 'D', 'E'].forEach(columna => {
+            const clave = columna === 'B' ? 'apertura' : columna === 'C' ? 'intermedio' : columna === 'D' ? 'cierre' : 'total';
+            resumenXml = actualizarCeldaXmlChecklist(resumenXml, `${columna}10`, agregados.reduce((suma, item) => suma + item[clave], 0), { formula: `SUM(${columna}5:${columna}9)` });
+        });
+        zip.file('xl/worksheets/sheet1.xml', resumenXml);
+        zip.file('xl/worksheets/sheet2.xml', datosXml);
+
+        const chart1 = actualizarCachesGrafico(await leer('xl/charts/chart1.xml'), [
+            { valores: agregados.map(item => item.apertura), formato: 'General' },
+            { valores: agregados.map(item => item.intermedio), formato: 'General' },
+            { valores: agregados.map(item => item.cierre), formato: 'General' }
+        ]);
+        const chart2 = actualizarCachesGrafico(await leer('xl/charts/chart2.xml'), [{ valores: cumplimiento, formato: '0%' }]);
+        zip.file('xl/charts/chart1.xml', chart1);
+        zip.file('xl/charts/chart2.xml', chart2);
+
+        const encabezadosTardanza = ['Fecha', 'Sede', 'Turno', 'Hora de inicio', 'Responsable', 'Cargo', 'Horario esperado', 'Estado', 'Minutos de tardanza', 'Cumple horario'];
+        const encabezadosReincidencia = ['Sede', 'Sección', 'Punto de verificación', 'Criticidad', 'Veces No cumple', 'Días distintos', 'Última fecha', 'Tasa de no cumplimiento', 'Clasificación', 'Observaciones registradas'];
+        zip.file('xl/worksheets/sheet3.xml', crearXmlHojaChecklist(encabezadosTardanza, crearFilasTardanzasChecklist(registros), [14, 28, 14, 15, 30, 25, 30, 18, 21, 18]));
+        zip.file('xl/worksheets/sheet4.xml', crearXmlHojaChecklist(encabezadosReincidencia, crearFilasReincidenciasChecklist(registros), [28, 28, 52, 14, 18, 16, 16, 24, 18, 60], [7]));
+
+        let workbookXml = await leer('xl/workbook.xml');
+        workbookXml = workbookXml.replace('</sheets>', '<sheet name="Tardanzas" sheetId="3" r:id="rId7"/><sheet name="Reincidencias" sheetId="4" r:id="rId8"/></sheets>')
+            .replace(/<calcPr[^>]*\/>/, '<calcPr calcId="191029" calcMode="auto" fullCalcOnLoad="1" forceFullCalc="1"/>');
+        zip.file('xl/workbook.xml', workbookXml);
+
+        let relacionesXml = await leer('xl/_rels/workbook.xml.rels');
+        relacionesXml = relacionesXml.replace('</Relationships>', '<Relationship Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/><Relationship Id="rId8" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet4.xml"/></Relationships>');
+        zip.file('xl/_rels/workbook.xml.rels', relacionesXml);
+
+        let tiposXml = await leer('[Content_Types].xml');
+        tiposXml = tiposXml.replace('</Types>', '<Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet4.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>');
+        zip.file('[Content_Types].xml', tiposXml);
+
+        let propiedadesXml = await leer('docProps/app.xml');
+        propiedadesXml = propiedadesXml
+            .replace('<vt:variant><vt:i4>2</vt:i4></vt:variant>', '<vt:variant><vt:i4>4</vt:i4></vt:variant>')
+            .replace('<vt:vector size="2" baseType="lpstr"><vt:lpstr>Resumen</vt:lpstr><vt:lpstr>Datos</vt:lpstr></vt:vector>', '<vt:vector size="4" baseType="lpstr"><vt:lpstr>Resumen</vt:lpstr><vt:lpstr>Datos</vt:lpstr><vt:lpstr>Tardanzas</vt:lpstr><vt:lpstr>Reincidencias</vt:lpstr></vt:vector>');
+        zip.file('docProps/app.xml', propiedadesXml);
+
+        const archivo = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+        descargarBlob(archivo, `Reporte-Checklist-por-Sede-${rango.mes}.xlsx`);
+        estado.textContent = `Reporte consolidado generado: ${registros.length} checklists de ${rango.mes}.`;
+        estado.dataset.status = 'success';
+    } catch (error) {
+        console.error('No se pudo generar el reporte consolidado de checklist:', error);
+        estado.textContent = error?.message || 'No se pudo generar el Excel consolidado.';
+        estado.dataset.status = 'error';
+    }
 }
 
 function limpiarTextoReporte(valor = '') {
