@@ -4423,10 +4423,7 @@ function crearPanelEvidenciasChecklistOperaciones(seccion) {
             label.appendChild(input);
             return label;
         };
-        acciones.append(
-            crearEntrada(true, false, 'Tomar foto'),
-            crearEntrada(false, true, 'Elegir fotos')
-        );
+        acciones.append(crearEntrada(false, true, 'Cargar imagen'));
     }
 
     fotos.forEach((foto, indice) => {
