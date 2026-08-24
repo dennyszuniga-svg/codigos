@@ -3617,7 +3617,7 @@ async function aplicarFormatoVisualOcupabilidad(buffer, esquema = {}) {
 <font><b/><sz val="14"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
 <font><b/><sz val="16"/><color rgb="FFF04B1A"/><name val="Calibri"/></font>
 </fonts>
-<fills count="10">
+<fills count="15">
 <fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>
 <fill><patternFill patternType="solid"><fgColor rgb="FFFF0000"/><bgColor indexed="64"/></patternFill></fill>
 <fill><patternFill patternType="solid"><fgColor rgb="FF000000"/><bgColor indexed="64"/></patternFill></fill>
@@ -3627,10 +3627,15 @@ async function aplicarFormatoVisualOcupabilidad(buffer, esquema = {}) {
 <fill><patternFill patternType="solid"><fgColor rgb="FF19A7D8"/><bgColor indexed="64"/></patternFill></fill>
 <fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/><bgColor indexed="64"/></patternFill></fill>
 <fill><patternFill patternType="solid"><fgColor rgb="FFF4F7F9"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFEF1818"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFED7D31"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFEFB5EF"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFB80000"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF092B61"/><bgColor indexed="64"/></patternFill></fill>
 </fills>
 <borders count="2"><border/><border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="14">
+<cellXfs count="22">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 <xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
 <xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
@@ -3645,6 +3650,14 @@ async function aplicarFormatoVisualOcupabilidad(buffer, esquema = {}) {
 <xf numFmtId="0" fontId="3" fillId="3" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
 <xf numFmtId="0" fontId="4" fillId="8" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
 <xf numFmtId="0" fontId="3" fillId="4" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="10" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="11" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="12" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="13" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="8" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="14" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="5" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="7" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
@@ -3674,12 +3687,13 @@ async function aplicarFormatoVisualOcupabilidad(buffer, esquema = {}) {
         estilosPorCelda[`D${fila}`] = 9;
         estilosPorCelda[`E${fila}`] = 10;
     }
+    Object.assign(estilosPorCelda, esquema.estilosCeldas || {});
     Object.entries(estilosPorCelda).forEach(([celda, estilo]) => { hojaXml = asignarEstiloCeldaXml(hojaXml, celda, estilo); });
 
     try {
         const logo = await fetch('assets/urbapark-logo.png').then(respuesta => respuesta.arrayBuffer());
         zip.file('xl/media/image1.png', logo);
-        zip.file('xl/drawings/drawing1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><xdr:twoCellAnchor editAs="oneCell"><xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>2</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>2</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>5</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="1" name="UrbaPark"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:twoCellAnchor></xdr:wsDr>`);
+        zip.file('xl/drawings/drawing1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><xdr:oneCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>190500</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>95250</xdr:rowOff></xdr:from><xdr:ext cx="1905000" cy="714375"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="1" name="UrbaPark"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>`);
         zip.file('xl/drawings/_rels/drawing1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/></Relationships>`);
         zip.file('xl/worksheets/_rels/sheet1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>`);
         if (!hojaXml.includes('xmlns:r=')) hojaXml = hojaXml.replace('<worksheet ', '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ');
@@ -3715,6 +3729,96 @@ function convertirCanvasABlobSincrono(canvas) {
     const bytes = new Uint8Array(binario.length);
     for (let indice = 0; indice < binario.length; indice += 1) bytes[indice] = binario.charCodeAt(indice);
     return new Blob([bytes], { type: 'image/png' });
+}
+
+function crearModeloExcelOcupabilidadPuruchuco(zonas, hora, fechaTexto, horaTexto) {
+    const autos = zonas.filter(zona => zona.tipo === 'vehiculos');
+    const bicicletas = zonas.filter(zona => zona.tipo === 'bicicletas');
+    const motos = zonas.filter(zona => zona.tipo === 'motos');
+    const porcentaje = zona => `${zona.capacidad ? Math.round(zona.ocupados / zona.capacidad * 100) : 0}%`;
+    const sumar = (lista, campo) => lista.reduce((total, zona) => total + numeroEnteroSeguro(zona[campo]), 0);
+    const totalFila = lista => {
+        const ocupados = sumar(lista, 'ocupados');
+        const libres = sumar(lista, 'libres');
+        const capacidad = sumar(lista, 'capacidad');
+        return ['TOTAL', ocupados, libres, capacidad, `${capacidad ? Math.round(ocupados / capacidad * 100) : 0}%`, ''];
+    };
+    const filas = [
+        ['', '', '', '', '', '', '', ''],
+        ['', '', fechaTexto, '', horaTexto, '', '', ''],
+        ['', '', '', '', '', '', '', ''],
+        ['', '', '', '', '', '', '', ''],
+        ['ZONA', 'AUTOS', 'DISPONIBLE', 'TOTAL', '%', 'TOYOTA YARIS', '', ''],
+        ...autos.map(zona => [zona.nombre.toUpperCase(), zona.ocupados, zona.libres, zona.capacidad, porcentaje(zona), zona.yaris, '', '']),
+        totalFila(autos).map((valor, indice) => indice === 5 ? sumar(autos, 'yaris') : valor),
+        ['', '', '', '', '', '', '', ''],
+        ['BICICLETAS', 'OCUPADOS', 'DISPONIBLE', 'TOTAL', '%', '', '', ''],
+        ...bicicletas.map(zona => [zona.nombre, zona.ocupados, zona.libres, zona.capacidad, porcentaje(zona), '', '', '']),
+        totalFila(bicicletas),
+        ['', '', '', '', '', '', '', ''],
+        ['MOTOS', 'OCUPADOS', 'DISPONIBLE', 'TOTAL', '%', '', '', ''],
+        ...motos.map(zona => [zona.nombre, zona.ocupados, zona.libres, zona.capacidad, porcentaje(zona), '', '', '']),
+        totalFila(motos)
+    ];
+    const primeraFilaAutos = 6;
+    const filaTotalAutos = primeraFilaAutos + autos.length;
+    const filaCabeceraBicicletas = filaTotalAutos + 2;
+    const primeraFilaBicicletas = filaCabeceraBicicletas + 1;
+    const filaTotalBicicletas = primeraFilaBicicletas + bicicletas.length;
+    const filaCabeceraMotos = filaTotalBicicletas + 2;
+    const primeraFilaMotos = filaCabeceraMotos + 1;
+    const filaTotalMotos = primeraFilaMotos + motos.length;
+    const estilosCeldas = {};
+    const asignarFila = (fila, columnas, estilo) => columnas.forEach(columna => { estilosCeldas[`${columna}${fila}`] = estilo; });
+    [1, 2, 3, 4].forEach(fila => asignarFila(fila, ['A', 'B', 'C', 'D', 'E', 'F'], 0));
+    asignarFila(5, ['A', 'B', 'C', 'D', 'E', 'F'], 19);
+    asignarFila(filaTotalAutos, ['A', 'B', 'C', 'D', 'E', 'F'], 19);
+    asignarFila(filaCabeceraBicicletas, ['A', 'B', 'C', 'D', 'E'], 19);
+    asignarFila(filaTotalBicicletas, ['A', 'B', 'C', 'D', 'E'], 19);
+    asignarFila(filaCabeceraMotos, ['A', 'B', 'C', 'D', 'E'], 19);
+    asignarFila(filaTotalMotos, ['A', 'B', 'C', 'D', 'E'], 19);
+    asignarFila(2, ['C', 'D', 'E', 'F'], 19);
+    const estilosZona = {
+        rojo: 14, verde: 20, azul: 21, naranja: 15, rosado: 16,
+        amarillo: 4, 'externo-ipae': 17
+    };
+    autos.forEach((zona, indice) => {
+        const fila = primeraFilaAutos + indice;
+        asignarFila(fila, ['A', 'B', 'C', 'D', 'E', 'F'], estilosZona[zona.id] || 18);
+    });
+    [...bicicletas.map((_, indice) => primeraFilaBicicletas + indice),
+        ...motos.map((_, indice) => primeraFilaMotos + indice)]
+        .forEach(fila => asignarFila(fila, ['A', 'B', 'C', 'D', 'E'], 18));
+
+    const alertas = {
+        amarillo: 'Apertura de Amarillo al 70%',
+        'zona-deck': 'Apertura de Deck al 70%',
+        'zona-helsinki': 'Apertura de Helsinki al 70%',
+        'externo-smartfit': 'Apertura de Smartfit al 97%',
+        'zona-carga-vista-alegre': 'Apertura de Vista Alegre al 98%'
+    };
+    autos.forEach((zona, indice) => {
+        if (!alertas[zona.id]) return;
+        const fila = primeraFilaAutos + indice;
+        filas[fila - 1][6] = porcentaje(zona);
+        filas[fila - 1][7] = alertas[zona.id];
+        asignarFila(fila, ['G', 'H'], 4);
+    });
+
+    const hoja = XLSX.utils.aoa_to_sheet(filas);
+    hoja['!merges'] = [XLSX.utils.decode_range('C2:D2'), XLSX.utils.decode_range('E2:F2')];
+    hoja['!cols'] = [{ wch: 30 }, { wch: 13 }, { wch: 15 }, { wch: 13 }, { wch: 10 }, { wch: 15 }, { wch: 10 }, { wch: 34 }];
+    hoja['!rows'] = filas.map((_, indice) => ({ hpt: indice < 3 ? 25 : 22 }));
+    hoja['!ref'] = `A1:H${filas.length}`;
+    return {
+        hoja,
+        esquema: {
+            filasAutos: autos.map((_, indice) => primeraFilaAutos + indice),
+            filaTotal: filaTotalAutos,
+            filasMovilidad: [],
+            estilosCeldas
+        }
+    };
 }
 
 function crearImagenCorteOcupabilidad(zonas, hora, fechaTexto, configuracion = obtenerConfiguracionOcupabilidad()) {
@@ -3860,6 +3964,33 @@ async function exportarCorteOcupabilidadExcel(horaSeleccionada = '', compartir =
                 estado.textContent = 'No se pudo preparar la imagen. Intenta nuevamente.';
                 estado.dataset.status = 'error';
             }
+        }
+        return;
+    }
+    if (obtenerSedeOcupabilidad() === 'puruchuco') {
+        const modelo = crearModeloExcelOcupabilidadPuruchuco(zonas, hora, fechaTexto, horaTexto);
+        const libroPuruchuco = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(libroPuruchuco, modelo.hoja, `Ocupabilidad ${hora.replace(':', '')}`);
+        const bufferPuruchuco = XLSX.write(libroPuruchuco, { bookType: 'xlsx', type: 'array', compression: true });
+        estado.textContent = 'Preparando el formato de Puruchuco...';
+        estado.dataset.status = 'info';
+        try {
+            const archivo = await aplicarFormatoVisualOcupabilidad(bufferPuruchuco, modelo.esquema);
+            const nombreArchivo = `Ocupabilidad-${configuracion.archivo}-${fechaLocalISO()}-${hora.replace(':', '')}.xlsx`;
+            const enlace = document.createElement('a');
+            const url = URL.createObjectURL(archivo);
+            enlace.href = url;
+            enlace.download = nombreArchivo;
+            document.body.appendChild(enlace);
+            enlace.click();
+            enlace.remove();
+            window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+            estado.textContent = `Excel de Puruchuco ${hora} generado con el formato operativo.`;
+            estado.dataset.status = 'success';
+        } catch (error) {
+            console.error('No se pudo generar el Excel de Puruchuco:', error);
+            estado.textContent = 'No se pudo terminar el Excel de Puruchuco. Intenta nuevamente.';
+            estado.dataset.status = 'error';
         }
         return;
     }
