@@ -9698,6 +9698,8 @@ function extraerRe18DesdeMatriz(matriz) {
         const fecha = fechaDesdeFilaInforme(valores);
         const esTicketPerdido = valores.some(valor => /^40(?:[.,]00)?$/.test(valor.replace(/\s/g, '')));
         if (!fecha || !esTicketPerdido) return null;
+        const idCobro = valores.find(valor => /^\d{3}\s+\d{2}\s+\d{7}$/.test(valor.replace(/\s+/g, ' ').trim())) || '';
+        const correlativoBoleta = idCobro.match(/(\d{7})\s*$/)?.[1] || '';
         const concepto = valores.find(valor => /\b\d{4}\s+\d{6}\s+\d{3}\s+\d{7,8}\s+\d{14}/.test(valor)) || '';
         const placa = extraerPlacaYMotivoReporteria(concepto).placa;
         if (!placa) return null;
@@ -9709,6 +9711,7 @@ function extraerRe18DesdeMatriz(matriz) {
             pagado: '',
             motivo: concepto,
             equipo: '',
+            correlativoBoleta,
             texto: normalizarTextoReporteria(valores.filter(Boolean).join(' ')),
             contexto: 'RE18 TICKET PERDIDO'
         };
@@ -9876,7 +9879,9 @@ function observacionTicketAbierto(base, fuentes) {
     const entidadTarjeta = /\b(?:RENIEC|REINIEC)\b/.test(textoTarjeta)
         ? 'RENIEC'
         : (/\bONP(?:E)?\b/.test(textoTarjeta) ? 'ONP' : 'TARJETA MAESTRA');
-    if (re18) evidencias.push('PAGO TICKET PERDIDO');
+    if (re18) evidencias.push(re18.correlativoBoleta
+        ? `PAGO TICKET PERDIDO - BOLETA ${re18.correlativoBoleta}`
+        : 'PAGO TICKET PERDIDO');
     if (cu16 && coincidenciaTarjeta.esPosterior) {
         evidencias.push(entidadTarjeta === 'TARJETA MAESTRA'
             ? 'SALE CON TARJETA MAESTRA'
