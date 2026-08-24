@@ -526,8 +526,8 @@ const TIPOS_REPORTERIA = {
     tickets: {
         nombre: 'Analisis de tickets abiertos',
         tituloExcel: 'ANÁLISIS DE TICKETS ABIERTOS',
-        encabezados: ['FECHA DE EMISIÓN', 'MATRÍCULA', 'SÍ/NO', 'NÚMERO DE TICKET', 'OBSERVACIÓN'],
-        anchos: [20, 16, 10, 20, 68]
+        encabezados: ['FECHA DE EMISIÓN', 'MATRÍCULA', 'SÍ/NO', 'NÚMERO DE TICKET', 'OBSERVACIÓN', 'REFERENCIA'],
+        anchos: [20, 16, 10, 20, 58, 58]
     }
 };
 let reporteCapturaActual = {
@@ -9861,26 +9861,38 @@ function buscarCoincidenciaTarjeta(base, registros) {
         .filter(registro => obtenerFechaCalendarioInforme(registro.fecha || registro.hora) === fechaBase)
         .map(registro => ({ registro, momento: obtenerMarcaTiempoInforme(`${registro.fecha || ''} ${registro.hora || ''}`) }))
         .filter(item => item.momento !== null)
-        .sort((a, b) => Math.abs(a.momento - inicio) - Math.abs(b.momento - inicio))[0]?.registro || null;
+        .sort((a, b) => Math.abs(a.momento - inicio) - Math.abs(b.momento - inicio))
+        .map(item => ({ ...item, esPosterior: item.momento >= inicio }))[0] || null;
 }
 
 function observacionTicketAbierto(base, fuentes) {
     const evidencias = [];
+    const referencias = [];
     const re18 = buscarCoincidenciaInforme(base, fuentes.RE18);
     const cu14 = buscarCoincidenciaInforme(base, fuentes.CU14);
-    const cu16 = buscarCoincidenciaTarjeta(base, fuentes.CU16);
+    const coincidenciaTarjeta = buscarCoincidenciaTarjeta(base, fuentes.CU16);
+    const cu16 = coincidenciaTarjeta?.registro || null;
     const textoTarjeta = `${cu16?.texto || ''} ${cu16?.contexto || ''}`;
+    const entidadTarjeta = /\b(?:RENIEC|REINIEC)\b/.test(textoTarjeta)
+        ? 'RENIEC'
+        : (/\bONP(?:E)?\b/.test(textoTarjeta) ? 'ONP' : 'TARJETA MAESTRA');
     if (re18) evidencias.push('PAGO TICKET PERDIDO');
-    if (cu16) {
-        if (/\b(?:RENIEC|REINIEC)\b/.test(textoTarjeta)) evidencias.push('SALE CON TARJETA MAESTRA RENIEC');
-        else if (/\bONP(?:E)?\b/.test(textoTarjeta)) evidencias.push('SALE CON TARJETA MAESTRA ONP');
-        else evidencias.push('SALE CON TARJETA MAESTRA');
+    if (cu16 && coincidenciaTarjeta.esPosterior) {
+        evidencias.push(entidadTarjeta === 'TARJETA MAESTRA'
+            ? 'SALE CON TARJETA MAESTRA'
+            : `SALE CON TARJETA MAESTRA ${entidadTarjeta}`);
+    } else if (cu16) {
+        referencias.push(`VEHÍCULO ${entidadTarjeta}; SIN REGISTRO DE SALIDA CON TARJETA POSTERIOR AL TICKET`);
     }
-    if (cu14 && !cu16) {
+    if (cu14 && !(cu16 && coincidenciaTarjeta.esPosterior)) {
         const detalle = String(cu14.motivo || '').replace(/^\s*\d{5,7}\s*/g, '').trim();
         evidencias.push(detalle ? `SE APERTURA ${detalle}` : 'APERTURA MANUAL VALIDADA EN CU14');
     }
-    return { validado: Boolean(re18 || cu14 || cu16), observacion: evidencias.join(' | ') };
+    return {
+        validado: Boolean(evidencias.length),
+        observacion: evidencias.join(' | '),
+        referencia: referencias.join(' | ')
+    };
 }
 
 function construirAnalisisTicketsAbiertos(fuentes) {
@@ -9890,7 +9902,7 @@ function construirAnalisisTicketsAbiertos(fuentes) {
         const pagado = /^(SI|SÍ)$/i.test(String(base.pagado || '').trim())
             ? 'Sí'
             : (/^NO$/i.test(String(base.pagado || '').trim()) ? 'No' : (resultado.validado ? 'Sí' : 'No'));
-        return [fecha, base.placa, pagado, base.ticket, resultado.observacion];
+        return [fecha, base.placa, pagado, base.ticket, resultado.observacion, resultado.referencia];
     });
 }
 
