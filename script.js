@@ -9617,10 +9617,10 @@ function extraerOrdenesManualesDesdeMatriz(matriz) {
 function detectarTipoInformeTickets(nombreArchivo, matriz) {
     const muestra = `${nombreArchivo || ''} ${(matriz || []).slice(0, 35).flat().join(' ')}`;
     const texto = normalizarTextoReporteria(muestra);
-    if (/\bCU\s*30\b/.test(texto) || texto.includes('TODOS LOS TICKETS ABIERTOS') || texto.includes('TICKETS ABIERTOS DE LAS ENTRADAS') || texto.includes('IDENTIFICADOR DEL TICKET')) return 'CU30';
-    if (/\bRE\s*18\b/.test(texto) || texto.includes('COBRO TICKET PERDIDO') || texto.includes('TICKET PERDIDO')) return 'RE18';
+    if (/\bCU\s*30\b/.test(texto) || texto.includes('INFORME DE TICKETS DE ROTACION PRESENTES') || texto.includes('TODOS LOS TICKETS ABIERTOS') || texto.includes('TICKETS ABIERTOS DE LAS ENTRADAS') || texto.includes('IDENTIFICADOR DEL TICKET')) return 'CU30';
+    if (/\bRE\s*18\b/.test(texto) || texto.includes('DETALLE DE CONCEPTOS DE COBROS DEL SISTEMA') || texto.includes('COBRO TICKET PERDIDO') || texto.includes('TICKET PERDIDO')) return 'RE18';
     if (/\bCU\s*14\b/.test(texto) || texto.includes('LEVANTAMIENTO MANUAL') || texto.includes('ORDENES MANUALES DE EQUIPOS')) return 'CU14';
-    if (/\bCU\s*16\b/.test(texto) || texto.includes('TARJETAS MAESTRAS') || texto.includes('TARJETA MAESTRA')
+    if (/\bCU\s*16\b/.test(texto) || texto.includes('MOVIMIENTOS DE TARJETAS DE ABONADO') || texto.includes('TARJETAS MAESTRAS') || texto.includes('TARJETA MAESTRA')
         || (texto.includes('ABONO CONTRATADO') && texto.includes('ZONA SALIDA') && texto.includes('ZONA ENTRADA'))) return 'CU16';
     return '';
 }
@@ -9662,7 +9662,115 @@ function obtenerHoraDesdeTextoInforme(valor) {
     return coincidencia ? Number(coincidencia[1]) * 60 + Number(coincidencia[2]) : null;
 }
 
+function fechaDesdeFilaInforme(valores) {
+    return valores.find(valor => /^\s*\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\s+\d{1,2}:\d{2}/.test(valor)) || '';
+}
+
+function extraerCu30DesdeMatriz(matriz) {
+    return (matriz || []).map(fila => {
+        const valores = Array.isArray(fila) ? fila.map(valor => String(valor ?? '').trim()) : [];
+        const fecha = fechaDesdeFilaInforme(valores);
+        const indiceIdentificador = valores.findIndex(valor => /\b\d{4}\s+\d{6}\s+\d{3}\s+\d{7}\s+\d{14}/.test(valor));
+        if (!fecha || indiceIdentificador < 0) return null;
+        const indiceVehiculo = valores.findIndex(valor => /\b(?:COCHE|MOTOCICLETA)\b/i.test(valor));
+        const indicePagado = valores.findIndex(valor => /^(?:SI|SÍ|NO)$/i.test(valor));
+        const candidatosPlaca = valores.slice(Math.max(0, indiceVehiculo + 1), indicePagado >= 0 ? indicePagado : indiceIdentificador);
+        const placa = candidatosPlaca.map(normalizarPlacaCruce).find(Boolean)
+            || (indiceVehiculo >= 0 ? valores[indiceVehiculo] : '');
+        const identificador = valores[indiceIdentificador];
+        return {
+            fecha,
+            hora: fecha,
+            placa,
+            ticket: normalizarTicketCruce(identificador),
+            pagado: indicePagado >= 0 ? valores[indicePagado] : '',
+            motivo: '',
+            equipo: identificador.match(/^\s*\d{4}\s+\d{6}\s+(\d{3})/)?.[1] || '',
+            texto: normalizarTextoReporteria(valores.filter(Boolean).join(' ')),
+            contexto: 'CU30'
+        };
+    }).filter(Boolean);
+}
+
+function extraerRe18DesdeMatriz(matriz) {
+    return (matriz || []).map(fila => {
+        const valores = Array.isArray(fila) ? fila.map(valor => String(valor ?? '').trim()) : [];
+        const fecha = fechaDesdeFilaInforme(valores);
+        const esTicketPerdido = valores.some(valor => /^40(?:[.,]00)?$/.test(valor.replace(/\s/g, '')));
+        if (!fecha || !esTicketPerdido) return null;
+        const concepto = valores.find(valor => /\b\d{4}\s+\d{6}\s+\d{3}\s+\d{7,8}\s+\d{14}/.test(valor)) || '';
+        const placa = extraerPlacaYMotivoReporteria(concepto).placa;
+        if (!placa) return null;
+        return {
+            fecha,
+            hora: fecha,
+            placa,
+            ticket: '',
+            pagado: '',
+            motivo: concepto,
+            equipo: '',
+            texto: normalizarTextoReporteria(valores.filter(Boolean).join(' ')),
+            contexto: 'RE18 TICKET PERDIDO'
+        };
+    }).filter(Boolean);
+}
+
+function extraerCu14DesdeMatriz(matriz) {
+    return (matriz || []).map(fila => {
+        const valores = Array.isArray(fila) ? fila.map(valor => String(valor ?? '').trim()) : [];
+        const fecha = fechaDesdeFilaInforme(valores);
+        const indiceOrden = valores.findIndex(valor => /^2\s*\/\s*7\s*-?\s*POSICI[ÓO]N BARRERA/i.test(valor));
+        if (!fecha || indiceOrden < 0) return null;
+        const motivo = valores.slice(indiceOrden + 1).filter(Boolean).sort((a, b) => b.length - a.length)[0] || '';
+        const placa = extraerPlacaYMotivoReporteria(motivo).placa;
+        return {
+            fecha,
+            hora: fecha,
+            placa,
+            ticket: '',
+            pagado: '',
+            motivo,
+            equipo: valores.slice(indiceOrden + 1).find(valor => /\b(?:ENTRADA|SALIDA)\s*\d+/i.test(valor)) || '',
+            texto: normalizarTextoReporteria(valores.filter(Boolean).join(' ')),
+            contexto: 'CU14 ORDEN MANUAL'
+        };
+    }).filter(Boolean);
+}
+
+function extraerCu16DesdeMatriz(matriz) {
+    const registros = [];
+    let tarjetaActual = '';
+    (matriz || []).forEach(fila => {
+        const valores = Array.isArray(fila) ? fila.map(valor => String(valor ?? '').trim()) : [];
+        const indiceEtiquetaTarjeta = valores.findIndex(valor => /^TARJETA\s*:?$/i.test(valor));
+        if (indiceEtiquetaTarjeta >= 0) {
+            tarjetaActual = valores.slice(indiceEtiquetaTarjeta + 1).find(Boolean) || tarjetaActual;
+        }
+        const fecha = fechaDesdeFilaInforme(valores);
+        if (!fecha) return;
+        const equipo = valores.find(valor => /^\d{3}\s*-\s*(?:ENTRADA|SALIDA)\s*\d+/i.test(valor)) || '';
+        if (!equipo) return;
+        const placa = valores.map(normalizarPlacaCruce).find(valor => valor && !normalizarPlacaCruce(equipo).includes(valor)) || '';
+        registros.push({
+            fecha,
+            hora: fecha,
+            placa,
+            ticket: '',
+            pagado: '',
+            motivo: tarjetaActual,
+            equipo,
+            texto: normalizarTextoReporteria(valores.filter(Boolean).join(' ')),
+            contexto: normalizarTextoReporteria(`CU16 ${tarjetaActual}`)
+        });
+    });
+    return registros;
+}
+
 function extraerRegistrosInformeTickets(matriz, tipoInforme = '') {
+    if (tipoInforme === 'CU30') return extraerCu30DesdeMatriz(matriz);
+    if (tipoInforme === 'RE18') return extraerRe18DesdeMatriz(matriz);
+    if (tipoInforme === 'CU14') return extraerCu14DesdeMatriz(matriz);
+    if (tipoInforme === 'CU16') return extraerCu16DesdeMatriz(matriz);
     const encabezado = buscarFilaEncabezadosInforme(matriz);
     if (encabezado.indice < 0 || encabezado.puntuacion < 2) return [];
     const indiceFecha = indiceColumnaInforme(encabezado.celdas, [/FECHA.*EMISION/, /FECHA.*ENTRADA/, /^FECHA/]);
@@ -9708,8 +9816,8 @@ function observacionTicketAbierto(base, fuentes) {
     const textoLevantamiento = `${cu14?.texto || ''} ${cu16?.texto || ''} ${cu16?.contexto || ''}`;
     if (re18) evidencias.push('COBRO POR TICKET PERDIDO VALIDADO EN RE18');
     if (cu14 || cu16) {
-        if (textoLevantamiento.includes('REINIEC')) evidencias.push('LEVANTAMIENTO MANUAL POR REINIEC');
-        else if (textoLevantamiento.includes('ONPE')) evidencias.push('LEVANTAMIENTO MANUAL POR ONPE');
+        if (/\b(?:RENIEC|REINIEC)\b/.test(textoLevantamiento)) evidencias.push('LEVANTAMIENTO MANUAL POR RENIEC');
+        else if (/\bONP(?:E)?\b/.test(textoLevantamiento)) evidencias.push('LEVANTAMIENTO MANUAL POR ONPE');
         else if (cu14 && cu16) evidencias.push('LEVANTAMIENTO MANUAL CON TARJETA MAESTRA (CU14/CU16)');
         else evidencias.push(cu14 ? 'LEVANTAMIENTO MANUAL VALIDADO EN CU14' : 'MOVIMIENTO DE TARJETA MAESTRA VALIDADO EN CU16');
     }
