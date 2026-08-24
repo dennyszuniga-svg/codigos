@@ -4210,12 +4210,13 @@ function suscribirChecklistOperaciones(sede) {
                 const esTurnoActual = remoto.fecha === ventana.fechaOperativa && remoto.turno === ventana.turno;
                 const esRegistroActual = checklistOperacionesActual?.id && remoto.id === checklistOperacionesActual.id;
                 if (!esTurnoActual && !esRegistroActual) return;
+                if (capturaFotoChecklistOperacionesEnCurso) return;
+                if (checklistOperacionesActual?.id && !esRegistroActual) return;
                 if (esRegistroActual && firmaSincronizacionChecklistOperaciones(remoto) === firmaSincronizacionChecklistOperaciones(checklistOperacionesActual)) return;
                 const campoActivo = document.activeElement;
                 const editandoObservacion = esRegistroActual
                     && campoActivo?.matches?.('textarea[data-operations-observation]');
                 if (editandoObservacion) return;
-                if (esRegistroActual && capturaFotoChecklistOperacionesEnCurso) return;
                 checklistOperacionesActual = remoto;
                 checklistOperacionesActual.estado_horario = obtenerPuntualidadChecklistOperaciones(remoto);
                 await hidratarEvidenciasChecklistOperaciones(checklistOperacionesActual);
@@ -4243,6 +4244,21 @@ function finalizarCapturaFotoChecklistOperaciones() {
     capturaFotoChecklistOperacionesEnCurso = false;
     window.clearTimeout(temporizadorCapturaFotoChecklistOperaciones);
     temporizadorCapturaFotoChecklistOperaciones = null;
+}
+
+async function manejarSeleccionFotosChecklistOperaciones(input) {
+    const archivos = Array.from(input?.files || []);
+    if (!archivos.length) {
+        finalizarCapturaFotoChecklistOperaciones();
+        return;
+    }
+    iniciarCapturaFotoChecklistOperaciones();
+    try {
+        await adjuntarFotosChecklistOperaciones(input.dataset.operationsEvidenceInput, archivos);
+    } finally {
+        input.value = '';
+        finalizarCapturaFotoChecklistOperaciones();
+    }
 }
 
 function crearTextoElemento(etiqueta, texto, clase = '') {
@@ -4403,6 +4419,7 @@ function crearPanelEvidenciasChecklistOperaciones(seccion) {
             input.dataset.operationsEvidenceInput = seccion.id;
             if (captura) input.setAttribute('capture', 'environment');
             input.addEventListener('click', iniciarCapturaFotoChecklistOperaciones);
+            input.addEventListener('change', () => manejarSeleccionFotosChecklistOperaciones(input));
             label.appendChild(input);
             return label;
         };
@@ -4625,7 +4642,6 @@ async function guardarBorradorChecklistOperaciones() {
             turno: checklistOperacionesActual.turno || null,
             respuestas: checklistOperacionesActual.respuestas,
             observaciones: checklistOperacionesActual.observaciones,
-            evidencias: obtenerEvidenciasOperacionesPersistibles(checklistOperacionesActual.evidencias),
             total_items: resumen.total,
             cumple_items: resumen.cumple,
             no_cumple_items: resumen.noCumple,
@@ -4677,17 +4693,24 @@ async function adjuntarFotosChecklistOperaciones(seccionId, archivos) {
     }
     if (estado) estado.textContent = `Subiendo ${seleccionados.length} foto(s)...`;
     let agregadas = 0;
+    const errores = [];
     for (const archivo of seleccionados) {
         let ruta = '';
         let dataUrl = '';
+        let respaldoLocal = false;
         const localKey = `operaciones:${checklistOperacionesActual.id}:${seccionId}:${Date.now()}-${Math.random().toString(16).slice(2)}`;
         try {
             dataUrl = await comprimirFoto(archivo, 1280, 0.74);
-            await guardarMediaLocal(localKey, dataUrl, obtenerScopeEvidenciasOperaciones(), {
-                seccionId,
-                nombre: archivo.name || 'evidencia.jpg',
-                autorNombre: obtenerNombreUsuarioActivo()
-            });
+            try {
+                await guardarMediaLocal(localKey, dataUrl, obtenerScopeEvidenciasOperaciones(), {
+                    seccionId,
+                    nombre: archivo.name || 'evidencia.jpg',
+                    autorNombre: obtenerNombreUsuarioActivo()
+                });
+                respaldoLocal = true;
+            } catch (errorRespaldo) {
+                console.warn('El celular no permitio el respaldo local; se intentara la subida directa:', errorRespaldo);
+            }
             const blob = await fetch(dataUrl).then(respuesta => respuesta.blob());
             ruta = `${checklistOperacionesActual.sede}/${sesionActual.user.id}/${checklistOperacionesActual.id}/${seccionId}/${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`;
             const { error: uploadError } = await supabaseClient.storage
@@ -4708,11 +4731,12 @@ async function adjuntarFotosChecklistOperaciones(seccionId, archivos) {
             });
             if (rpcError) throw rpcError;
             checklistOperacionesActual.evidencias = evidenciasActualizadas || checklistOperacionesActual.evidencias || {};
-            await eliminarMediaLocal(localKey);
+            if (respaldoLocal) await eliminarMediaLocal(localKey);
             await hidratarEvidenciasChecklistOperaciones(checklistOperacionesActual);
             agregadas += 1;
         } catch (error) {
             console.warn('No se pudo adjuntar evidencia operativa:', error);
+            errores.push(error?.message || 'No se pudo procesar o subir la imagen.');
             if (ruta) await supabaseClient.storage.from(OPERATIONS_CHECKLIST_BUCKET).remove([ruta]);
             if (dataUrl) {
                 checklistOperacionesActual.evidencias = checklistOperacionesActual.evidencias || {};
@@ -4739,7 +4763,7 @@ async function adjuntarFotosChecklistOperaciones(seccionId, archivos) {
     if (estadoActual) {
         estadoActual.textContent = agregadas
             ? `${agregadas} foto(s) agregada(s) por ${obtenerNombreUsuarioActivo()}.`
-            : 'Foto protegida en este dispositivo y pendiente de sincronizar. Revisa la conexion.';
+            : `No se pudo guardar la foto. ${errores[0] || 'Revisa la conexion y vuelve a intentar.'}`;
         estadoActual.dataset.status = agregadas ? 'success' : 'error';
     }
 }
@@ -4762,7 +4786,6 @@ async function finalizarChecklistOperaciones(event) {
             fin_at: finAt,
             respuestas: checklistOperacionesActual.respuestas,
             observaciones: checklistOperacionesActual.observaciones,
-            evidencias: checklistOperacionesActual.evidencias,
             total_items: resumen.total,
             cumple_items: resumen.cumple,
             no_cumple_items: resumen.noCumple,
@@ -11365,6 +11388,7 @@ function actualizarChecklistUI(codigo) {
         fotoInput.dataset.codigo = codigo;
         fotoInput.dataset.index = String(indice);
         fotoInput.setAttribute('aria-label', `${info.nombre}: tomar foto del paso ${indice + 1}`);
+        fotoInput.addEventListener('change', () => procesarFotoChecklistCodigo(fotoInput));
         fotoLabel.appendChild(fotoInput);
 
         fotoEstado.className = 'photo-status';
@@ -12378,6 +12402,29 @@ async function sincronizarFotoCodigo(codigo, indice, foto, pathAnterior = '') {
     }
 }
 
+async function procesarFotoChecklistCodigo(input) {
+    const file = input?.files?.[0];
+    if (!file) return;
+    try {
+        const dataUrl = await comprimirFoto(file);
+        await actualizarFotoChecklist(
+            input.dataset.codigo,
+            Number(input.dataset.index),
+            {
+                dataUrl,
+                nombre: file.name || 'foto-evidencia.jpg',
+                tomadaEn: obtenerFechaHoraActual().iso
+            }
+        );
+        mostrarToast('Foto agregada correctamente.');
+    } catch (error) {
+        console.warn('No se pudo adjuntar la foto:', error);
+        mostrarToast(`No se pudo guardar la foto: ${error?.message || 'formato no compatible'}.`);
+    } finally {
+        input.value = '';
+    }
+}
+
 async function actualizarFotoChecklist(codigo, indice, foto) {
     const estado = obtenerEstadoChecklist(codigo);
 
@@ -12388,7 +12435,12 @@ async function actualizarFotoChecklist(codigo, indice, foto) {
     const anterior = estado.pasos[indice].foto;
     if (foto?.dataUrl) {
         foto.storageKey = foto.storageKey || obtenerClaveFotoCodigo(codigo, indice, estado.activadoEn);
-        await guardarMediaLocal(foto.storageKey, foto.dataUrl, 'codigo', { codigo, indice });
+        try {
+            await guardarMediaLocal(foto.storageKey, foto.dataUrl, 'codigo', { codigo, indice });
+        } catch (error) {
+            console.warn('El celular no permitio el respaldo local de la foto; se intentara la subida directa:', error);
+            foto.storageKey = '';
+        }
     }
     estado.pasos[indice].foto = foto;
     guardarChecklistEstado();
@@ -13009,22 +13061,6 @@ function configurarEventos() {
     obtenerElemento('discardOperationsChecklist')?.addEventListener('click', descartarBorradorChecklistOperaciones);
     obtenerElemento('operationsChecklistSite')?.addEventListener('change', event => cargarBorradorChecklistOperaciones(event.target.value));
     obtenerElemento('operationsChecklistSections')?.addEventListener('change', async event => {
-        const fotos = event.target.closest('input[type="file"][data-operations-evidence-input]');
-        if (fotos) {
-            const archivos = Array.from(fotos.files || []);
-            if (!archivos.length) {
-                finalizarCapturaFotoChecklistOperaciones();
-                return;
-            }
-            iniciarCapturaFotoChecklistOperaciones();
-            try {
-                await adjuntarFotosChecklistOperaciones(fotos.dataset.operationsEvidenceInput, archivos);
-            } finally {
-                fotos.value = '';
-                finalizarCapturaFotoChecklistOperaciones();
-            }
-            return;
-        }
         const resultado = event.target.closest('input[type="radio"][data-operations-item]');
         if (resultado && checklistOperacionesActual) {
             checklistOperacionesActual.respuestas[`${resultado.dataset.operationsSection}:${resultado.dataset.operationsItem}`] = resultado.value;
@@ -13436,32 +13472,6 @@ function configurarEventos() {
             Number(observacion.dataset.index),
             observacion.value
         );
-    });
-
-    obtenerElemento('checklistList').addEventListener('change', async event => {
-        const fotoInput = event.target.closest('input[type="file"][data-index]');
-        if (!fotoInput || !fotoInput.files || fotoInput.files.length === 0) {
-            return;
-        }
-
-        try {
-            const file = fotoInput.files[0];
-            const dataUrl = await comprimirFoto(file);
-            await actualizarFotoChecklist(
-                fotoInput.dataset.codigo,
-                Number(fotoInput.dataset.index),
-                {
-                    dataUrl,
-                    nombre: file.name || 'foto-evidencia.jpg',
-                    tomadaEn: obtenerFechaHoraActual().iso
-                }
-            );
-        } catch (error) {
-            console.warn('No se pudo adjuntar la foto:', error);
-            mostrarToast('No se pudo proteger la foto. Revisa el espacio disponible del celular.');
-        } finally {
-            fotoInput.value = '';
-        }
     });
 
     obtenerElemento('checklistList').addEventListener('click', event => {
