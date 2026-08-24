@@ -4889,7 +4889,9 @@ function renderizarDashboardOperaciones() {
         const cabecera = document.createElement('div');
         const datos = document.createElement('p');
         const resultado = document.createElement('strong');
-        const compartir = document.createElement('button');
+        const acciones = document.createElement('div');
+        const descargarPdf = document.createElement('button');
+        const enviarWhatsApp = document.createElement('button');
         tarjeta.className = 'operations-history-item';
         cabecera.append(crearTextoElemento('h3', registro.responsable_nombre), crearTextoElemento('span', obtenerEtiquetaRol(registro.responsable_rol)));
         const estadoPuntualidad = obtenerPuntualidadChecklistOperaciones(registro);
@@ -4897,11 +4899,17 @@ function renderizarDashboardOperaciones() {
         datos.textContent = `${registro.fecha} - ${String(registro.turno || '').toUpperCase()} - ${puntualidad} - ${registro.no_cumple_items || 0} no conformidades`;
         resultado.textContent = `${Number(registro.cumplimiento || 0).toFixed(1)}%`;
         resultado.className = Number(registro.criticos_no_cumple || 0) ? 'has-critical' : '';
-        compartir.type = 'button';
-        compartir.className = 'clear-btn operations-report-share';
-        compartir.dataset.shareOperationsChecklist = registro.id;
-        compartir.textContent = 'PDF / WhatsApp';
-        tarjeta.append(cabecera, datos, resultado, compartir);
+        acciones.className = 'operations-report-actions';
+        descargarPdf.type = 'button';
+        descargarPdf.className = 'clear-btn operations-report-action';
+        descargarPdf.dataset.downloadOperationsChecklist = registro.id;
+        descargarPdf.textContent = 'Descargar PDF';
+        enviarWhatsApp.type = 'button';
+        enviarWhatsApp.className = 'clear-btn operations-report-action operations-report-whatsapp';
+        enviarWhatsApp.dataset.shareOperationsChecklist = registro.id;
+        enviarWhatsApp.textContent = 'Enviar a WhatsApp';
+        acciones.append(descargarPdf, enviarWhatsApp);
+        tarjeta.append(cabecera, datos, resultado, acciones);
         historialContenedor.appendChild(tarjeta);
     });
 }
@@ -5446,6 +5454,27 @@ async function compartirPdfChecklistOperaciones(registro) {
         if (error?.name === 'AbortError') return;
         console.warn('No se pudo generar el PDF operativo:', error);
         if (estado) estado.textContent = 'No se pudo generar el PDF.';
+    }
+}
+
+async function descargarPdfChecklistOperaciones(registro) {
+    if (!registro) return;
+    const estado = obtenerElemento('operationsChecklistStatus') || obtenerElemento('operationsDashboardStatus');
+    try {
+        if (estado) estado.textContent = 'Generando PDF para descargar...';
+        const bytes = await crearPdfChecklistOperaciones(registro);
+        const nombre = `Checklist-${nombreArchivoSeguro(obtenerNombreSede(registro.sede))}-${registro.fecha}.pdf`;
+        descargarBlob(new Blob([bytes], { type: 'application/pdf' }), nombre);
+        if (estado) {
+            estado.textContent = 'PDF descargado correctamente.';
+            estado.dataset.status = 'success';
+        }
+    } catch (error) {
+        console.warn('No se pudo descargar el PDF operativo:', error);
+        if (estado) {
+            estado.textContent = 'No se pudo descargar el PDF.';
+            estado.dataset.status = 'error';
+        }
     }
 }
 
@@ -12985,9 +13014,12 @@ function configurarEventos() {
     obtenerElemento('operationsDashboardSite')?.addEventListener('change', cargarDashboardOperaciones);
     obtenerElemento('exportOperationsChecklistExcel')?.addEventListener('click', exportarChecklistOperacionesExcel);
     obtenerElemento('operationsChecklistHistory')?.addEventListener('click', event => {
-        const boton = event.target.closest('button[data-share-operations-checklist]');
+        const boton = event.target.closest('button[data-share-operations-checklist], button[data-download-operations-checklist]');
         if (!boton) return;
-        compartirPdfChecklistOperaciones(historialChecklistsOperaciones.find(item => item.id === boton.dataset.shareOperationsChecklist));
+        const id = boton.dataset.shareOperationsChecklist || boton.dataset.downloadOperationsChecklist;
+        const registro = historialChecklistsOperaciones.find(item => item.id === id);
+        if (boton.dataset.downloadOperationsChecklist) descargarPdfChecklistOperaciones(registro);
+        else compartirPdfChecklistOperaciones(registro);
     });
     obtenerElemento('openOperationsGeneralReport')?.addEventListener('click', () => establecerPanelInformeGeneralOperaciones(true));
     obtenerElemento('closeOperationsGeneralReport')?.addEventListener('click', cerrarPanelInformeGeneralOperaciones);

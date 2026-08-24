@@ -5332,7 +5332,10 @@ body.dark-theme .operations-shift-window[data-status="cerrado"] { background: #3
 .operations-history-item span, .operations-history-item p { color: #617381; font-size: 0.82rem; }
 .operations-history-item > strong { color: #168453; font-size: 1.1rem; }
 .operations-history-item > strong.has-critical { color: #d92d20; }
-.operations-report-share { min-height: 40px; white-space: nowrap; }
+.operations-report-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.operations-report-action { min-height: 40px; white-space: nowrap; }
+.operations-report-whatsapp { background: #138a52; border-color: #138a52; color: #fff; }
+.operations-report-whatsapp:hover { background: #0f7545; border-color: #0f7545; }
 .operations-general-toolbar {
     display: grid;
     grid-template-columns: minmax(180px, 1fr) repeat(3, auto);
@@ -5442,7 +5445,8 @@ body.dark-theme .occupancy-zone-card-footer small { color: #c1ced8; }
     .operations-section-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .operations-history-item { grid-template-columns: 1fr auto; }
     .operations-history-item p { grid-column: 1 / -1; grid-row: 2; }
-    .operations-history-item .operations-report-share { grid-column: 1 / -1; width: 100%; }
+    .operations-history-item .operations-report-actions { grid-column: 1 / -1; width: 100%; }
+    .operations-history-item .operations-report-action { flex: 1 1 145px; }
     .operations-checklist-footer > button { width: 100%; }
     .operations-general-toolbar { grid-template-columns: 1fr 1fr; }
     .operations-general-toolbar button { width: 100%; }
