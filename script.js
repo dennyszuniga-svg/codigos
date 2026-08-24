@@ -3968,26 +3968,12 @@ async function limpiarEvidenciasOperacionesVencidas() {
     const clave = `urbapark-operations-image-cleanup-${fechaLocalISO()}`;
     try {
         if (localStorage.getItem(clave)) return;
-        const limite = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString();
-        let consulta = supabaseClient.from('operaciones_checklists')
-            .select('id,evidencias')
-            .lt('updated_at', limite);
-        if (!usuarioEsSuperior()) consulta = consulta.eq('responsable_id', sesionActual.user.id);
-        const { data: registros, error } = await consulta;
+        const { data, error } = await supabaseClient.functions.invoke('cleanup-operations-images', { body: {} });
         if (error) throw error;
-        for (const registro of registros || []) {
-            const rutas = Object.values(registro.evidencias || {}).flat()
-                .map(foto => foto?.path).filter(Boolean);
-            if (!rutas.length) continue;
-            const { error: storageError } = await supabaseClient.storage.from(OPERATIONS_CHECKLIST_BUCKET).remove(rutas);
-            if (storageError) throw storageError;
-            const { error: updateError } = await supabaseClient.from('operaciones_checklists')
-                .update({ evidencias: {} }).eq('id', registro.id);
-            if (updateError) throw updateError;
-        }
+        if (data?.deferred) return;
         localStorage.setItem(clave, 'ok');
     } catch (error) {
-        console.warn('La limpieza de evidencias operativas quedo pendiente:', error);
+        console.warn('La limpieza diaria del checklist operativo quedo pendiente:', error);
     }
 }
 
