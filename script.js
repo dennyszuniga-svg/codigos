@@ -4433,13 +4433,23 @@ function crearPanelEvidenciasChecklistOperaciones(seccion) {
         const figura = document.createElement('figure');
         const imagen = document.createElement('img');
         const pie = document.createElement('figcaption');
+        const quitar = document.createElement('button');
         figura.className = 'operations-evidence-item';
         imagen.src = foto.url || foto.dataUrl || '';
         imagen.alt = `Evidencia ${indice + 1} de ${seccion.nombre}`;
         imagen.loading = 'lazy';
         pie.textContent = `${foto.autor_nombre || 'Personal de sede'} · ${foto.creado_at ? formatearFechaHoraReporte(foto.creado_at) : 'sin hora'}`;
+        quitar.type = 'button';
+        quitar.className = 'operations-evidence-remove';
+        quitar.dataset.removeOperationsEvidence = seccion.id;
+        quitar.dataset.operationsEvidenceIndex = String(indice);
+        quitar.setAttribute('aria-label', `Quitar evidencia ${indice + 1} de ${seccion.nombre}`);
+        quitar.title = 'Quitar foto';
+        quitar.textContent = '×';
+        quitar.addEventListener('click', () => quitarFotoChecklistOperaciones(seccion.id, indice));
         if (foto.pendiente) figura.classList.add('is-pending');
         figura.append(imagen, pie);
+        if (checklistOperacionesActual?.estado === 'borrador') figura.appendChild(quitar);
         galeria.appendChild(figura);
     });
 
@@ -4448,6 +4458,51 @@ function crearPanelEvidenciasChecklistOperaciones(seccion) {
     estado.dataset.operationsPhotoStatus = seccion.id;
     panel.append(cabecera, acciones, galeria, estado);
     return panel;
+}
+
+async function quitarFotoChecklistOperaciones(seccionId, indice) {
+    const fotos = obtenerEvidenciasSeccionOperaciones(checklistOperacionesActual, seccionId);
+    const foto = fotos[Number(indice)];
+    if (!foto || checklistOperacionesActual?.estado !== 'borrador') return;
+    if (!window.confirm('¿Quitar esta foto del checklist?')) return;
+
+    const estado = document.querySelector(`[data-operations-photo-status="${seccionId}"]`);
+    if (estado) estado.textContent = 'Quitando foto...';
+    try {
+        if (foto.pendiente || !foto.path) {
+            if (foto.localKey) await eliminarMediaLocal(foto.localKey);
+            fotos.splice(Number(indice), 1);
+            checklistOperacionesActual.evidencias[seccionId] = fotos;
+        } else {
+            const { data, error } = await supabaseClient.rpc('eliminar_evidencia_checklist_operaciones', {
+                checklist_id_arg: checklistOperacionesActual.id,
+                seccion_arg: seccionId,
+                path_arg: foto.path
+            });
+            if (error) throw error;
+            checklistOperacionesActual.evidencias = data || checklistOperacionesActual.evidencias || {};
+            const { error: storageError } = await supabaseClient.storage
+                .from(OPERATIONS_CHECKLIST_BUCKET)
+                .remove([foto.path]);
+            if (storageError) console.warn('La referencia se retiro, pero la limpieza fisica quedo pendiente:', storageError);
+        }
+        const panel = obtenerElemento('operationsChecklistPanel');
+        const posicion = panel?.scrollTop || 0;
+        await hidratarEvidenciasChecklistOperaciones(checklistOperacionesActual);
+        renderizarChecklistOperaciones();
+        if (panel) panel.scrollTop = posicion;
+        const estadoActual = document.querySelector(`[data-operations-photo-status="${seccionId}"]`);
+        if (estadoActual) {
+            estadoActual.textContent = 'Foto retirada correctamente.';
+            estadoActual.dataset.status = 'success';
+        }
+    } catch (error) {
+        console.warn('No se pudo quitar la evidencia operativa:', error);
+        if (estado) {
+            estado.textContent = `No se pudo quitar la foto: ${error?.message || 'intenta nuevamente'}.`;
+            estado.dataset.status = 'error';
+        }
+    }
 }
 
 function renderizarChecklistOperaciones() {
@@ -4806,6 +4861,7 @@ async function finalizarChecklistOperaciones(event) {
         });
         ultimoChecklistOperacionesFinalizado = structuredClone(checklistOperacionesActual);
         obtenerElemento('shareLastOperationsChecklist').hidden = false;
+        obtenerElemento('downloadLastOperationsChecklist').hidden = false;
         actualizarEstadoChecklistOperaciones(`Checklist finalizado con ${resumen.cumplimiento}% de cumplimiento.`, 'success');
         renderizarChecklistOperaciones();
         actualizarBannerBorradorOperaciones('Checklist finalizado. El resultado ya esta disponible para todo el equipo.', 'success');
@@ -4937,7 +4993,6 @@ function renderizarDashboardOperaciones() {
         const resultado = document.createElement('strong');
         const acciones = document.createElement('div');
         const descargarPdf = document.createElement('button');
-        const enviarWhatsApp = document.createElement('button');
         tarjeta.className = 'operations-history-item';
         cabecera.append(crearTextoElemento('h3', registro.responsable_nombre), crearTextoElemento('span', obtenerEtiquetaRol(registro.responsable_rol)));
         const estadoPuntualidad = obtenerPuntualidadChecklistOperaciones(registro);
@@ -4950,11 +5005,7 @@ function renderizarDashboardOperaciones() {
         descargarPdf.className = 'clear-btn operations-report-action';
         descargarPdf.dataset.downloadOperationsChecklist = registro.id;
         descargarPdf.textContent = 'Descargar PDF';
-        enviarWhatsApp.type = 'button';
-        enviarWhatsApp.className = 'clear-btn operations-report-action operations-report-whatsapp';
-        enviarWhatsApp.dataset.shareOperationsChecklist = registro.id;
-        enviarWhatsApp.textContent = 'Enviar a WhatsApp';
-        acciones.append(descargarPdf, enviarWhatsApp);
+        acciones.append(descargarPdf);
         tarjeta.append(cabecera, datos, resultado, acciones);
         historialContenedor.appendChild(tarjeta);
     });
@@ -13076,6 +13127,7 @@ function configurarEventos() {
         programarGuardadoChecklistOperaciones();
     });
     obtenerElemento('shareLastOperationsChecklist')?.addEventListener('click', () => compartirPdfChecklistOperaciones(ultimoChecklistOperacionesFinalizado));
+    obtenerElemento('downloadLastOperationsChecklist')?.addEventListener('click', () => descargarPdfChecklistOperaciones(ultimoChecklistOperacionesFinalizado));
     obtenerElemento('openOperationsDashboard')?.addEventListener('click', () => establecerPanelDashboardOperaciones(true));
     obtenerElemento('closeOperationsDashboard')?.addEventListener('click', () => establecerPanelDashboardOperaciones(false));
     obtenerElemento('refreshOperationsDashboard')?.addEventListener('click', cargarDashboardOperaciones);
