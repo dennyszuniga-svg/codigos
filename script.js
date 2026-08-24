@@ -9740,8 +9740,13 @@ function extraerCu14DesdeMatriz(matriz) {
 function extraerCu16DesdeMatriz(matriz) {
     const registros = [];
     let tarjetaActual = '';
+    let abonoActual = '';
     (matriz || []).forEach(fila => {
         const valores = Array.isArray(fila) ? fila.map(valor => String(valor ?? '').trim()) : [];
+        const indiceEtiquetaAbono = valores.findIndex(valor => /^ABONO CONTRATADO\s*:?$/i.test(valor));
+        if (indiceEtiquetaAbono >= 0) {
+            abonoActual = valores.slice(indiceEtiquetaAbono + 1).find(Boolean) || abonoActual;
+        }
         const indiceEtiquetaTarjeta = valores.findIndex(valor => /^TARJETA\s*:?$/i.test(valor));
         if (indiceEtiquetaTarjeta >= 0) {
             tarjetaActual = valores.slice(indiceEtiquetaTarjeta + 1).find(Boolean) || tarjetaActual;
@@ -9757,10 +9762,10 @@ function extraerCu16DesdeMatriz(matriz) {
             placa,
             ticket: '',
             pagado: '',
-            motivo: tarjetaActual,
+            motivo: `${abonoActual} ${tarjetaActual}`.trim(),
             equipo,
             texto: normalizarTextoReporteria(valores.filter(Boolean).join(' ')),
-            contexto: normalizarTextoReporteria(`CU16 ${tarjetaActual}`)
+            contexto: normalizarTextoReporteria(`CU16 ${abonoActual} ${tarjetaActual}`)
         });
     });
     return registros;
@@ -9808,11 +9813,38 @@ function buscarCoincidenciaInforme(base, registros) {
         || (base.placa && registro.placa === base.placa));
 }
 
+function obtenerMarcaTiempoInforme(valor) {
+    const coincidencia = String(valor ?? '').match(/\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (!coincidencia) return null;
+    const anio = Number(coincidencia[3]) < 100 ? 2000 + Number(coincidencia[3]) : Number(coincidencia[3]);
+    return Date.UTC(
+        anio,
+        Number(coincidencia[2]) - 1,
+        Number(coincidencia[1]),
+        Number(coincidencia[4]),
+        Number(coincidencia[5]),
+        Number(coincidencia[6] || 0)
+    );
+}
+
+function buscarCoincidenciaTarjeta(base, registros) {
+    const placaBase = normalizarPlacaCruce(base.placa);
+    const inicio = obtenerMarcaTiempoInforme(`${base.fecha || ''} ${base.hora || ''}`);
+    if (!placaBase || inicio === null) return null;
+    const limite = 48 * 60 * 60 * 1000;
+    return (registros || [])
+        .filter(registro => normalizarPlacaCruce(registro.placa) === placaBase)
+        .filter(registro => normalizarTextoReporteria(registro.equipo).includes('SALIDA'))
+        .map(registro => ({ registro, momento: obtenerMarcaTiempoInforme(`${registro.fecha || ''} ${registro.hora || ''}`) }))
+        .filter(item => item.momento !== null && item.momento >= inicio && item.momento - inicio <= limite)
+        .sort((a, b) => a.momento - b.momento)[0]?.registro || null;
+}
+
 function observacionTicketAbierto(base, fuentes) {
     const evidencias = [];
     const re18 = buscarCoincidenciaInforme(base, fuentes.RE18);
     const cu14 = buscarCoincidenciaInforme(base, fuentes.CU14);
-    const cu16 = buscarCoincidenciaInforme(base, fuentes.CU16);
+    const cu16 = buscarCoincidenciaTarjeta(base, fuentes.CU16);
     const textoTarjeta = `${cu16?.texto || ''} ${cu16?.contexto || ''}`;
     if (re18) evidencias.push('PAGO TICKET PERDIDO');
     if (cu16) {
