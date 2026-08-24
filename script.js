@@ -4438,7 +4438,9 @@ function crearPanelEvidenciasChecklistOperaciones(seccion) {
         imagen.src = foto.url || foto.dataUrl || '';
         imagen.alt = `Evidencia ${indice + 1} de ${seccion.nombre}`;
         imagen.loading = 'lazy';
-        pie.textContent = `${foto.autor_nombre || 'Personal de sede'} · ${foto.creado_at ? formatearFechaHoraReporte(foto.creado_at) : 'sin hora'}`;
+        pie.textContent = foto.subiendo
+            ? 'Cargando foto...'
+            : `${foto.autor_nombre || 'Personal de sede'} · ${foto.creado_at ? formatearFechaHoraReporte(foto.creado_at) : 'sin hora'}`;
         quitar.type = 'button';
         quitar.className = 'operations-evidence-remove';
         quitar.dataset.removeOperationsEvidence = seccion.id;
@@ -4753,9 +4755,33 @@ async function adjuntarFotosChecklistOperaciones(seccionId, archivos) {
         let ruta = '';
         let dataUrl = '';
         let respaldoLocal = false;
+        let vistaPreviaUrl = '';
+        let fotoTemporal = null;
         const localKey = `operaciones:${checklistOperacionesActual.id}:${seccionId}:${Date.now()}-${Math.random().toString(16).slice(2)}`;
         try {
+            vistaPreviaUrl = URL.createObjectURL(archivo);
+            checklistOperacionesActual.evidencias = checklistOperacionesActual.evidencias || {};
+            const fotosSeccion = checklistOperacionesActual.evidencias[seccionId] || [];
+            fotoTemporal = {
+                localKey,
+                url: vistaPreviaUrl,
+                nombre: archivo.name || 'evidencia.jpg',
+                autor_nombre: obtenerNombreUsuarioActivo(),
+                creado_at: new Date().toISOString(),
+                pendiente: true,
+                subiendo: true
+            };
+            fotosSeccion.push(fotoTemporal);
+            checklistOperacionesActual.evidencias[seccionId] = fotosSeccion;
+            const panelVistaPrevia = obtenerElemento('operationsChecklistPanel');
+            const posicionVistaPrevia = panelVistaPrevia?.scrollTop || 0;
+            renderizarChecklistOperaciones();
+            if (panelVistaPrevia) panelVistaPrevia.scrollTop = posicionVistaPrevia;
+            const estadoVistaPrevia = document.querySelector(`[data-operations-photo-status="${seccionId}"]`);
+            if (estadoVistaPrevia) estadoVistaPrevia.textContent = 'Preparando y subiendo la foto...';
+
             dataUrl = await comprimirFoto(archivo, 1280, 0.74);
+            fotoTemporal.dataUrl = dataUrl;
             try {
                 await guardarMediaLocal(localKey, dataUrl, obtenerScopeEvidenciasOperaciones(), {
                     seccionId,
@@ -4786,27 +4812,35 @@ async function adjuntarFotosChecklistOperaciones(seccionId, archivos) {
             });
             if (rpcError) throw rpcError;
             checklistOperacionesActual.evidencias = evidenciasActualizadas || checklistOperacionesActual.evidencias || {};
-            if (respaldoLocal) await eliminarMediaLocal(localKey);
-            await hidratarEvidenciasChecklistOperaciones(checklistOperacionesActual);
+            if (respaldoLocal) {
+                try {
+                    await eliminarMediaLocal(localKey);
+                } catch (errorLimpieza) {
+                    console.warn('La foto se guardo, pero su respaldo temporal quedo pendiente de limpieza:', errorLimpieza);
+                }
+            }
+            if (vistaPreviaUrl) URL.revokeObjectURL(vistaPreviaUrl);
+            try {
+                await hidratarEvidenciasChecklistOperaciones(checklistOperacionesActual);
+            } catch (errorHidratacion) {
+                console.warn('La foto se guardo, pero la vista remota tardara en actualizarse:', errorHidratacion);
+            }
             agregadas += 1;
         } catch (error) {
             console.warn('No se pudo adjuntar evidencia operativa:', error);
             errores.push(error?.message || 'No se pudo procesar o subir la imagen.');
             if (ruta) await supabaseClient.storage.from(OPERATIONS_CHECKLIST_BUCKET).remove([ruta]);
             if (dataUrl) {
-                checklistOperacionesActual.evidencias = checklistOperacionesActual.evidencias || {};
-                const fotosPendientes = checklistOperacionesActual.evidencias[seccionId] || [];
-                if (!fotosPendientes.some(foto => foto.localKey === localKey)) {
-                    fotosPendientes.push({
-                        localKey,
-                        dataUrl,
-                        nombre: archivo.name || 'evidencia.jpg',
-                        autor_nombre: obtenerNombreUsuarioActivo(),
-                        creado_at: new Date().toISOString(),
-                        pendiente: true
-                    });
-                    checklistOperacionesActual.evidencias[seccionId] = fotosPendientes;
+                if (fotoTemporal) {
+                    fotoTemporal.dataUrl = dataUrl;
+                    fotoTemporal.url = '';
+                    fotoTemporal.subiendo = false;
                 }
+                if (vistaPreviaUrl) URL.revokeObjectURL(vistaPreviaUrl);
+            } else {
+                const fotosPendientes = checklistOperacionesActual.evidencias?.[seccionId] || [];
+                checklistOperacionesActual.evidencias[seccionId] = fotosPendientes.filter(foto => foto.localKey !== localKey);
+                if (vistaPreviaUrl) URL.revokeObjectURL(vistaPreviaUrl);
             }
         }
     }
