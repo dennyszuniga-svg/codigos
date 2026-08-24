@@ -9345,7 +9345,7 @@ function seleccionarTipoReporteria(tipo) {
     if (entradaExcel) entradaExcel.multiple = tipo === 'tickets';
     if (botonExcel) botonExcel.textContent = tipo === 'tickets' ? 'Cargar informes CU30, RE18, CU14 y CU16' : 'Cargar Excel original';
     if (nota) nota.textContent = tipo === 'tickets'
-        ? 'Selecciona los cuatro informes juntos. CU30 será la base y los demás validarán el motivo de cada ticket abierto.'
+        ? 'Selecciona los cuatro informes juntos. Solo se completarán motivos comprobados; los casos que requieren cámaras quedarán en blanco.'
         : 'Recomendado: filtra automáticamente solo las órdenes 2/7 - Posición barrera.';
     const resumen = obtenerElemento('reportingSourceSummary');
     if (resumen) resumen.textContent = '';
@@ -9727,7 +9727,7 @@ function extraerCu14DesdeMatriz(matriz) {
             fecha,
             hora: fecha,
             placa,
-            ticket: '',
+            ticket: normalizarTicketCruce(motivo),
             pagado: '',
             motivo,
             equipo: valores.slice(indiceOrden + 1).find(valor => /\b(?:ENTRADA|SALIDA)\s*\d+/i.test(valor)) || '',
@@ -9813,18 +9813,17 @@ function observacionTicketAbierto(base, fuentes) {
     const re18 = buscarCoincidenciaInforme(base, fuentes.RE18);
     const cu14 = buscarCoincidenciaInforme(base, fuentes.CU14);
     const cu16 = buscarCoincidenciaInforme(base, fuentes.CU16);
-    const textoLevantamiento = `${cu14?.texto || ''} ${cu16?.texto || ''} ${cu16?.contexto || ''}`;
-    if (re18) evidencias.push('COBRO POR TICKET PERDIDO VALIDADO EN RE18');
-    if (cu14 || cu16) {
-        if (/\b(?:RENIEC|REINIEC)\b/.test(textoLevantamiento)) evidencias.push('LEVANTAMIENTO MANUAL POR RENIEC');
-        else if (/\bONP(?:E)?\b/.test(textoLevantamiento)) evidencias.push('LEVANTAMIENTO MANUAL POR ONPE');
-        else if (cu14 && cu16) evidencias.push('LEVANTAMIENTO MANUAL CON TARJETA MAESTRA (CU14/CU16)');
-        else evidencias.push(cu14 ? 'LEVANTAMIENTO MANUAL VALIDADO EN CU14' : 'MOVIMIENTO DE TARJETA MAESTRA VALIDADO EN CU16');
+    const textoTarjeta = `${cu16?.texto || ''} ${cu16?.contexto || ''}`;
+    if (re18) evidencias.push('PAGO TICKET PERDIDO');
+    if (cu16) {
+        if (/\b(?:RENIEC|REINIEC)\b/.test(textoTarjeta)) evidencias.push('SALE CON TARJETA MAESTRA RENIEC');
+        else if (/\bONP(?:E)?\b/.test(textoTarjeta)) evidencias.push('SALE CON TARJETA MAESTRA ONP');
+        else evidencias.push('SALE CON TARJETA MAESTRA');
     }
-    const minutos = obtenerHoraDesdeTextoInforme(`${base.fecha} ${base.hora}`);
-    if (minutos !== null && minutos >= 120 && minutos < 600) evidencias.push('CONTRATA SALE DESPUÉS DE LAS 02:00 AM');
-    else if (minutos !== null && (minutos >= 1320 || minutos < 120)) evidencias.push('REVISAR SALIDA: INGRESO ENTRE EL CIERRE (22:00) Y LAS 02:00 AM');
-    if (!evidencias.length) evidencias.push('PENDIENTE DE VALIDAR EL MOTIVO DE SALIDA');
+    if (cu14 && !cu16) {
+        const detalle = String(cu14.motivo || '').replace(/^\s*\d{5,7}\s*/g, '').trim();
+        evidencias.push(detalle ? `SE APERTURA ${detalle}` : 'APERTURA MANUAL VALIDADA EN CU14');
+    }
     return { validado: Boolean(re18 || cu14 || cu16), observacion: evidencias.join(' | ') };
 }
 
@@ -9855,10 +9854,16 @@ async function cargarInformesTicketsAbiertos(archivos) {
     reporteCapturaActual.fuenteExcel = archivos.map(archivo => archivo.name).join(', ');
     reporteCapturaActual.encabezados = [...TIPOS_REPORTERIA.tickets.encabezados];
     reporteCapturaActual.filas = construirAnalisisTicketsAbiertos(fuentes);
+    const comprobados = reporteCapturaActual.filas.filter(fila => String(fila[4] || '').trim()).length;
     const faltantes = ['RE18', 'CU14', 'CU16'].filter(tipo => !fuentes[tipo].length);
     const resumen = obtenerElemento('reportingSourceSummary');
     if (resumen) resumen.textContent = `Informes reconocidos: ${detectados.join(' · ')}${faltantes.length ? ` · Faltan: ${faltantes.join(', ')}` : ''}`;
-    return { filas: reporteCapturaActual.filas.length, faltantes };
+    return {
+        filas: reporteCapturaActual.filas.length,
+        comprobados,
+        pendientesCamara: reporteCapturaActual.filas.length - comprobados,
+        faltantes
+    };
 }
 
 async function cargarExcelReporteria(archivosSeleccionados) {
@@ -9880,7 +9885,11 @@ async function cargarExcelReporteria(archivosSeleccionados) {
             reporteCapturaActual.archivos = [];
             renderizarTablaReporteria();
             obtenerElemento('reportingTableCard').hidden = false;
-            establecerEstadoReporteria('reportingOcrStatus', `${resultado.filas} tickets abiertos analizados.${resultado.faltantes.length ? ' Puedes completar el cruce cargando los informes faltantes.' : ' Cruce completo.'}`, resultado.faltantes.length ? 'pending' : 'success');
+            establecerEstadoReporteria(
+                'reportingOcrStatus',
+                `${resultado.filas} tickets analizados: ${resultado.comprobados} con motivo comprobado y ${resultado.pendientesCamara} pendientes de revisión en cámaras.${resultado.faltantes.length ? ' Faltan informes para completar el cruce.' : ''}`,
+                resultado.faltantes.length ? 'pending' : 'success'
+            );
             obtenerElemento('reportingTableCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
             return;
         }
