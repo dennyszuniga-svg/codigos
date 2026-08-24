@@ -4209,6 +4209,10 @@ function suscribirChecklistOperaciones(sede) {
                 const esRegistroActual = checklistOperacionesActual?.id && remoto.id === checklistOperacionesActual.id;
                 if (!esTurnoActual && !esRegistroActual) return;
                 if (esRegistroActual && firmaSincronizacionChecklistOperaciones(remoto) === firmaSincronizacionChecklistOperaciones(checklistOperacionesActual)) return;
+                const campoActivo = document.activeElement;
+                const editandoObservacion = esRegistroActual
+                    && campoActivo?.matches?.('textarea[data-operations-observation]');
+                if (editandoObservacion) return;
                 checklistOperacionesActual = remoto;
                 checklistOperacionesActual.estado_horario = obtenerPuntualidadChecklistOperaciones(remoto);
                 await hidratarEvidenciasChecklistOperaciones(checklistOperacionesActual);
