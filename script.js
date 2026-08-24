@@ -513,6 +513,8 @@ let ultimoChecklistOperacionesFinalizado = null;
 let informeGeneralOperaciones = [];
 let temporizadorChecklistOperaciones = null;
 let temporizadorVentanaChecklistOperaciones = null;
+let capturaFotoChecklistOperacionesEnCurso = false;
+let temporizadorCapturaFotoChecklistOperaciones = null;
 let registroOcupabilidadDiaria = null;
 let zonasOcupabilidadActual = [];
 let temporizadorBorradorOcupabilidad = null;
@@ -4213,6 +4215,7 @@ function suscribirChecklistOperaciones(sede) {
                 const editandoObservacion = esRegistroActual
                     && campoActivo?.matches?.('textarea[data-operations-observation]');
                 if (editandoObservacion) return;
+                if (esRegistroActual && capturaFotoChecklistOperacionesEnCurso) return;
                 checklistOperacionesActual = remoto;
                 checklistOperacionesActual.estado_horario = obtenerPuntualidadChecklistOperaciones(remoto);
                 await hidratarEvidenciasChecklistOperaciones(checklistOperacionesActual);
@@ -4225,6 +4228,21 @@ function suscribirChecklistOperaciones(sede) {
             }
         )
         .subscribe();
+}
+
+function iniciarCapturaFotoChecklistOperaciones() {
+    capturaFotoChecklistOperacionesEnCurso = true;
+    window.clearTimeout(temporizadorCapturaFotoChecklistOperaciones);
+    temporizadorCapturaFotoChecklistOperaciones = window.setTimeout(() => {
+        capturaFotoChecklistOperacionesEnCurso = false;
+        temporizadorCapturaFotoChecklistOperaciones = null;
+    }, 120000);
+}
+
+function finalizarCapturaFotoChecklistOperaciones() {
+    capturaFotoChecklistOperacionesEnCurso = false;
+    window.clearTimeout(temporizadorCapturaFotoChecklistOperaciones);
+    temporizadorCapturaFotoChecklistOperaciones = null;
 }
 
 function crearTextoElemento(etiqueta, texto, clase = '') {
@@ -4384,6 +4402,7 @@ function crearPanelEvidenciasChecklistOperaciones(seccion) {
             input.hidden = true;
             input.dataset.operationsEvidenceInput = seccion.id;
             if (captura) input.setAttribute('capture', 'environment');
+            input.addEventListener('click', iniciarCapturaFotoChecklistOperaciones);
             label.appendChild(input);
             return label;
         };
@@ -12992,8 +13011,18 @@ function configurarEventos() {
     obtenerElemento('operationsChecklistSections')?.addEventListener('change', async event => {
         const fotos = event.target.closest('input[type="file"][data-operations-evidence-input]');
         if (fotos) {
-            await adjuntarFotosChecklistOperaciones(fotos.dataset.operationsEvidenceInput, fotos.files);
-            fotos.value = '';
+            const archivos = Array.from(fotos.files || []);
+            if (!archivos.length) {
+                finalizarCapturaFotoChecklistOperaciones();
+                return;
+            }
+            iniciarCapturaFotoChecklistOperaciones();
+            try {
+                await adjuntarFotosChecklistOperaciones(fotos.dataset.operationsEvidenceInput, archivos);
+            } finally {
+                fotos.value = '';
+                finalizarCapturaFotoChecklistOperaciones();
+            }
             return;
         }
         const resultado = event.target.closest('input[type="radio"][data-operations-item]');
