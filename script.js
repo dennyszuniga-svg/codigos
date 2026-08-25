@@ -4076,9 +4076,13 @@ function usuarioPuedeElegirSedeChecklistOperaciones() {
     return usuarioEsRolGlobal() || perfilActual?.sede === 'general';
 }
 
-function usuarioPuedeVerInformeGeneralOperaciones() {
+function usuarioPuedeVerReporteriaOperaciones() {
     return perfilActual?.activo !== false
         && [ROL_SUPERIOR, 'jefe_operaciones', 'coordinador_operaciones', 'gdh'].includes(perfilActual?.rol);
+}
+
+function usuarioPuedeVerInformeGeneralOperaciones() {
+    return usuarioPuedeVerReporteriaOperaciones();
 }
 
 function usuarioPuedeGestionarChecklistOperaciones() {
@@ -4232,8 +4236,22 @@ function configurarSelectSedesOperaciones() {
             : SEDES_OPERACION[0].id;
         dashboard.disabled = !usuarioPuedeElegirSedeChecklistOperaciones();
     }
+    const puedeVerReporteria = usuarioPuedeVerReporteriaOperaciones();
+    const botonDashboard = obtenerElemento('openOperationsDashboard');
     const botonInforme = obtenerElemento('openOperationsGeneralReport');
-    if (botonInforme) botonInforme.hidden = !usuarioPuedeVerInformeGeneralOperaciones();
+    if (botonDashboard) botonDashboard.hidden = !puedeVerReporteria;
+    if (botonInforme) botonInforme.hidden = !puedeVerReporteria;
+    if (!puedeVerReporteria) {
+        const dashboardPanel = obtenerElemento('operationsDashboardPanel');
+        const generalPanel = obtenerElemento('operationsGeneralReportPanel');
+        if (dashboardPanel) dashboardPanel.hidden = true;
+        if (generalPanel) {
+            generalPanel.hidden = true;
+            generalPanel.classList.remove('operations-subwindow-active');
+        }
+        botonDashboard?.setAttribute('aria-expanded', 'false');
+        botonInforme?.setAttribute('aria-expanded', 'false');
+    }
     const botonChecklist = obtenerElemento('openOperationsChecklist');
     if (botonChecklist) {
         botonChecklist.hidden = !usuarioPuedeVerChecklistOperaciones();
@@ -5077,6 +5095,10 @@ function obtenerRangoMesOperaciones() {
 }
 
 async function cargarDashboardOperaciones() {
+    if (!usuarioPuedeVerReporteriaOperaciones()) {
+        mostrarToast('El historial y los KPI están disponibles solo para los roles autorizados.');
+        return;
+    }
     if (!supabaseClient || !sesionActual?.user) return;
     const sede = obtenerElemento('operationsDashboardSite').value;
     const rango = obtenerRangoMesOperaciones();
@@ -5319,6 +5341,10 @@ function crearFilasReincidenciasChecklist(registros) {
 
 async function exportarChecklistOperacionesExcel() {
     const estado = obtenerElemento('operationsDashboardStatus');
+    if (!usuarioPuedeVerReporteriaOperaciones()) {
+        mostrarToast('No tienes permiso para exportar el informe mensual de operaciones.');
+        return;
+    }
     if (!supabaseClient || !sesionActual?.user) {
         estado.textContent = 'La sesión no está disponible para generar el reporte.';
         return;
@@ -5887,6 +5913,7 @@ function textoResumenEjecutivoOperaciones(analisis) {
 }
 
 async function exportarInformeGeneralOperacionesPdf() {
+    if (!usuarioPuedeVerReporteriaOperaciones()) return mostrarToast('No tienes permiso para generar este informe.');
     if (!informeGeneralOperaciones.length) return mostrarToast('No hay datos del mes para generar el informe.');
     try {
         const rango = obtenerRangoMesGeneralOperaciones();
@@ -5908,6 +5935,7 @@ async function exportarInformeGeneralOperacionesPdf() {
 }
 
 async function exportarInformeGeneralOperacionesPptx() {
+    if (!usuarioPuedeVerReporteriaOperaciones()) return mostrarToast('No tienes permiso para generar este informe.');
     if (!informeGeneralOperaciones.length) return mostrarToast('No hay datos del mes para generar el informe.');
     if (!window.PptxGenJS) return mostrarToast('No se pudo cargar el generador de PowerPoint.');
     const rango = obtenerRangoMesGeneralOperaciones();
@@ -6015,6 +6043,12 @@ function establecerPanelDashboardOperaciones(abierto) {
     const panel = obtenerElemento('operationsDashboardPanel');
     const boton = obtenerElemento('openOperationsDashboard');
     if (!panel || !boton) return;
+    if (abierto && !usuarioPuedeVerReporteriaOperaciones()) {
+        panel.hidden = true;
+        boton.setAttribute('aria-expanded', 'false');
+        mostrarToast('El historial y los KPI están disponibles solo para los roles autorizados.');
+        return;
+    }
     panel.hidden = !abierto;
     boton.setAttribute('aria-expanded', String(abierto));
     if (abierto) {
@@ -13772,7 +13806,10 @@ window.addEventListener('popstate', event => {
         desplazar: false,
         registrarHistorial: false
     });
-    const panelOperaciones = event.state?.urbaparkOperationsPanel || '';
+    const panelSolicitado = event.state?.urbaparkOperationsPanel || '';
+    const panelOperaciones = panelSolicitado === 'general' && !usuarioPuedeVerReporteriaOperaciones()
+        ? ''
+        : panelSolicitado;
     const checklist = obtenerElemento('operationsChecklistPanel');
     const general = obtenerElemento('operationsGeneralReportPanel');
     const occupancy = obtenerElemento('operationsOccupancyPanel');
