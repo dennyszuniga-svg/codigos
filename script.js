@@ -5001,19 +5001,19 @@ async function finalizarChecklistOperaciones(event) {
         await asegurarRegistroChecklistOperaciones();
         const resumen = calcularResumenChecklistOperaciones();
         const finAt = new Date().toISOString();
-        const { error } = await supabaseClient.from('operaciones_checklists').update({
-            turno: checklistOperacionesActual.turno,
-            estado: 'finalizado',
-            fin_at: finAt,
-            respuestas: checklistOperacionesActual.respuestas,
-            observaciones: checklistOperacionesActual.observaciones,
-            total_items: resumen.total,
-            cumple_items: resumen.cumple,
-            no_cumple_items: resumen.noCumple,
-            no_aplica_items: resumen.noAplica,
-            cumplimiento: resumen.cumplimiento,
-            criticos_no_cumple: resumen.criticos
-        }).eq('id', checklistOperacionesActual.id);
+        const { error } = await supabaseClient.rpc('finalizar_checklist_operaciones', {
+            checklist_id_arg: checklistOperacionesActual.id,
+            turno_arg: checklistOperacionesActual.turno,
+            fin_at_arg: finAt,
+            respuestas_arg: checklistOperacionesActual.respuestas,
+            observaciones_arg: checklistOperacionesActual.observaciones,
+            total_items_arg: resumen.total,
+            cumple_items_arg: resumen.cumple,
+            no_cumple_items_arg: resumen.noCumple,
+            no_aplica_items_arg: resumen.noAplica,
+            cumplimiento_arg: resumen.cumplimiento,
+            criticos_no_cumple_arg: resumen.criticos
+        });
         if (error) throw error;
         checklistOperacionesActual.estado = 'finalizado';
         checklistOperacionesActual.fin_at = finAt;
@@ -5033,7 +5033,7 @@ async function finalizarChecklistOperaciones(event) {
         actualizarBannerBorradorOperaciones('Checklist finalizado. El resultado ya esta disponible para todo el equipo.', 'success');
     } catch (error) {
         console.warn('No se pudo finalizar el checklist:', error);
-        actualizarEstadoChecklistOperaciones('No se pudo finalizar. El borrador permanece guardado.', 'error');
+        actualizarEstadoChecklistOperaciones(`No se pudo finalizar: ${error?.message || 'el borrador permanece guardado.'}`, 'error');
     }
 }
 
