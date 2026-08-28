@@ -11,7 +11,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="assets/face-api.min.js"></script>
   <script src="asistencia.js" defer></script>
 </head>
@@ -70,6 +70,7 @@
       </div>
       <div data-attendance-view="summary" hidden>
         <div class="section-heading"><div><p class="eyebrow">CONTROL MENSUAL</p><h2>Horas trabajadas</h2></div><div class="inline-fields"><label>Sede<select id="summarySite"></select></label><label>Mes<input id="summaryMonth" type="month"></label><button id="loadSummary" type="button">Consultar</button><button id="exportSummaryExcel" type="button" class="excel-button">Exportar Excel</button></div></div>
+        <div class="lateness-policy"><strong>Política de tardanzas</strong><span>S/1 por minuto hasta 15 minutos. Si supera los 15 minutos, se aplica S/15 y la jornada se registra como no laborable.</span></div>
         <div id="monthlySummary" class="summary-list"></div><h3>Horas extra pendientes</h3><div id="pendingExtras" class="summary-list"></div>
       </div>
     </section>

@@ -128,14 +128,19 @@ Deno.serve(async req => {
         if (existing) return json({ error: 'La entrada de este turno ya fue registrada.' }, 409);
         const start = scheduledDate(schedule.fecha, schedule.asistencia_turnos.hora_inicio);
         const late = Math.max(0, Math.ceil((now.getTime() - start.getTime()) / 60000));
+        const discountAmount = Math.min(late, 15);
+        const dayStatus = late > 15 ? 'no_laborable_tardanza' : late > 0 ? 'tardanza' : 'laborable';
+        const nonWorking = dayStatus === 'no_laborable_tardanza';
         const { data: record, error } = await admin.from('asistencia_registros').insert({
           programacion_id: schedule.id, user_id: user.id, sede: schedule.sede, fecha_laboral: schedule.fecha,
           entrada_at: now.toISOString(), entrada_lat: lat, entrada_lon: lon, entrada_precision_m: accuracy,
           distancia_entrada_m: Math.round(siteDistance * 100) / 100, minutos_tardanza: late,
+          descuento_tardanza: discountAmount, estado_jornada: dayStatus,
+          ...(nonWorking ? { salida_at: now.toISOString(), minutos_trabajados: 0, estado_extra: 'sin_extra' } : {}),
           metodo_entrada: 'facial', distancia_facial_entrada: matchDistance,
-        }).select('id,entrada_at').single();
+        }).select('id,entrada_at,salida_at,minutos_tardanza,descuento_tardanza,estado_jornada').single();
         if (error) throw error;
-        return json({ ok: true, type, record, distance: Math.round(siteDistance), faceDistance: matchDistance, lateMinutes: late });
+        return json({ ok: true, type, record, distance: Math.round(siteDistance), faceDistance: matchDistance, lateMinutes: late, discountAmount, dayStatus });
       }
 
       if (type === 'salida') {
@@ -200,13 +205,18 @@ Deno.serve(async req => {
       const workDate = schedule.fecha;
       const start = scheduledDate(workDate, schedule.asistencia_turnos.hora_inicio);
       const late = Math.max(0, Math.ceil((now.getTime() - start.getTime()) / 60000));
+      const discountAmount = Math.min(late, 15);
+      const dayStatus = late > 15 ? 'no_laborable_tardanza' : late > 0 ? 'tardanza' : 'laborable';
+      const nonWorking = dayStatus === 'no_laborable_tardanza';
       const { data: record, error } = await admin.from('asistencia_registros').insert({
         programacion_id: schedule.id, user_id: user.id, sede: qr.site, fecha_laboral: workDate,
         entrada_at: now.toISOString(), entrada_lat: lat, entrada_lon: lon, entrada_precision_m: accuracy,
         distancia_entrada_m: Math.round(distance * 100) / 100, minutos_tardanza: late,
-      }).select('id,entrada_at').single();
+        descuento_tardanza: discountAmount, estado_jornada: dayStatus,
+        ...(nonWorking ? { salida_at: now.toISOString(), minutos_trabajados: 0, estado_extra: 'sin_extra' } : {}),
+      }).select('id,entrada_at,salida_at,minutos_tardanza,descuento_tardanza,estado_jornada').single();
       if (error) throw error;
-      return json({ ok: true, type, record, distance: Math.round(distance), lateMinutes: late });
+      return json({ ok: true, type, record, distance: Math.round(distance), lateMinutes: late, discountAmount, dayStatus });
     }
 
     if (type === 'salida') {
