@@ -178,6 +178,7 @@ async function init() {
   )
     $("workerPanel").hidden = false;
   const markerMode = profile.rol === "marcador";
+  $("workerQrActions").hidden = profile.rol === "anfitrion";
   $("markerKioskPanel").hidden = !markerMode;
   $("biometricPanel").hidden = markerMode;
   $("faceOfficialActions").hidden = ![
@@ -320,7 +321,9 @@ async function loadWorker() {
     help.classList.add("warning");
   } else if (canEnter)
     help.textContent =
-      "Pulsa Marcar entrada para escanear el QR o usa el registro facial.";
+      profile.rol === "anfitrion"
+        ? "Usa Entrada con rostro para registrar tu marcación."
+        : "Pulsa Marcar entrada para escanear el QR o usa el registro facial.";
   else if (canExit)
     help.textContent =
       "Entrada registrada. Pulsa Marcar salida al terminar tu jornada.";
@@ -998,6 +1001,10 @@ async function approveExtra(button, hours) {
 }
 
 function openScanner(type) {
+  if (profile?.rol === "anfitrion") {
+    status("Tu cuenta registra asistencia únicamente mediante reconocimiento facial.", true);
+    return;
+  }
   markType = type;
   $("scannerModal").hidden = false;
   $("scannerStatus").textContent = "Iniciando camara...";
@@ -1107,7 +1114,9 @@ async function loadBiometric() {
   $("faceTest").disabled = !biometric;
   if (!$("faceOfficialActions").hidden) {
     $("faceHelp").textContent = biometric
-      ? "Puedes marcar con rostro o continuar usando el QR como respaldo."
+      ? profile.rol === "anfitrion"
+        ? "Tu cuenta registra entrada y salida únicamente con reconocimiento facial."
+        : "Puedes marcar con rostro o continuar usando el QR como respaldo."
       : "Primero registra tu rostro para habilitar la marcacion facial.";
     await loadWorker();
   } else

@@ -2355,6 +2355,33 @@ function usuarioEsRolGlobal(rol = perfilActual?.rol) {
     return ROLES_GLOBALES.includes(rol);
 }
 
+const MODULOS_RESTRINGIDOS_ANFITRION = new Set(['mantenimiento', 'reporteria']);
+
+function usuarioEsAnfitrion() {
+    return perfilActual?.rol === 'anfitrion' && perfilActual?.activo !== false;
+}
+
+function usuarioPuedeAbrirModulo(modulo) {
+    return !usuarioEsAnfitrion() || !MODULOS_RESTRINGIDOS_ANFITRION.has(modulo);
+}
+
+function usuarioPuedeVerActivosOperaciones() {
+    return !usuarioEsAnfitrion() && perfilActual?.activo !== false;
+}
+
+function configurarAccesosAnfitrion() {
+    const restringido = usuarioEsAnfitrion();
+    document.querySelectorAll('[data-module="mantenimiento"], [data-module="reporteria"]').forEach(elemento => {
+        elemento.hidden = restringido;
+    });
+    document.querySelectorAll('a[href="gdh.html"], [data-nav-module="mantenimiento"]').forEach(elemento => {
+        elemento.hidden = restringido;
+    });
+    const activos = obtenerElemento('openOperationsAssets');
+    if (activos) activos.hidden = restringido;
+    if (restringido) establecerPanelActivosOperaciones(false);
+}
+
 function usuarioPuedeGestionarActivosOperaciones() {
     return usuarioEsAdmin();
 }
@@ -2539,6 +2566,7 @@ function actualizarEstadoActivosOperaciones(mensaje = '', estado = 'info') {
 }
 
 async function cargarActivosOperaciones() {
+    if (!usuarioPuedeVerActivosOperaciones()) return;
     if (!supabaseClient || !sesionActual?.user) return;
     actualizarEstadoActivosOperaciones('Cargando activos...', 'info');
     const { data, error } = await supabaseClient
@@ -2609,6 +2637,10 @@ function renderizarActivosOperaciones() {
 }
 
 function establecerPanelActivosOperaciones(abierto) {
+    if (abierto && !usuarioPuedeVerActivosOperaciones()) {
+        mostrarToast('Tu rol no tiene acceso a Activos de operaciones.');
+        return;
+    }
     const panel = obtenerElemento('operationsAssetsPanel');
     const boton = obtenerElemento('openOperationsAssets');
     if (!panel || !boton) return;
@@ -2702,6 +2734,7 @@ async function eliminarActivoOperaciones(id) {
 }
 
 function suscribirActivosOperaciones() {
+    if (!usuarioPuedeVerActivosOperaciones()) return;
     if (!supabaseClient || !sesionActual?.user) return;
     if (canalActivosOperaciones) supabaseClient.removeChannel(canalActivosOperaciones);
     canalActivosOperaciones = supabaseClient
@@ -7133,6 +7166,7 @@ async function cargarPerfilActual() {
     actualizarPanelAdminGuias();
     actualizarAccesoAbonados();
     configurarAccesoEncuestas();
+    configurarAccesosAnfitrion();
     renderizarGuiasOperativas();
 }
 
@@ -8935,7 +8969,7 @@ function obtenerItemsBusqueda() {
         }
     }));
 
-    const guias = guiasOperativas.filter(usuarioPuedeVerGuia).map(guia => ({
+    const guias = guiasOperativas.filter(usuarioPuedeVerGuia).filter(guia => usuarioPuedeAbrirModulo(guia.modulo)).map(guia => ({
         tipo: `Guia - ${guia.modulo} - ${obtenerTextoSedesGuia(guia)}`,
         titulo: guia.titulo,
         detalle: `${guia.descripcion || ''} ${obtenerTextoSedesGuia(guia)} ${guia.pasos.map(paso => paso.descripcion).join(' ')}`,
@@ -8955,7 +8989,7 @@ function obtenerItemsBusqueda() {
         ['Caja', 'Procesos y guias de atencion para caja', 'caja'],
         ['Ronda', 'Rondas, verificaciones y tareas en campo', 'ronda'],
         ['Capacitacion', 'Primer dia, radio y roles de respuesta', 'capacitacion']
-    ].map(([titulo, detalle, modulo]) => ({
+    ].filter(([, , modulo]) => usuarioPuedeAbrirModulo(modulo)).map(([titulo, detalle, modulo]) => ({
         tipo: 'Modulo',
         titulo,
         detalle,
@@ -9515,9 +9549,11 @@ async function aplicarSesion(session) {
     limpiarEvidenciasOperacionesVencidas();
     configurarSelectSedesOperaciones();
     configurarSelectSedesOcupabilidad();
-    configurarSedeActivosOperaciones();
-    await cargarActivosOperaciones();
-    suscribirActivosOperaciones();
+    if (usuarioPuedeVerActivosOperaciones()) {
+        configurarSedeActivosOperaciones();
+        await cargarActivosOperaciones();
+        suscribirActivosOperaciones();
+    }
     if (usuarioPuedeGestionarAbonados()) {
         await cargarSolicitudesAbonados();
         suscribirSolicitudesAbonados();
@@ -10987,6 +11023,10 @@ function seleccionarModulo(modulo, opciones = {}) {
     }
     if (modulo === 'encuestas' && !usuarioPuedeVerEncuestas()) {
         mostrarToast('Este modulo esta disponible solo para administradores autorizados.');
+        modulo = null;
+    }
+    if (modulo && !usuarioPuedeAbrirModulo(modulo)) {
+        mostrarToast('Tu rol no tiene acceso a este módulo.');
         modulo = null;
     }
     const moduloValido = modulo && obtenerElemento(`module-${modulo}`);
