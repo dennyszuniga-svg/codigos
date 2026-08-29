@@ -18,6 +18,7 @@ const rolesPermitidos = new Set([
   'eco',
   'charly',
   'anfitrion',
+  'marcador',
 ]);
 const rolesGlobales = new Set(['comercial_abonados', 'jefe_operaciones', 'coordinador_operaciones', 'gdh']);
 const rolesCreablesPorAdmin = new Set(['supervisor', 'fortaleza', 'eco', 'charly', 'anfitrion']);

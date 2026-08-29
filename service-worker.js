@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codigos-urbapark-v167';
+const CACHE_NAME = 'codigos-urbapark-v168';
 const APP_SHELL = [
     './',
     './index.html',
@@ -19,6 +19,9 @@ const APP_SHELL = [
     './asistencia.css',
     './asistencia-status.css',
     './asistencia.js',
+    './encuesta.html',
+    './encuesta.css',
+    './encuesta.js',
     './gdh.html',
     './gdh.css',
     './gdh-media.css',
@@ -76,6 +79,8 @@ self.addEventListener('fetch', event => {
     if (event.request.mode === 'navigate') {
         const fallback = requestUrl.pathname.endsWith('/informe-incidentes.html')
             ? './informe-incidentes.html'
+            : requestUrl.pathname.endsWith('/encuesta.html')
+            ? './encuesta.html'
             : './index.html';
         event.respondWith(
             fetch(event.request)

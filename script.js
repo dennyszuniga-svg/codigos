@@ -53,7 +53,8 @@ const ROLES_USUARIO = [
     'fortaleza',
     'eco',
     'charly',
-    'anfitrion'
+    'anfitrion',
+    'marcador'
 ];
 const ETIQUETAS_ROL = {
     [ROL_SUPERIOR]: 'Encargado de Mantenimiento y TI',
@@ -67,7 +68,8 @@ const ETIQUETAS_ROL = {
     fortaleza: 'Fortaleza',
     eco: 'ECO',
     charly: 'Charly',
-    anfitrion: 'Anfitrión'
+    anfitrion: 'Anfitrión',
+    marcador: 'Marcador de sede'
 };
 const TIPOS_ABONO = {
     locatario_lv: { nombre: 'Locatario auto - lunes a viernes', monto: 150 },
@@ -504,6 +506,9 @@ let canalActivosOperaciones = null;
 let canalChecklistOperaciones = null;
 let canalOcupabilidadOperaciones = null;
 let canalComunicadosGdh = null;
+let canalEncuestasSatisfaccion = null;
+let encuestasSatisfaccion = [];
+let encuestasNuevas = 0;
 let comunicadosGdh = [];
 let lecturasGdh = [];
 let comunicadoObligatorioActual = null;
@@ -2334,7 +2339,7 @@ function usuarioPuedeRestablecerCuenta(usuario) {
     if (usuarioEsSuperior()) {
         return true;
     }
-    return ['comercial_abonados', 'tecnico', 'supervisor', 'fortaleza', 'eco', 'charly', 'anfitrion'].includes(usuario.rol);
+    return ['comercial_abonados', 'tecnico', 'supervisor', 'fortaleza', 'eco', 'charly', 'anfitrion', 'marcador'].includes(usuario.rol);
 }
 
 function usuarioPuedeVerSaludSupabase() {
@@ -7127,6 +7132,7 @@ async function cargarPerfilActual() {
     actualizarSesionUI();
     actualizarPanelAdminGuias();
     actualizarAccesoAbonados();
+    configurarAccesoEncuestas();
     renderizarGuiasOperativas();
 }
 
@@ -9477,6 +9483,10 @@ async function aplicarSesion(session) {
             supabaseClient.removeChannel(canalComunicadosGdh);
             canalComunicadosGdh = null;
         }
+        if (canalEncuestasSatisfaccion && supabaseClient) {
+            supabaseClient.removeChannel(canalEncuestasSatisfaccion);
+            canalEncuestasSatisfaccion = null;
+        }
         cerrarComunicadoObligatorio();
         cerrarModalCambioPassword();
         activosOperaciones = [];
@@ -9493,6 +9503,10 @@ async function aplicarSesion(session) {
     actualizarSesionUI();
     actualizarBotonAlertas();
     await cargarPerfilActual();
+    if (perfilActual?.rol === 'marcador') {
+        window.location.replace('asistencia.html');
+        return;
+    }
     await cargarComunicadosGdh();
     suscribirComunicadosGdh();
     if (perfilActual?.debe_cambiar_password) {
@@ -9507,6 +9521,10 @@ async function aplicarSesion(session) {
     if (usuarioPuedeGestionarAbonados()) {
         await cargarSolicitudesAbonados();
         suscribirSolicitudesAbonados();
+    }
+    if (usuarioPuedeVerEncuestas()) {
+        await cargarEncuestasSatisfaccion();
+        suscribirEncuestasSatisfaccion();
     }
     restaurarAccesoMantenimiento();
     restaurarBorradorGuia();
@@ -10967,6 +10985,10 @@ function seleccionarModulo(modulo, opciones = {}) {
         mostrarToast('Este modulo esta disponible solo para administradores autorizados.');
         modulo = null;
     }
+    if (modulo === 'encuestas' && !usuarioPuedeVerEncuestas()) {
+        mostrarToast('Este modulo esta disponible solo para administradores autorizados.');
+        modulo = null;
+    }
     const moduloValido = modulo && obtenerElemento(`module-${modulo}`);
     const moduloAnterior = moduloActivo;
 
@@ -11015,6 +11037,9 @@ function seleccionarModulo(modulo, opciones = {}) {
         destino.scrollTop = 0;
         if (desplazar) {
             destino.focus({ preventScroll: true });
+        }
+        if (moduloActivo === 'encuestas') {
+            cargarEncuestasSatisfaccion();
         }
     } else if (moduloAnterior && elementoRetornoModulo?.isConnected) {
         elementoRetornoModulo.focus({ preventScroll: true });
@@ -12635,6 +12660,198 @@ async function sincronizarFotoCodigo(codigo, indice, foto, pathAnterior = '') {
     }
 }
 
+const CAMPOS_ENCUESTA = [
+    ['atencion', 'Atención'],
+    ['uniforme', 'Uniforme'],
+    ['saludo', 'Saludo'],
+    ['informacion', 'Información'],
+    ['solucion', 'Solución']
+];
+
+function usuarioPuedeVerEncuestas() {
+    return usuarioEsAdmin() && perfilActual?.activo !== false;
+}
+
+function obtenerSedeEncuestasActiva() {
+    if (!usuarioEsAdminGlobal()) return perfilActual?.sede || '';
+    return obtenerElemento('surveyAdminSite')?.value || SEDES_OPERACION[0].id;
+}
+
+function actualizarBadgeEncuestas() {
+    const texto = obtenerElemento('surveyModuleCount');
+    if (!texto) return;
+    texto.innerHTML = '';
+    if (!encuestasNuevas) {
+        texto.textContent = 'QR y satisfacción';
+        return;
+    }
+    texto.append(document.createTextNode('Nueva encuesta '));
+    const badge = document.createElement('span');
+    badge.className = 'survey-new-badge';
+    badge.textContent = String(encuestasNuevas);
+    texto.appendChild(badge);
+}
+
+function configurarAccesoEncuestas() {
+    const permitido = usuarioPuedeVerEncuestas();
+    const boton = document.querySelector('.survey-module-button');
+    if (boton) boton.hidden = !permitido;
+    if (!permitido) return;
+    const selector = obtenerElemento('surveyAdminSite');
+    if (selector && !selector.options.length) {
+        SEDES_OPERACION.forEach(sede => selector.add(new Option(sede.nombre, sede.id)));
+    }
+    if (selector) {
+        selector.value = usuarioEsAdminGlobal() ? (selector.value || SEDES_OPERACION[0].id) : perfilActual.sede;
+        selector.disabled = !usuarioEsAdminGlobal();
+    }
+    const month = obtenerElemento('surveyAdminMonth');
+    if (month && !month.value) month.value = fechaLocalISO().slice(0, 7);
+    actualizarBadgeEncuestas();
+    renderizarQrEncuestas();
+}
+
+function obtenerUrlEncuestaSede(sede = obtenerSedeEncuestasActiva()) {
+    const url = new URL('encuesta.html', window.location.href);
+    url.search = new URLSearchParams({ sede }).toString();
+    url.hash = '';
+    return url.toString();
+}
+
+function renderizarQrEncuestas() {
+    const container = obtenerElemento('surveyQrCode');
+    const siteName = obtenerElemento('surveyQrSiteName');
+    if (!container || !window.QRCode) return;
+    limpiarElemento(container);
+    const sede = obtenerSedeEncuestasActiva();
+    new QRCode(container, { text: obtenerUrlEncuestaSede(sede), width: 214, height: 214, correctLevel: QRCode.CorrectLevel.M });
+    if (siteName) siteName.textContent = obtenerNombreSede(sede);
+}
+
+function descargarQrEncuestas() {
+    const container = obtenerElemento('surveyQrCode');
+    const canvas = container?.querySelector('canvas');
+    const image = container?.querySelector('img');
+    const nombre = `QR-Encuesta-${obtenerSedeEncuestasActiva()}.png`;
+    if (canvas) {
+        canvas.toBlob(blob => blob && descargarBlob(blob, nombre), 'image/png');
+    } else if (image?.src) {
+        const link = document.createElement('a');
+        link.href = image.src;
+        link.download = nombre;
+        link.click();
+    }
+}
+
+function rangoMesEncuestas() {
+    const month = obtenerElemento('surveyAdminMonth')?.value || fechaLocalISO().slice(0, 7);
+    const [year, number] = month.split('-').map(Number);
+    return { start: `${month}-01`, end: new Date(Date.UTC(year, number, 1)).toISOString().slice(0, 10) };
+}
+
+function textoResultadoEncuesta(value) {
+    return Number(value) === 1 ? 'Cumple' : Number(value) === 0 ? 'No cumple' : 'No aplica';
+}
+
+function renderizarEncuestasSatisfaccion() {
+    const list = obtenerElemento('surveyAdminList');
+    if (!list) return;
+    limpiarElemento(list);
+    let comply = 0;
+    let failures = 0;
+    let applicable = 0;
+    encuestasSatisfaccion.forEach(item => CAMPOS_ENCUESTA.forEach(([key]) => {
+        if (Number(item[key]) === 2) return;
+        applicable += 1;
+        if (Number(item[key]) === 1) comply += 1;
+        else failures += 1;
+    }));
+    obtenerElemento('surveyKpiTotal').textContent = String(encuestasSatisfaccion.length);
+    obtenerElemento('surveyKpiCompliance').textContent = `${applicable ? Math.round(comply * 100 / applicable) : 0}%`;
+    obtenerElemento('surveyKpiFailures').textContent = String(failures);
+    obtenerElemento('surveyKpiLatest').textContent = encuestasSatisfaccion[0]?.created_at
+        ? new Date(encuestasSatisfaccion[0].created_at).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit' })
+        : '-';
+    if (!encuestasSatisfaccion.length) {
+        const empty = document.createElement('p');
+        empty.className = 'survey-empty';
+        empty.textContent = 'No hay encuestas registradas en este mes.';
+        list.appendChild(empty);
+        return;
+    }
+    encuestasSatisfaccion.forEach(item => {
+        const card = document.createElement('article');
+        card.className = 'survey-result-item';
+        const heading = document.createElement('div');
+        heading.className = 'survey-result-heading';
+        const name = document.createElement('strong');
+        name.textContent = item.colaborador_nombre;
+        const date = document.createElement('span');
+        date.textContent = new Date(item.created_at).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' });
+        heading.append(name, date);
+        const scores = document.createElement('div');
+        scores.className = 'survey-result-scores';
+        CAMPOS_ENCUESTA.forEach(([key, label]) => {
+            const score = document.createElement('span');
+            const value = Number(item[key]);
+            score.textContent = `${label}: ${textoResultadoEncuesta(value)}`;
+            score.classList.toggle('is-fail', value === 0);
+            score.classList.toggle('is-na', value === 2);
+            scores.appendChild(score);
+        });
+        card.append(heading, scores);
+        if (item.observacion) {
+            const observation = document.createElement('p');
+            observation.textContent = item.observacion;
+            card.appendChild(observation);
+        }
+        list.appendChild(card);
+    });
+}
+
+async function cargarEncuestasSatisfaccion() {
+    if (!usuarioPuedeVerEncuestas() || !supabaseClient) return;
+    const { start, end } = rangoMesEncuestas();
+    const { data, error } = await supabaseClient.from('encuestas_satisfaccion')
+        .select('id,sede,fecha,colaborador_nombre,atencion,uniforme,saludo,informacion,solucion,observacion,created_at')
+        .eq('sede', obtenerSedeEncuestasActiva()).gte('fecha', start).lt('fecha', end)
+        .order('created_at', { ascending: false }).limit(500);
+    if (error) {
+        console.warn('No se pudieron cargar las encuestas:', error);
+        mostrarToast('No se pudieron cargar las encuestas.');
+        return;
+    }
+    encuestasSatisfaccion = data || [];
+    encuestasNuevas = 0;
+    actualizarBadgeEncuestas();
+    renderizarEncuestasSatisfaccion();
+    renderizarQrEncuestas();
+}
+
+function notificarNuevaEncuesta(item) {
+    encuestasNuevas += 1;
+    actualizarBadgeEncuestas();
+    const mensaje = `Nueva encuesta para ${item.colaborador_nombre} en ${obtenerNombreSede(item.sede)}.`;
+    mostrarToast(mensaje);
+    if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Nueva encuesta de satisfacción', { body: mensaje, icon: 'assets/icons/icon-192.png' });
+    }
+    if (item.sede === obtenerSedeEncuestasActiva()) {
+        encuestasSatisfaccion.unshift(item);
+        renderizarEncuestasSatisfaccion();
+    }
+}
+
+function suscribirEncuestasSatisfaccion() {
+    if (!supabaseClient || !sesionActual?.user || !usuarioPuedeVerEncuestas()) return;
+    if (canalEncuestasSatisfaccion) supabaseClient.removeChannel(canalEncuestasSatisfaccion);
+    const options = { event: 'INSERT', schema: 'public', table: 'encuestas_satisfaccion' };
+    if (!usuarioEsAdminGlobal()) options.filter = `sede=eq.${perfilActual.sede}`;
+    canalEncuestasSatisfaccion = supabaseClient.channel(`encuestas-${sesionActual.user.id}`)
+        .on('postgres_changes', options, payload => notificarNuevaEncuesta(payload.new))
+        .subscribe();
+}
+
 async function procesarFotoChecklistCodigo(input) {
     const file = input?.files?.[0];
     if (!file) return;
@@ -13243,6 +13460,10 @@ function configurarEventos() {
     obtenerElemento('refreshSystemHealth')?.addEventListener('click', cargarSaludSupabase);
     obtenerElemento('createUserForm')?.addEventListener('submit', crearUsuarioDesdeAdmin);
     obtenerElemento('subscriberForm')?.addEventListener('submit', guardarSolicitudAbonado);
+    obtenerElemento('refreshSurveys')?.addEventListener('click', cargarEncuestasSatisfaccion);
+    obtenerElemento('surveyAdminMonth')?.addEventListener('change', cargarEncuestasSatisfaccion);
+    obtenerElemento('surveyAdminSite')?.addEventListener('change', cargarEncuestasSatisfaccion);
+    obtenerElemento('downloadSurveyQr')?.addEventListener('click', descargarQrEncuestas);
     obtenerElemento('openOperationsOccupancy')?.addEventListener('click', () => establecerPanelOcupabilidadOperaciones(true));
     obtenerElemento('closeOperationsOccupancy')?.addEventListener('click', cerrarPanelOcupabilidadOperaciones);
     obtenerElemento('loadOperationsOccupancy')?.addEventListener('click', cargarOcupabilidadDiaria);

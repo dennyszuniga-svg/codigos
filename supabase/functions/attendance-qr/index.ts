@@ -22,8 +22,8 @@ async function hmac(value: string, secret: string) {
   return base64url(new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(value))));
 }
 
-async function createQrToken(site: string, secret: string) {
-  const payload = base64url(encoder.encode(JSON.stringify({ site, exp: Date.now() + 75000, nonce: crypto.randomUUID() })));
+async function createQrToken(site: string, tolerance: number, secret: string) {
+  const payload = base64url(encoder.encode(JSON.stringify({ site, tolerance, exp: Date.now() + 75000, nonce: crypto.randomUUID() })));
   return `${payload}.${await hmac(payload, secret)}`;
 }
 
@@ -33,7 +33,7 @@ async function verifyQrToken(rawToken: string, secret: string) {
   if (!payload || !signature || await hmac(payload, secret) !== signature) throw new Error('QR no valido');
   const data = JSON.parse(new TextDecoder().decode(decodeBase64url(payload)));
   if (!data.site || !data.exp || Date.now() > Number(data.exp)) throw new Error('El QR vencio. Escanea el nuevo codigo.');
-  return data as { site: string; exp: number };
+  return data as { site: string; tolerance?: number; exp: number };
 }
 
 function limaDate(date = new Date()) {
@@ -135,6 +135,7 @@ Deno.serve(async req => {
           programacion_id: schedule.id, user_id: user.id, sede: schedule.sede, fecha_laboral: schedule.fecha,
           entrada_at: now.toISOString(), entrada_lat: lat, entrada_lon: lon, entrada_precision_m: accuracy,
           distancia_entrada_m: Math.round(siteDistance * 100) / 100, minutos_tardanza: late,
+          minutos_retraso_real: late, minutos_tolerancia: 0,
           descuento_tardanza: discountAmount, estado_jornada: dayStatus,
           ...(nonWorking ? { salida_at: now.toISOString(), minutos_trabajados: 0, estado_extra: 'sin_extra' } : {}),
           metodo_entrada: 'facial', distancia_facial_entrada: matchDistance,
@@ -170,11 +171,12 @@ Deno.serve(async req => {
     if (body.action === 'generate') {
       const site = String(body.site || '');
       const allowed = ['encargado_ti', 'jefe_operaciones', 'coordinador_operaciones', 'gdh'].includes(profile.rol)
-        || (profile.rol === 'admin' && profile.sede === site);
+        || (['admin', 'supervisor', 'marcador'].includes(profile.rol) && profile.sede === site);
       if (!allowed) return json({ error: 'No autorizado para mostrar este QR.' }, 403);
       const { data: siteRow } = await admin.from('asistencia_sedes').select('codigo,nombre').eq('codigo', site).eq('activa', true).single();
       if (!siteRow) return json({ error: 'Sede no configurada.' }, 404);
-      return json({ token: `URBAPARK_ATTENDANCE:${await createQrToken(site, qrSecret)}`, site: siteRow, expiresIn: 75 });
+      const tolerance = ['admin', 'supervisor'].includes(profile.rol) ? 10 : 0;
+      return json({ token: `URBAPARK_ATTENDANCE:${await createQrToken(site, tolerance, qrSecret)}`, site: siteRow, tolerance, expiresIn: 75 });
     }
 
     if (body.action !== 'mark') return json({ error: 'Accion no valida.' }, 400);
@@ -204,7 +206,9 @@ Deno.serve(async req => {
       if (existing) return json({ error: 'La entrada de este turno ya fue registrada.' }, 409);
       const workDate = schedule.fecha;
       const start = scheduledDate(workDate, schedule.asistencia_turnos.hora_inicio);
-      const late = Math.max(0, Math.ceil((now.getTime() - start.getTime()) / 60000));
+      const realLate = Math.max(0, Math.ceil((now.getTime() - start.getTime()) / 60000));
+      const tolerance = Math.max(0, Math.min(10, Number(qr.tolerance) || 0));
+      const late = Math.max(0, realLate - tolerance);
       const discountAmount = Math.min(late, 15);
       const dayStatus = late > 15 ? 'no_laborable_tardanza' : late > 0 ? 'tardanza' : 'laborable';
       const nonWorking = dayStatus === 'no_laborable_tardanza';
@@ -212,11 +216,12 @@ Deno.serve(async req => {
         programacion_id: schedule.id, user_id: user.id, sede: qr.site, fecha_laboral: workDate,
         entrada_at: now.toISOString(), entrada_lat: lat, entrada_lon: lon, entrada_precision_m: accuracy,
         distancia_entrada_m: Math.round(distance * 100) / 100, minutos_tardanza: late,
+        minutos_retraso_real: realLate, minutos_tolerancia: tolerance,
         descuento_tardanza: discountAmount, estado_jornada: dayStatus,
         ...(nonWorking ? { salida_at: now.toISOString(), minutos_trabajados: 0, estado_extra: 'sin_extra' } : {}),
       }).select('id,entrada_at,salida_at,minutos_tardanza,descuento_tardanza,estado_jornada').single();
       if (error) throw error;
-      return json({ ok: true, type, record, distance: Math.round(distance), lateMinutes: late, discountAmount, dayStatus });
+      return json({ ok: true, type, record, distance: Math.round(distance), lateMinutes: late, realLateMinutes: realLate, toleranceMinutes: tolerance, discountAmount, dayStatus });
     }
 
     if (type === 'salida') {

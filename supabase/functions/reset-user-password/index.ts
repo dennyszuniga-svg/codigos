@@ -10,6 +10,7 @@ const rolesRestableciblesPorGdh = new Set([
   'comercial_abonados',
   'tecnico',
   'supervisor',
+  'marcador',
   'fortaleza',
   'eco',
   'charly',

@@ -109,6 +109,9 @@ function isManager() {
     "gdh",
   ].includes(profile?.rol);
 }
+function canGenerateQr() {
+  return isManager() || ["supervisor", "marcador"].includes(profile?.rol);
+}
 function allowedSites() {
   return isGlobalRole()
     ? sites
@@ -174,7 +177,7 @@ async function init() {
     ].includes(profile.rol)
   )
     $("workerPanel").hidden = false;
-  $("biometricPanel").hidden = false;
+  $("biometricPanel").hidden = profile.rol === "marcador";
   $("faceOfficialActions").hidden = ![
     "anfitrion",
     "tecnico",
@@ -184,15 +187,22 @@ async function init() {
     "admin",
   ].includes(profile.rol);
   $("faceTest").hidden = !isManager();
-  await loadBiometric();
-  if (isManager()) {
+  if (profile.rol !== "marcador") await loadBiometric();
+  if (canGenerateQr()) {
     $("adminPanel").hidden = false;
     ["qrSite", "scheduleSite", "summarySite"].forEach((id) =>
       fillSiteSelect($(id), isGlobalRole() ? "puruchuco" : profile.sede),
     );
-    $("scheduleWeek").value = dateIso(schedulingMonday());
-    $("summaryMonth").value = dateIso(new Date()).slice(0, 7);
-    await loadSchedule();
+    $("qrSite").disabled = !isGlobalRole();
+    document
+      .querySelectorAll('[data-attendance-tab="schedule"],[data-attendance-tab="summary"]')
+      .forEach((button) => (button.hidden = !isManager()));
+    if (isManager()) {
+      $("scheduleWeek").value = dateIso(schedulingMonday());
+      $("summaryMonth").value = dateIso(new Date()).slice(0, 7);
+      await loadSchedule();
+    }
+    if (profile.rol === "marcador") await startQr();
   }
   const preloadFace = () => loadFaceModels().catch(() => {});
   if ("requestIdleCallback" in window)
@@ -356,6 +366,9 @@ async function generateQr() {
     correctLevel: QRCode.CorrectLevel.M,
   });
   $("qrSiteName").textContent = data.site.nombre;
+  $("qrTolerance").textContent = data.tolerance
+    ? `Tolerancia de este celular: ${data.tolerance} minutos`
+    : "Este celular no concede tolerancia";
   qrSeconds = 55;
   updateQrCountdown();
 }
@@ -729,12 +742,16 @@ async function exportarResumenAsistenciaExcel() {
       discount: 0,
       nonWorking: 0,
       workedMinutes: 0,
+      realLate: 0,
+      tolerance: 0,
     };
     penaltyTotal.discount += penalty.amount;
     penaltyTotal.nonWorking += penalty.nonWorking ? 1 : 0;
     penaltyTotal.workedMinutes += penalty.nonWorking
       ? 0
       : Number(item.minutos_trabajados) || 0;
+    penaltyTotal.realLate += Number(item.minutos_retraso_real) || penalty.late;
+    penaltyTotal.tolerance += Number(item.minutos_tolerancia) || 0;
     penalidades.set(item.user_id, penaltyTotal);
     const turno = item.asistencia_programacion?.asistencia_turnos;
     if (!turno?.es_nocturno) return;
@@ -765,6 +782,8 @@ async function exportarResumenAsistenciaExcel() {
       laborableDays: Number(item.dias_trabajados) || 0,
       nonWorkingDays: penalty.nonWorking,
       workedHours: horasDesdeMinutos(penalty.workedMinutes),
+      realLate: penalty.realLate || Number(item.minutos_tardanza) || 0,
+      tolerance: penalty.tolerance || 0,
       late: Number(item.minutos_tardanza) || 0,
       discount: penalty.discount,
       nightHours: Number(item.horas_nocturnas) || 0,
@@ -797,6 +816,8 @@ async function exportarResumenAsistenciaExcel() {
       actualEntry: textoFechaHoraExcel(item.entrada_at),
       actualExit: penalty.nonWorking ? "Jornada no laborable" : textoFechaHoraExcel(item.salida_at),
       workedHours: penalty.nonWorking ? 0 : horasDesdeMinutos(item.minutos_trabajados),
+      realLate: Number(item.minutos_retraso_real) || penalty.late,
+      tolerance: Number(item.minutos_tolerancia) || 0,
       late: penalty.late,
       discount: penalty.amount,
       dayStatus: penalty.nonWorking
@@ -831,7 +852,9 @@ async function exportarResumenAsistenciaExcel() {
     { header: "DÍAS LABORABLES", key: "laborableDays", width: 16 },
     { header: "DÍAS NO LABORABLES", key: "nonWorkingDays", width: 18 },
     { header: "HORAS TRABAJADAS", key: "workedHours", width: 17 },
-    { header: "TARDANZA (MIN)", key: "late", width: 16 },
+    { header: "RETRASO REAL (MIN)", key: "realLate", width: 17 },
+    { header: "TOLERANCIA (MIN)", key: "tolerance", width: 16 },
+    { header: "TARDANZA APLICADA (MIN)", key: "late", width: 19 },
     { header: "DESCUENTO", key: "discount", width: 15, currency: true },
     { header: "HORAS NOCTURNAS", key: "nightHours", width: 17 },
     { header: "EXTRA 25%", key: "extra25", width: 13 },
@@ -851,7 +874,9 @@ async function exportarResumenAsistenciaExcel() {
     { header: "INGRESO REAL", key: "actualEntry", width: 21 },
     { header: "SALIDA REAL", key: "actualExit", width: 21 },
     { header: "HORAS TRABAJADAS", key: "workedHours", width: 17 },
-    { header: "TARDANZA (MIN)", key: "late", width: 16 },
+    { header: "RETRASO REAL (MIN)", key: "realLate", width: 17 },
+    { header: "TOLERANCIA (MIN)", key: "tolerance", width: 16 },
+    { header: "TARDANZA APLICADA (MIN)", key: "late", width: 19 },
     { header: "DESCUENTO", key: "discount", width: 14, currency: true },
     { header: "ESTADO DE JORNADA", key: "dayStatus", width: 22 },
     { header: "EXTRA SOLICITADA", key: "extraRequested", width: 17 },
@@ -866,7 +891,7 @@ async function exportarResumenAsistenciaExcel() {
     libro,
     "Resumen mensual",
     "CONTROL MENSUAL DE ASISTENCIA",
-    `${siteName(site)} | ${month} | Descuento: S/1 por minuto; más de 15 minutos = día no laborable`,
+    `${siteName(site)} | ${month} | Admin/Supervisor: 10 min de tolerancia | Marcador/facial: 0 min`,
     resumenColumnas,
     resumenFilas,
   );
@@ -1059,6 +1084,8 @@ async function markAttendance(token) {
         ? `Entrada registrada con ${penalty.late} minutos de tardanza. Descuento ${money(penalty.amount)} y jornada no laborable.`
         : markType === "entrada" && penalty.late
           ? `Entrada registrada con ${penalty.late} minutos de tardanza. Descuento ${money(penalty.amount)}.`
+          : markType === "entrada" && Number(data.realLateMinutes) > 0 && Number(data.toleranceMinutes) > 0
+            ? `Entrada registrada. Retraso real: ${data.realLateMinutes} min, dentro de la tolerancia de ${data.toleranceMinutes} min.`
           : `${markType === "entrada" ? "Entrada" : "Salida"} registrada. Distancia a sede: ${data.distance} m.`,
       penalty.nonWorking,
     );

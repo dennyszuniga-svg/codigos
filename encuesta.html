@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#167da9">
+  <title>URBAPARK - Encuesta de satisfacción</title>
+  <link rel="stylesheet" href="encuesta.css">
+  <script src="encuesta.js" defer></script>
+</head>
+<body>
+  <main class="survey-shell">
+    <header class="survey-header">
+      <img src="assets/urbapark-logo.png" alt="UrbaPark">
+      <div><p>EXPERIENCIA DE SERVICIO</p><h1>Cuéntanos cómo te atendimos</h1><span id="surveySiteName">Cargando sede...</span></div>
+    </header>
+
+    <form id="surveyForm" class="survey-form" hidden>
+      <label class="survey-person">Persona que te atendió
+        <select id="surveyStaff" required><option value="">Selecciona una persona</option></select>
+      </label>
+
+      <div id="surveyQuestions" class="survey-questions"></div>
+
+      <label>Observación adicional <span>(opcional)</span>
+        <textarea id="surveyObservation" maxlength="300" rows="4" placeholder="Cuéntanos brevemente qué ocurrió"></textarea>
+      </label>
+      <label class="survey-trap" aria-hidden="true">Sitio web<input id="surveyWebsite" tabindex="-1" autocomplete="off"></label>
+      <button id="surveySubmit" type="submit">Enviar encuesta</button>
+      <p id="surveyStatus" role="status" aria-live="polite"></p>
+    </form>
+
+    <section id="surveyThanks" class="survey-thanks" hidden>
+      <span aria-hidden="true">✓</span>
+      <h2>Gracias por ayudarnos a mejorar</h2>
+      <p>Tu respuesta fue registrada correctamente.</p>
+      <button id="surveyAgain" type="button">Enviar otra respuesta</button>
+    </section>
+    <p class="survey-privacy">La encuesta no solicita datos personales del cliente.</p>
+  </main>
+</body>
+</html>

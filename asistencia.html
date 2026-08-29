@@ -60,7 +60,7 @@
       </div>
       <div data-attendance-view="qr">
         <div class="section-heading"><div><p class="eyebrow">QR PRESENCIAL</p><h2>Marcador de sede</h2></div><label>Sede<select id="qrSite"></select></label></div>
-        <div class="qr-stage"><div id="qrCode"></div><strong id="qrSiteName">Selecciona una sede</strong><span id="qrCountdown">QR detenido</span></div>
+        <div class="qr-stage"><div id="qrCode"></div><strong id="qrSiteName">Selecciona una sede</strong><span id="qrTolerance">Tolerancia según la cuenta que muestra el QR</span><span id="qrCountdown">QR detenido</span></div>
         <div class="mark-actions"><button id="startQr" type="button">Iniciar QR</button><button id="stopQr" type="button" class="secondary">Detener</button></div>
       </div>
       <div data-attendance-view="schedule" hidden>
@@ -70,7 +70,7 @@
       </div>
       <div data-attendance-view="summary" hidden>
         <div class="section-heading"><div><p class="eyebrow">CONTROL MENSUAL</p><h2>Horas trabajadas</h2></div><div class="inline-fields"><label>Sede<select id="summarySite"></select></label><label>Mes<input id="summaryMonth" type="month"></label><button id="loadSummary" type="button">Consultar</button><button id="exportSummaryExcel" type="button" class="excel-button">Exportar Excel</button></div></div>
-        <div class="lateness-policy"><strong>Política de tardanzas</strong><span>S/1 por minuto hasta 15 minutos. Si supera los 15 minutos, se aplica S/15 y la jornada se registra como no laborable.</span></div>
+        <div class="lateness-policy"><strong>Política de tardanzas</strong><span>QR de Administrador o Supervisor: 10 minutos de tolerancia. QR de Marcador y registro facial: sin tolerancia. Luego se aplica S/1 por minuto hasta 15 minutos; si los supera, S/15 y jornada no laborable.</span></div>
         <div id="monthlySummary" class="summary-list"></div><h3>Horas extra pendientes</h3><div id="pendingExtras" class="summary-list"></div>
       </div>
     </section>
