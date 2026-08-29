@@ -71,6 +71,8 @@ function facialDistance(first: unknown, second: unknown) {
   return Math.sqrt(total);
 }
 
+const attendanceRoles = ['anfitrion', 'tecnico', 'supervisor', 'fortaleza', 'encargado_ti', 'admin'];
+
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
@@ -87,6 +89,87 @@ Deno.serve(async req => {
     const { data: profile } = await admin.from('profiles').select('id,nombre,rol,sede,activo').eq('id', user.id).single();
     if (!profile?.activo) return json({ error: 'Usuario inactivo.' }, 403);
     const body = await req.json();
+
+    if (body.action === 'kiosk-face-mark') {
+      if (profile.rol !== 'marcador' || !profile.sede) return json({ error: 'Esta función es exclusiva del celular Marcador.' }, 403);
+      const lat = Number(body.latitude);
+      const lon = Number(body.longitude);
+      const accuracy = Number(body.accuracy || 9999);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return json({ error: 'Ubicación no válida.' }, 400);
+      if (accuracy > 100) return json({ error: 'La precisión del GPS es insuficiente. Acércate a una zona abierta.' }, 400);
+      const { data: site } = await admin.from('asistencia_sedes').select('*').eq('codigo', profile.sede).eq('activa', true).single();
+      if (!site) return json({ error: 'Sede no configurada.' }, 404);
+      const siteDistance = distanceMeters(lat, lon, site.latitud, site.longitud);
+      if (siteDistance > site.radio_metros) return json({ error: `El celular está a ${Math.round(siteDistance)} m de la sede. El límite es ${site.radio_metros} m.` }, 403);
+
+      const { data: staff, error: staffError } = await admin.from('profiles')
+        .select('id,nombre,apellidos_nombres,rol').eq('sede', profile.sede).eq('activo', true).in('rol', attendanceRoles);
+      if (staffError) throw staffError;
+      const staffById = new Map((staff || []).map(item => [item.id, item]));
+      const staffIds = [...staffById.keys()];
+      if (!staffIds.length) return json({ error: 'No hay personal activo configurado en esta sede.' }, 409);
+      const { data: biometrics, error: biometricError } = await admin.from('asistencia_biometria')
+        .select('user_id,descriptor').eq('activa', true).in('user_id', staffIds);
+      if (biometricError) throw biometricError;
+      if (!biometrics?.length) return json({ error: 'Aún no hay rostros registrados para esta sede. Habilita el QR de contingencia.' }, 409);
+
+      const matches = biometrics.map(item => ({
+        userId: item.user_id,
+        distance: facialDistance(item.descriptor, body.descriptor),
+      })).sort((first, second) => first.distance - second.distance);
+      const best = matches[0];
+      const second = matches[1];
+      if (!best || best.distance > 0.56) return json({ error: 'No se reconoció el rostro. Intenta nuevamente o habilita el QR de contingencia.' }, 403);
+      if (second && second.distance - best.distance < 0.04) return json({ error: 'No se pudo identificar el rostro con seguridad. Usa el QR de contingencia.' }, 409);
+      const person = staffById.get(best.userId);
+      if (!person) return json({ error: 'La persona identificada no está activa en esta sede.' }, 409);
+
+      const now = new Date();
+      const { data: openRecord } = await admin.from('asistencia_registros')
+        .select('*,asistencia_programacion(fecha,asistencia_turnos(hora_inicio,hora_fin,refrigerio_minutos,minutos_jornada))')
+        .eq('user_id', person.id).eq('sede', profile.sede).is('salida_at', null)
+        .order('entrada_at', { ascending: false }).limit(1).maybeSingle();
+
+      if (openRecord) {
+        const shift = openRecord.asistencia_programacion?.asistencia_turnos;
+        const worked = Math.max(0, Math.floor((now.getTime() - new Date(openRecord.entrada_at).getTime()) / 60000) - Number(shift?.refrigerio_minutos || 60));
+        const extraHours = Math.floor(Math.max(0, worked - Number(shift?.minutos_jornada || 480)) / 60);
+        const { data: updated, error } = await admin.from('asistencia_registros').update({
+          salida_at: now.toISOString(), salida_lat: lat, salida_lon: lon, salida_precision_m: accuracy,
+          distancia_salida_m: Math.round(siteDistance * 100) / 100, minutos_trabajados: worked,
+          horas_extra_solicitadas: extraHours, estado_extra: extraHours > 0 ? 'pendiente' : 'sin_extra',
+          metodo_salida: 'facial_marcador', distancia_facial_salida: best.distance, updated_at: now.toISOString(),
+        }).eq('id', openRecord.id).select('id,salida_at,minutos_trabajados,horas_extra_solicitadas,estado_extra').single();
+        if (error) throw error;
+        return json({ ok: true, type: 'salida', personName: person.apellidos_nombres || person.nombre, record: updated, distance: Math.round(siteDistance), faceDistance: best.distance, lateMinutes: 0, discountAmount: 0, dayStatus: 'laborable' });
+      }
+
+      const date = limaDate(now);
+      const { data: schedules } = await admin.from('asistencia_programacion')
+        .select('id,user_id,sede,fecha,estado,asistencia_turnos(id,nombre,hora_inicio,hora_fin,refrigerio_minutos,minutos_jornada,es_nocturno)')
+        .eq('user_id', person.id).eq('sede', profile.sede).in('fecha', [date, previousDate(date)]);
+      const schedule = schedules?.find(item => item.fecha === date)
+        || schedules?.find(item => item.fecha === previousDate(date) && item.asistencia_turnos?.es_nocturno);
+      if (!schedule || schedule.estado !== 'programado' || !schedule.asistencia_turnos) return json({ error: `${person.apellidos_nombres || person.nombre} no tiene un turno programado hoy en esta sede.` }, 409);
+      const { data: existing } = await admin.from('asistencia_registros').select('id').eq('programacion_id', schedule.id).maybeSingle();
+      if (existing) return json({ error: `La jornada de ${person.apellidos_nombres || person.nombre} ya fue registrada.` }, 409);
+      const start = scheduledDate(schedule.fecha, schedule.asistencia_turnos.hora_inicio);
+      const late = Math.max(0, Math.ceil((now.getTime() - start.getTime()) / 60000));
+      const discountAmount = Math.min(late, 15);
+      const dayStatus = late > 15 ? 'no_laborable_tardanza' : late > 0 ? 'tardanza' : 'laborable';
+      const nonWorking = dayStatus === 'no_laborable_tardanza';
+      const { data: record, error } = await admin.from('asistencia_registros').insert({
+        programacion_id: schedule.id, user_id: person.id, sede: profile.sede, fecha_laboral: schedule.fecha,
+        entrada_at: now.toISOString(), entrada_lat: lat, entrada_lon: lon, entrada_precision_m: accuracy,
+        distancia_entrada_m: Math.round(siteDistance * 100) / 100, minutos_tardanza: late,
+        minutos_retraso_real: late, minutos_tolerancia: 0,
+        descuento_tardanza: discountAmount, estado_jornada: dayStatus,
+        ...(nonWorking ? { salida_at: now.toISOString(), minutos_trabajados: 0, estado_extra: 'sin_extra' } : {}),
+        metodo_entrada: 'facial_marcador', distancia_facial_entrada: best.distance,
+      }).select('id,entrada_at,salida_at,minutos_tardanza,descuento_tardanza,estado_jornada').single();
+      if (error) throw error;
+      return json({ ok: true, type: 'entrada', personName: person.apellidos_nombres || person.nombre, record, distance: Math.round(siteDistance), faceDistance: best.distance, lateMinutes: late, realLateMinutes: late, toleranceMinutes: 0, discountAmount, dayStatus });
+    }
 
     if (body.action === 'face-test' || body.action === 'face-mark') {
       const { data: enrolled } = await admin.from('asistencia_biometria').select('descriptor,activa').eq('user_id', user.id).maybeSingle();
@@ -110,7 +193,7 @@ Deno.serve(async req => {
         return json({ ok: true, test: true, site: nearest.site.nombre, distance: Math.round(nearest.distance), faceDistance: matchDistance });
       }
 
-      if (!['anfitrion', 'tecnico', 'supervisor', 'fortaleza', 'encargado_ti', 'admin'].includes(profile.rol)) return json({ error: 'Tu cuenta solo puede enviar una marcacion facial de prueba.' }, 403);
+      if (!attendanceRoles.includes(profile.rol)) return json({ error: 'Tu cuenta solo puede enviar una marcacion facial de prueba.' }, 403);
       const type = String(body.type || 'entrada');
       if (type === 'entrada') {
         const date = limaDate(now);

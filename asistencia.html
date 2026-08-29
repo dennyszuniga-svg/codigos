@@ -34,6 +34,17 @@
       <h3>Programación semanal</h3><div id="workerWeek" class="week-list"></div>
     </section>
 
+    <section id="markerKioskPanel" class="attendance-panel marker-kiosk-panel" hidden>
+      <div class="section-heading">
+        <div><p class="eyebrow">CELULAR DE MARCACIÓN</p><h2>Registro facial de sede</h2></div>
+        <span class="biometric-badge ready">Sin tolerancia</span>
+      </div>
+      <p class="helper">Acerca el rostro a la cámara. El sistema identificará al trabajador y registrará automáticamente su entrada o salida.</p>
+      <button id="kioskFaceMark" type="button" class="kiosk-face-button">Marcar con rostro</button>
+      <button id="enableQrFallback" type="button" class="secondary kiosk-fallback-button">Habilitar QR de contingencia</button>
+      <p id="kioskFaceResult" class="mark-help" role="status" aria-live="polite">Listo para registrar.</p>
+    </section>
+
     <section id="biometricPanel" class="attendance-panel biometric-panel" hidden>
       <div class="section-heading">
         <div><p class="eyebrow">PRUEBA CONTROLADA</p><h2>Marcación facial</h2></div>
@@ -61,7 +72,7 @@
       <div data-attendance-view="qr">
         <div class="section-heading"><div><p class="eyebrow">QR PRESENCIAL</p><h2>Marcador de sede</h2></div><label>Sede<select id="qrSite"></select></label></div>
         <div class="qr-stage"><div id="qrCode"></div><strong id="qrSiteName">Selecciona una sede</strong><span id="qrTolerance">Tolerancia según la cuenta que muestra el QR</span><span id="qrCountdown">QR detenido</span></div>
-        <div class="mark-actions"><button id="startQr" type="button">Iniciar QR</button><button id="stopQr" type="button" class="secondary">Detener</button></div>
+        <div class="mark-actions"><button id="startQr" type="button">Iniciar QR</button><button id="stopQr" type="button" class="secondary">Detener</button><button id="disableQrFallback" type="button" class="secondary" hidden>Volver a marcación facial</button></div>
       </div>
       <div data-attendance-view="schedule" hidden>
         <div class="section-heading"><div><p class="eyebrow">TURNOS</p><h2>Programación semanal</h2></div><div class="inline-fields"><label>Sede<select id="scheduleSite"></select></label><label>Semana<input id="scheduleWeek" type="date"></label><button id="loadSchedule" type="button">Cargar</button></div></div>

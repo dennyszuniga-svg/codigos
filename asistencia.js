@@ -177,7 +177,9 @@ async function init() {
     ].includes(profile.rol)
   )
     $("workerPanel").hidden = false;
-  $("biometricPanel").hidden = profile.rol === "marcador";
+  const markerMode = profile.rol === "marcador";
+  $("markerKioskPanel").hidden = !markerMode;
+  $("biometricPanel").hidden = markerMode;
   $("faceOfficialActions").hidden = ![
     "anfitrion",
     "tecnico",
@@ -189,7 +191,6 @@ async function init() {
   $("faceTest").hidden = !isManager();
   if (profile.rol !== "marcador") await loadBiometric();
   if (canGenerateQr()) {
-    $("adminPanel").hidden = false;
     ["qrSite", "scheduleSite", "summarySite"].forEach((id) =>
       fillSiteSelect($(id), isGlobalRole() ? "puruchuco" : profile.sede),
     );
@@ -198,11 +199,12 @@ async function init() {
       .querySelectorAll('[data-attendance-tab="schedule"],[data-attendance-tab="summary"]')
       .forEach((button) => (button.hidden = !isManager()));
     if (isManager()) {
+      $("adminPanel").hidden = false;
       $("scheduleWeek").value = dateIso(schedulingMonday());
       $("summaryMonth").value = dateIso(new Date()).slice(0, 7);
       await loadSchedule();
     }
-    if (profile.rol === "marcador") await startQr();
+    if (profile.rol === "supervisor") $("adminPanel").hidden = false;
   }
   const preloadFace = () => loadFaceModels().catch(() => {});
   if ("requestIdleCallback" in window)
@@ -1152,6 +1154,8 @@ async function openFace(mode, type = "entrada") {
       ? "Registrar mi rostro"
       : mode === "test"
         ? "Prueba de marcacion facial"
+        : mode === "kiosk"
+          ? "Marcación facial de sede"
         : `${type === "entrada" ? "Entrada" : "Salida"} con rostro`;
   $("captureFace").textContent =
     mode === "enroll" ? "Capturar muestra 1 de 3" : "Verificar y marcar";
@@ -1265,7 +1269,11 @@ async function captureFace() {
       return;
     }
     $("faceModalStatus").textContent = "Validando identidad y hora oficial...";
-    const action = faceMode === "test" ? "face-test" : "face-mark";
+    const action = faceMode === "test"
+      ? "face-test"
+      : faceMode === "kiosk"
+        ? "kiosk-face-mark"
+        : "face-mark";
     const { data, error } = await client.functions.invoke("attendance-qr", {
       body: {
         action,
@@ -1289,7 +1297,16 @@ async function captureFace() {
       status(
         `Prueba facial aprobada en ${data.site}. Coincidencia correcta y distancia a sede: ${data.distance} m.`,
       );
-    else {
+    else if (faceMode === "kiosk") {
+      const penalty = tardinessInfo(
+        data.lateMinutes,
+        data.discountAmount,
+        data.dayStatus,
+      );
+      const message = `${data.personName}: ${data.type === "entrada" ? "entrada" : "salida"} registrada${penalty.late ? ` con ${penalty.late} min de tardanza` : ""}.`;
+      $("kioskFaceResult").textContent = message;
+      status(message, penalty.nonWorking);
+    } else {
       const penalty = tardinessInfo(
         data.lateMinutes,
         data.discountAmount,
@@ -1308,6 +1325,7 @@ async function captureFace() {
   } catch (error) {
     const message = error?.message || "No se pudo validar el rostro.";
     $("faceModalStatus").textContent = message;
+    if (faceMode === "kiosk") $("kioskFaceResult").textContent = message;
     status(`Marcacion facial no completada: ${message}`, true);
   } finally {
     card.classList.remove("busy");
@@ -1353,6 +1371,19 @@ $("deleteFace")?.addEventListener("click", deleteBiometric);
 $("faceEntry")?.addEventListener("click", () => openFace("mark", "entrada"));
 $("faceExit")?.addEventListener("click", () => openFace("mark", "salida"));
 $("faceTest")?.addEventListener("click", () => openFace("test"));
+$("kioskFaceMark")?.addEventListener("click", () => openFace("kiosk"));
+$("enableQrFallback")?.addEventListener("click", async () => {
+  $("adminPanel").hidden = false;
+  $("disableQrFallback").hidden = false;
+  await startQr();
+  $("adminPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+$("disableQrFallback")?.addEventListener("click", () => {
+  stopQr();
+  $("adminPanel").hidden = true;
+  $("disableQrFallback").hidden = true;
+  $("markerKioskPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+});
 $("captureFace")?.addEventListener("click", captureFace);
 $("closeFace")?.addEventListener("click", closeFace);
 $("startQr")?.addEventListener("click", startQr);
