@@ -1156,13 +1156,16 @@ async function openFace(mode, type = "entrada") {
     faceStream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: "user",
-        width: { ideal: 480 },
-        height: { ideal: 640 },
+        width: { ideal: 720 },
+        height: { ideal: 960 },
+        frameRate: { ideal: 30 },
       },
       audio: false,
     });
     $("faceVideo").srcObject = faceStream;
     await $("faceVideo").play();
+    const videoTrack = faceStream.getVideoTracks()[0];
+    await videoTrack?.applyConstraints?.({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
     $("faceModalStatus").textContent =
       "Mira de frente, sin gorra ni lentes oscuros, y mantente dentro del marco.";
   } catch (error) {
@@ -1182,8 +1185,8 @@ async function readFaceDescriptor() {
     .detectAllFaces(
       $("faceVideo"),
       new faceapi.TinyFaceDetectorOptions({
-        inputSize: 192,
-        scoreThreshold: 0.58,
+        inputSize: 320,
+        scoreThreshold: 0.45,
       }),
     )
     .withFaceLandmarks(true)
@@ -1195,6 +1198,22 @@ async function readFaceDescriptor() {
   if (results.length > 1)
     throw new Error("Debe aparecer una sola persona en la camara.");
   return Array.from(results[0].descriptor);
+}
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+async function readStableFaceDescriptor() {
+  const samples = [];
+  let lastError = null;
+  for (let attempt = 0; attempt < 6 && samples.length < 3; attempt += 1) {
+    $("faceModalStatus").textContent = `Analizando rostro: lectura ${samples.length + 1} de 3...`;
+    try {
+      samples.push(await readFaceDescriptor());
+    } catch (error) {
+      lastError = error;
+    }
+    if (samples.length < 3) await wait(180);
+  }
+  if (samples.length < 3) throw lastError || new Error("No se logró obtener una lectura facial estable.");
+  return averageFaceSamples(samples);
 }
 function averageFaceSamples(samples) {
   const average = new Array(128).fill(0);
@@ -1225,7 +1244,7 @@ async function captureFace() {
     const captured =
       faceMode === "enroll"
         ? [await readFaceDescriptor(), null]
-        : await Promise.all([readFaceDescriptor(), currentPosition()]);
+        : await Promise.all([readStableFaceDescriptor(), currentPosition()]);
     const [descriptor, position] = captured;
     if (faceMode === "enroll") {
       faceSamples.push(descriptor);

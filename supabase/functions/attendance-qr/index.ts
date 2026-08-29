@@ -120,8 +120,8 @@ Deno.serve(async req => {
       })).sort((first, second) => first.distance - second.distance);
       const best = matches[0];
       const second = matches[1];
-      if (!best || best.distance > 0.56) return json({ error: 'No se reconoció el rostro. Intenta nuevamente o habilita el QR de contingencia.' }, 403);
-      if (second && second.distance - best.distance < 0.04) return json({ error: 'No se pudo identificar el rostro con seguridad. Usa el QR de contingencia.' }, 409);
+      if (!best || best.distance > 0.60) return json({ error: 'No se reconoció el rostro. Intenta nuevamente o habilita el QR de contingencia.' }, 403);
+      if (second && second.distance - best.distance < 0.03) return json({ error: 'No se pudo identificar el rostro con seguridad. Usa el QR de contingencia.' }, 409);
       const person = staffById.get(best.userId);
       if (!person) return json({ error: 'La persona identificada no está activa en esta sede.' }, 409);
 
@@ -174,7 +174,7 @@ Deno.serve(async req => {
       const { data: enrolled } = await admin.from('asistencia_biometria').select('descriptor,activa').eq('user_id', user.id).maybeSingle();
       if (!enrolled?.activa) return json({ error: 'Primero registra tu rostro en la aplicacion.' }, 409);
       const matchDistance = facialDistance(enrolled.descriptor, body.descriptor);
-      if (matchDistance > 0.58) return json({ error: 'El rostro no coincide con el registro. Mira de frente y mejora la iluminacion.' }, 403);
+      if (matchDistance > 0.60) return json({ error: 'El rostro no coincide con el registro. Mira de frente y mejora la iluminacion.' }, 403);
       const lat = Number(body.latitude);
       const lon = Number(body.longitude);
       const accuracy = Number(body.accuracy || 9999);
