@@ -18,6 +18,10 @@ function cleanText(value: unknown, maxLength: number) {
   return String(value || '').trim().replace(/\s+/g, ' ').slice(0, maxLength);
 }
 
+function comparableName(value: unknown) {
+  return cleanText(value, 90).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+}
+
 function answer(value: unknown) {
   const number = Number(value);
   if (![0, 1, 2].includes(number)) throw new Error('Completa todas las preguntas.');
@@ -54,17 +58,24 @@ Deno.serve(async (req) => {
     if (cleanText(body.website, 40)) return json({ ok: true });
     const startedAt = Number(body.startedAt || 0);
     if (!startedAt || Date.now() - startedAt < 3000) return json({ error: 'Espera unos segundos y revisa tus respuestas.' }, 429);
-    const collaboratorId = cleanText(body.collaboratorId, 36);
-    const { data: collaborator } = await admin.from('profiles')
+    const collaboratorName = cleanText(body.collaboratorName, 90);
+    if (collaboratorName.length < 5 || collaboratorName.split(' ').filter(Boolean).length < 2) {
+      return json({ error: 'Escribe los apellidos y nombres del anfitrión.' }, 400);
+    }
+    const { data: collaborators, error: collaboratorsError } = await admin.from('profiles')
       .select('id,apellidos_nombres,nombre,rol,sede,activo')
-      .eq('id', collaboratorId).eq('sede', site).eq('activo', true).in('rol', surveyRoles)
-      .maybeSingle();
-    if (!collaborator) return json({ error: 'Selecciona a la persona que te atendio.' }, 400);
+      .eq('sede', site).eq('activo', true).in('rol', surveyRoles);
+    if (collaboratorsError) throw collaboratorsError;
+    const collaborator = (collaborators || []).find(item =>
+      comparableName(item.apellidos_nombres || item.nombre) === comparableName(collaboratorName)
+    );
 
     const row = {
       sede: site,
-      colaborador_id: collaborator.id,
-      colaborador_nombre: cleanText(collaborator.apellidos_nombres || collaborator.nombre, 90),
+      colaborador_id: collaborator?.id || null,
+      colaborador_nombre: collaborator
+        ? cleanText(collaborator.apellidos_nombres || collaborator.nombre, 90)
+        : collaboratorName,
       atencion: answer(body.answers?.atencion),
       uniforme: answer(body.answers?.uniforme),
       saludo: answer(body.answers?.saludo),

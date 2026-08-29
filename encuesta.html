@@ -16,8 +16,9 @@
     </header>
 
     <form id="surveyForm" class="survey-form" hidden>
-      <label class="survey-person">Persona que te atendió
-        <select id="surveyStaff" required><option value="">Selecciona una persona</option></select>
+      <label class="survey-person">Apellidos y nombres del anfitrión
+        <input id="surveyStaffName" type="text" list="surveyStaffOptions" maxlength="90" autocomplete="name" placeholder="Escribe el nombre completo" required>
+        <datalist id="surveyStaffOptions"></datalist>
       </label>
 
       <div id="surveyQuestions" class="survey-questions"></div>
