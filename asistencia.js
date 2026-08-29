@@ -179,7 +179,8 @@ async function init() {
     $("workerPanel").hidden = false;
   const markerMode = profile.rol === "marcador";
   $("workerQrActions").hidden = profile.rol === "anfitrion";
-  $("markerKioskPanel").hidden = !markerMode;
+  $("markerKioskPanel").hidden = false;
+  $("enableQrFallback").hidden = !canGenerateQr() || profile.rol === "anfitrion";
   $("biometricPanel").hidden = markerMode;
   $("faceOfficialActions").hidden = ![
     "anfitrion",
@@ -1318,7 +1319,8 @@ async function captureFace() {
         data.discountAmount,
         data.dayStatus,
       );
-      const message = `${data.personName}: ${data.type === "entrada" ? "entrada" : "salida"} registrada${penalty.late ? ` con ${penalty.late} min de tardanza` : ""}.`;
+      const siteDetail = data.site ? ` en ${data.site}` : "";
+      const message = `${data.personName}: ${data.type === "entrada" ? "entrada" : "salida"} registrada${siteDetail}${penalty.late ? ` con ${penalty.late} min de tardanza` : ""}.`;
       $("kioskFaceResult").textContent = message;
       status(message, penalty.nonWorking);
     } else {

@@ -91,20 +91,25 @@ Deno.serve(async req => {
     const body = await req.json();
 
     if (body.action === 'kiosk-face-mark') {
-      if (profile.rol !== 'marcador' || !profile.sede) return json({ error: 'Esta función es exclusiva del celular Marcador.' }, 403);
       const lat = Number(body.latitude);
       const lon = Number(body.longitude);
       const accuracy = Number(body.accuracy || 9999);
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return json({ error: 'Ubicación no válida.' }, 400);
       if (accuracy > 100) return json({ error: 'La precisión del GPS es insuficiente. Acércate a una zona abierta.' }, 400);
-      const { data: site } = await admin.from('asistencia_sedes').select('*').eq('codigo', profile.sede).eq('activa', true).single();
-      if (!site) return json({ error: 'Sede no configurada.' }, 404);
-      const siteDistance = distanceMeters(lat, lon, site.latitud, site.longitud);
+      const { data: activeSites, error: sitesError } = await admin.from('asistencia_sedes').select('*').eq('activa', true);
+      if (sitesError) throw sitesError;
+      const nearest = (activeSites || []).map(site => ({
+        site,
+        distance: distanceMeters(lat, lon, site.latitud, site.longitud),
+      })).sort((first, second) => first.distance - second.distance)[0];
+      if (!nearest) return json({ error: 'No hay sedes activas configuradas.' }, 404);
+      const site = nearest.site;
+      const siteDistance = nearest.distance;
       if (siteDistance > site.radio_metros) return json({ error: `El celular está a ${Math.round(siteDistance)} m de la sede. El límite es ${site.radio_metros} m.` }, 403);
 
       const { data: staff, error: staffError } = await admin.from('profiles')
         .select('id,nombre,apellidos_nombres,rol').eq('activo', true).in('rol', attendanceRoles)
-        .or(`sede.eq.${profile.sede},rol.eq.encargado_ti`);
+        .or(`sede.eq.${site.codigo},rol.eq.encargado_ti`);
       if (staffError) throw staffError;
       const staffById = new Map((staff || []).map(item => [item.id, item]));
       const staffIds = [...staffById.keys()];
@@ -128,7 +133,7 @@ Deno.serve(async req => {
       const now = new Date();
       const { data: openRecord } = await admin.from('asistencia_registros')
         .select('*,asistencia_programacion(fecha,asistencia_turnos(hora_inicio,hora_fin,refrigerio_minutos,minutos_jornada))')
-        .eq('user_id', person.id).eq('sede', profile.sede).is('salida_at', null)
+        .eq('user_id', person.id).eq('sede', site.codigo).is('salida_at', null)
         .order('entrada_at', { ascending: false }).limit(1).maybeSingle();
 
       if (openRecord) {
@@ -142,13 +147,13 @@ Deno.serve(async req => {
           metodo_salida: 'facial_marcador', distancia_facial_salida: best.distance, updated_at: now.toISOString(),
         }).eq('id', openRecord.id).select('id,salida_at,minutos_trabajados,horas_extra_solicitadas,estado_extra').single();
         if (error) throw error;
-        return json({ ok: true, type: 'salida', personName: person.apellidos_nombres || person.nombre, record: updated, distance: Math.round(siteDistance), faceDistance: best.distance, lateMinutes: 0, discountAmount: 0, dayStatus: 'laborable' });
+        return json({ ok: true, type: 'salida', personName: person.apellidos_nombres || person.nombre, site: site.nombre, record: updated, distance: Math.round(siteDistance), faceDistance: best.distance, lateMinutes: 0, discountAmount: 0, dayStatus: 'laborable' });
       }
 
       const date = limaDate(now);
       const { data: schedules } = await admin.from('asistencia_programacion')
         .select('id,user_id,sede,fecha,estado,asistencia_turnos(id,nombre,hora_inicio,hora_fin,refrigerio_minutos,minutos_jornada,es_nocturno)')
-        .eq('user_id', person.id).eq('sede', profile.sede).in('fecha', [date, previousDate(date)]);
+        .eq('user_id', person.id).eq('sede', site.codigo).in('fecha', [date, previousDate(date)]);
       const schedule = schedules?.find(item => item.fecha === date)
         || schedules?.find(item => item.fecha === previousDate(date) && item.asistencia_turnos?.es_nocturno);
       const activeSchedule = schedule?.estado === 'programado' && schedule.asistencia_turnos ? schedule : null;
@@ -158,7 +163,7 @@ Deno.serve(async req => {
       const dayStatus = late > 15 ? 'no_laborable_tardanza' : late > 0 ? 'tardanza' : 'laborable';
       const nonWorking = dayStatus === 'no_laborable_tardanza';
       const { data: record, error } = await admin.from('asistencia_registros').insert({
-        programacion_id: activeSchedule?.id || null, user_id: person.id, sede: profile.sede, fecha_laboral: activeSchedule?.fecha || date,
+        programacion_id: activeSchedule?.id || null, user_id: person.id, sede: site.codigo, fecha_laboral: activeSchedule?.fecha || date,
         entrada_at: now.toISOString(), entrada_lat: lat, entrada_lon: lon, entrada_precision_m: accuracy,
         distancia_entrada_m: Math.round(siteDistance * 100) / 100, minutos_tardanza: late,
         minutos_retraso_real: late, minutos_tolerancia: 0,
@@ -167,7 +172,7 @@ Deno.serve(async req => {
         metodo_entrada: 'facial_marcador', distancia_facial_entrada: best.distance,
       }).select('id,entrada_at,salida_at,minutos_tardanza,descuento_tardanza,estado_jornada').single();
       if (error) throw error;
-      return json({ ok: true, type: 'entrada', personName: person.apellidos_nombres || person.nombre, record, distance: Math.round(siteDistance), faceDistance: best.distance, lateMinutes: late, realLateMinutes: late, toleranceMinutes: 0, discountAmount, dayStatus });
+      return json({ ok: true, type: 'entrada', personName: person.apellidos_nombres || person.nombre, site: site.nombre, record, distance: Math.round(siteDistance), faceDistance: best.distance, lateMinutes: late, realLateMinutes: late, toleranceMinutes: 0, discountAmount, dayStatus });
     }
 
     if (body.action === 'face-test' || body.action === 'face-mark') {
