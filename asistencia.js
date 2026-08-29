@@ -1147,8 +1147,6 @@ async function openFace(mode, type = "entrada") {
   faceMarkType = type;
   faceSamples = [];
   $("faceModal").hidden = false;
-  $("faceConsentRow").hidden = mode !== "enroll";
-  $("faceConsent").checked = false;
   $("faceModalTitle").textContent =
     mode === "enroll"
       ? "Registrar mi rostro"
@@ -1229,10 +1227,6 @@ async function facialFunctionError(error, data, fallback) {
 async function captureFace() {
   const card = $("faceModal").querySelector(".face-card");
   if (card.classList.contains("busy")) return;
-  if (faceMode === "enroll" && !$("faceConsent").checked) {
-    $("faceModalStatus").textContent = "Marca la autorizacion para continuar.";
-    return;
-  }
   card.classList.add("busy");
   try {
     const captured =

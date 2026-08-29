@@ -332,12 +332,19 @@ a:focus-visible {
 }
 .face-camera {
   position: relative;
+  width: 100%;
+  height: min(68vh, 650px);
+  min-height: 420px;
   overflow: hidden;
   border-radius: 7px;
   background: #111;
 }
 .face-camera video {
   display: block;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
   transform: scaleX(-1);
 }
 .face-guide {
@@ -348,18 +355,8 @@ a:focus-visible {
   box-shadow: 0 0 0 999px rgba(7, 16, 26, 0.28);
   pointer-events: none;
 }
-.face-consent {
-  grid-template-columns: auto 1fr;
-  align-items: start;
-  margin: 12px 0;
-  font-size: 0.86rem;
-  line-height: 1.35;
-}
-.face-consent input {
-  min-height: auto;
-  width: 20px;
-  height: 20px;
-  margin: 0;
+.face-card {
+  width: min(700px, calc(100vw - 24px));
 }
 .face-card #captureFace {
   width: 100%;
@@ -455,11 +452,17 @@ a:focus-visible {
     grid-template-columns: 1fr;
   }
   .face-guide {
-    inset: 7% 18%;
+    inset: 6% 15%;
   }
   .face-card {
-    max-height: calc(100vh - 28px);
+    width: calc(100vw - 12px);
+    max-height: calc(100vh - 12px);
+    padding: 14px;
     overflow: auto;
+  }
+  .face-camera {
+    height: 64vh;
+    min-height: 360px;
   }
 }
 
