@@ -230,7 +230,8 @@ async function loadWorker() {
       .select("*")
       .eq("user_id", session.user.id)
       .gte("fecha_laboral", dateIso(start))
-      .lte("fecha_laboral", dateIso(end)),
+      .lte("fecha_laboral", dateIso(end))
+      .order("entrada_at"),
   ]);
   if (error) {
     status("No se pudo cargar tu programacion.", true);
@@ -282,8 +283,8 @@ async function loadWorker() {
     week.appendChild(card);
   }
   const todaySchedule = map.get(today);
-  const todayRecord =
-    recordMap.get(today) || (records || []).find((item) => !item.salida_at);
+  const openRecord = (records || []).find((item) => !item.salida_at);
+  const todayRecord = openRecord || recordMap.get(today);
   const box = $("todayShift");
   clear(box);
   const strong = document.createElement("strong"),
@@ -295,13 +296,9 @@ async function loadWorker() {
   text.textContent =
     todaySchedule?.estado === "programado"
       ? `${siteName(todaySchedule.sede)} | Refrigerio ${todaySchedule.asistencia_turnos?.refrigerio_minutos || 0} min${todaySchedule.asistencia_turnos?.es_nocturno ? " | Turno nocturno" : ""}`
-      : "Solicita al administrador que programe tu semana.";
+      : "Marcación libre habilitada. La sede se obtiene del QR o de la ubicación facial.";
   box.append(strong, text);
-  const canEnter = Boolean(
-    todaySchedule &&
-    todaySchedule.estado === "programado" &&
-    !todayRecord?.entrada_at,
-  );
+  const canEnter = !openRecord;
   const todayPenalty = todayRecord
     ? tardinessInfo(
         todayRecord.minutos_tardanza,
@@ -310,7 +307,7 @@ async function loadWorker() {
       )
     : null;
   const canExit = Boolean(
-    todayRecord?.entrada_at && !todayRecord?.salida_at && !todayPenalty?.nonWorking,
+    openRecord?.entrada_at && !openRecord?.salida_at && !todayPenalty?.nonWorking,
   );
   $("markEntry").disabled = !canEnter;
   $("markExit").disabled = !canExit;
@@ -318,22 +315,18 @@ async function loadWorker() {
   if ($("faceExit")) $("faceExit").disabled = !canExit || !biometric;
   const help = $("markHelp");
   help.className = "mark-help";
-  if (!todaySchedule || todaySchedule.estado !== "programado") {
-    help.textContent =
-      "Marcacion bloqueada: el administrador debe asignarte un turno para hoy.";
-    help.classList.add("warning");
-  } else if (todayPenalty?.nonWorking) {
+  if (todayPenalty?.nonWorking) {
     help.textContent = `Jornada no laborable: ${todayPenalty.late} minutos de tardanza. Descuento aplicado: ${money(todayPenalty.amount)}.`;
     help.classList.add("warning");
   } else if (canEnter)
     help.textContent =
-      "Turno programado. Pulsa Marcar entrada para abrir la camara y escanear el QR.";
+      "Pulsa Marcar entrada para escanear el QR o usa el registro facial.";
   else if (canExit)
     help.textContent =
       "Entrada registrada. Pulsa Marcar salida al terminar tu jornada.";
   else
     help.textContent =
-      "La entrada y salida de este turno ya fueron registradas.";
+      "Marcación actualizada. Puedes iniciar un nuevo ciclo de entrada y salida.";
 }
 
 function switchTab(name) {

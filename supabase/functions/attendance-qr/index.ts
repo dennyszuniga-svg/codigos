@@ -103,7 +103,8 @@ Deno.serve(async req => {
       if (siteDistance > site.radio_metros) return json({ error: `El celular está a ${Math.round(siteDistance)} m de la sede. El límite es ${site.radio_metros} m.` }, 403);
 
       const { data: staff, error: staffError } = await admin.from('profiles')
-        .select('id,nombre,apellidos_nombres,rol').eq('sede', profile.sede).eq('activo', true).in('rol', attendanceRoles);
+        .select('id,nombre,apellidos_nombres,rol').eq('activo', true).in('rol', attendanceRoles)
+        .or(`sede.eq.${profile.sede},rol.eq.encargado_ti`);
       if (staffError) throw staffError;
       const staffById = new Map((staff || []).map(item => [item.id, item]));
       const staffIds = [...staffById.keys()];
@@ -132,7 +133,7 @@ Deno.serve(async req => {
 
       if (openRecord) {
         const shift = openRecord.asistencia_programacion?.asistencia_turnos;
-        const worked = Math.max(0, Math.floor((now.getTime() - new Date(openRecord.entrada_at).getTime()) / 60000) - Number(shift?.refrigerio_minutos || 60));
+        const worked = Math.max(0, Math.floor((now.getTime() - new Date(openRecord.entrada_at).getTime()) / 60000) - Number(shift?.refrigerio_minutos || 0));
         const extraHours = Math.floor(Math.max(0, worked - Number(shift?.minutos_jornada || 480)) / 60);
         const { data: updated, error } = await admin.from('asistencia_registros').update({
           salida_at: now.toISOString(), salida_lat: lat, salida_lon: lon, salida_precision_m: accuracy,
@@ -150,16 +151,14 @@ Deno.serve(async req => {
         .eq('user_id', person.id).eq('sede', profile.sede).in('fecha', [date, previousDate(date)]);
       const schedule = schedules?.find(item => item.fecha === date)
         || schedules?.find(item => item.fecha === previousDate(date) && item.asistencia_turnos?.es_nocturno);
-      if (!schedule || schedule.estado !== 'programado' || !schedule.asistencia_turnos) return json({ error: `${person.apellidos_nombres || person.nombre} no tiene un turno programado hoy en esta sede.` }, 409);
-      const { data: existing } = await admin.from('asistencia_registros').select('id').eq('programacion_id', schedule.id).maybeSingle();
-      if (existing) return json({ error: `La jornada de ${person.apellidos_nombres || person.nombre} ya fue registrada.` }, 409);
-      const start = scheduledDate(schedule.fecha, schedule.asistencia_turnos.hora_inicio);
-      const late = Math.max(0, Math.ceil((now.getTime() - start.getTime()) / 60000));
+      const activeSchedule = schedule?.estado === 'programado' && schedule.asistencia_turnos ? schedule : null;
+      const start = activeSchedule ? scheduledDate(activeSchedule.fecha, activeSchedule.asistencia_turnos.hora_inicio) : null;
+      const late = start ? Math.max(0, Math.ceil((now.getTime() - start.getTime()) / 60000)) : 0;
       const discountAmount = Math.min(late, 15);
       const dayStatus = late > 15 ? 'no_laborable_tardanza' : late > 0 ? 'tardanza' : 'laborable';
       const nonWorking = dayStatus === 'no_laborable_tardanza';
       const { data: record, error } = await admin.from('asistencia_registros').insert({
-        programacion_id: schedule.id, user_id: person.id, sede: profile.sede, fecha_laboral: schedule.fecha,
+        programacion_id: activeSchedule?.id || null, user_id: person.id, sede: profile.sede, fecha_laboral: activeSchedule?.fecha || date,
         entrada_at: now.toISOString(), entrada_lat: lat, entrada_lon: lon, entrada_precision_m: accuracy,
         distancia_entrada_m: Math.round(siteDistance * 100) / 100, minutos_tardanza: late,
         minutos_retraso_real: late, minutos_tolerancia: 0,
@@ -202,20 +201,26 @@ Deno.serve(async req => {
           .eq('user_id', user.id).in('fecha', [date, previousDate(date)]);
         const schedule = schedules?.find(item => item.fecha === date)
           || schedules?.find(item => item.fecha === previousDate(date) && item.asistencia_turnos?.es_nocturno);
-        if (!schedule || schedule.estado !== 'programado' || !schedule.asistencia_turnos) return json({ error: 'No tienes un turno programado hoy.' }, 409);
-        const { data: site } = await admin.from('asistencia_sedes').select('*').eq('codigo', schedule.sede).eq('activa', true).single();
+        const activeSchedule = schedule?.estado === 'programado' && schedule.asistencia_turnos ? schedule : null;
+        let site;
+        if (activeSchedule) {
+          const result = await admin.from('asistencia_sedes').select('*').eq('codigo', activeSchedule.sede).eq('activa', true).single();
+          site = result.data;
+        } else {
+          const { data: activeSites } = await admin.from('asistencia_sedes').select('*').eq('activa', true);
+          site = (activeSites || []).map(item => ({ ...item, distance: distanceMeters(lat, lon, item.latitud, item.longitud) }))
+            .sort((first, second) => first.distance - second.distance)[0];
+        }
         if (!site) return json({ error: 'Sede no configurada.' }, 404);
         const siteDistance = distanceMeters(lat, lon, site.latitud, site.longitud);
         if (siteDistance > site.radio_metros) return json({ error: `Estas a ${Math.round(siteDistance)} m de la sede. El limite es ${site.radio_metros} m.` }, 403);
-        const { data: existing } = await admin.from('asistencia_registros').select('id').eq('programacion_id', schedule.id).maybeSingle();
-        if (existing) return json({ error: 'La entrada de este turno ya fue registrada.' }, 409);
-        const start = scheduledDate(schedule.fecha, schedule.asistencia_turnos.hora_inicio);
-        const late = Math.max(0, Math.ceil((now.getTime() - start.getTime()) / 60000));
+        const start = activeSchedule ? scheduledDate(activeSchedule.fecha, activeSchedule.asistencia_turnos.hora_inicio) : null;
+        const late = start ? Math.max(0, Math.ceil((now.getTime() - start.getTime()) / 60000)) : 0;
         const discountAmount = Math.min(late, 15);
         const dayStatus = late > 15 ? 'no_laborable_tardanza' : late > 0 ? 'tardanza' : 'laborable';
         const nonWorking = dayStatus === 'no_laborable_tardanza';
         const { data: record, error } = await admin.from('asistencia_registros').insert({
-          programacion_id: schedule.id, user_id: user.id, sede: schedule.sede, fecha_laboral: schedule.fecha,
+          programacion_id: activeSchedule?.id || null, user_id: user.id, sede: site.codigo, fecha_laboral: activeSchedule?.fecha || date,
           entrada_at: now.toISOString(), entrada_lat: lat, entrada_lon: lon, entrada_precision_m: accuracy,
           distancia_entrada_m: Math.round(siteDistance * 100) / 100, minutos_tardanza: late,
           minutos_retraso_real: late, minutos_tolerancia: 0,
@@ -237,7 +242,7 @@ Deno.serve(async req => {
         const siteDistance = distanceMeters(lat, lon, site.latitud, site.longitud);
         if (siteDistance > site.radio_metros) return json({ error: `Estas a ${Math.round(siteDistance)} m de la sede. El limite es ${site.radio_metros} m.` }, 403);
         const shift = record.asistencia_programacion?.asistencia_turnos;
-        const worked = Math.max(0, Math.floor((now.getTime() - new Date(record.entrada_at).getTime()) / 60000) - Number(shift?.refrigerio_minutos || 60));
+        const worked = Math.max(0, Math.floor((now.getTime() - new Date(record.entrada_at).getTime()) / 60000) - Number(shift?.refrigerio_minutos || 0));
         const extraHours = Math.floor(Math.max(0, worked - Number(shift?.minutos_jornada || 480)) / 60);
         const { data: updated, error } = await admin.from('asistencia_registros').update({
           salida_at: now.toISOString(), salida_lat: lat, salida_lon: lon, salida_precision_m: accuracy,
@@ -284,19 +289,17 @@ Deno.serve(async req => {
         .eq('user_id', user.id).in('fecha', [date, previousDate(date)]).eq('sede', qr.site);
       const schedule = schedules?.find(item => item.fecha === date)
         || schedules?.find(item => item.fecha === previousDate(date) && item.asistencia_turnos?.es_nocturno);
-      if (!schedule || schedule.estado !== 'programado' || !schedule.asistencia_turnos) return json({ error: 'No tienes un turno programado hoy en esta sede.' }, 409);
-      const { data: existing } = await admin.from('asistencia_registros').select('id').eq('programacion_id', schedule.id).maybeSingle();
-      if (existing) return json({ error: 'La entrada de este turno ya fue registrada.' }, 409);
-      const workDate = schedule.fecha;
-      const start = scheduledDate(workDate, schedule.asistencia_turnos.hora_inicio);
-      const realLate = Math.max(0, Math.ceil((now.getTime() - start.getTime()) / 60000));
+      const activeSchedule = schedule?.estado === 'programado' && schedule.asistencia_turnos ? schedule : null;
+      const workDate = activeSchedule?.fecha || date;
+      const start = activeSchedule ? scheduledDate(workDate, activeSchedule.asistencia_turnos.hora_inicio) : null;
+      const realLate = start ? Math.max(0, Math.ceil((now.getTime() - start.getTime()) / 60000)) : 0;
       const tolerance = Math.max(0, Math.min(10, Number(qr.tolerance) || 0));
       const late = Math.max(0, realLate - tolerance);
       const discountAmount = Math.min(late, 15);
       const dayStatus = late > 15 ? 'no_laborable_tardanza' : late > 0 ? 'tardanza' : 'laborable';
       const nonWorking = dayStatus === 'no_laborable_tardanza';
       const { data: record, error } = await admin.from('asistencia_registros').insert({
-        programacion_id: schedule.id, user_id: user.id, sede: qr.site, fecha_laboral: workDate,
+        programacion_id: activeSchedule?.id || null, user_id: user.id, sede: qr.site, fecha_laboral: workDate,
         entrada_at: now.toISOString(), entrada_lat: lat, entrada_lon: lon, entrada_precision_m: accuracy,
         distancia_entrada_m: Math.round(distance * 100) / 100, minutos_tardanza: late,
         minutos_retraso_real: realLate, minutos_tolerancia: tolerance,
@@ -313,7 +316,7 @@ Deno.serve(async req => {
         .eq('user_id', user.id).eq('sede', qr.site).is('salida_at', null).order('entrada_at', { ascending: false }).limit(1).maybeSingle();
       if (!record) return json({ error: 'No existe una entrada abierta para registrar salida.' }, 409);
       const shift = record.asistencia_programacion?.asistencia_turnos;
-      const worked = Math.max(0, Math.floor((now.getTime() - new Date(record.entrada_at).getTime()) / 60000) - Number(shift?.refrigerio_minutos || 60));
+      const worked = Math.max(0, Math.floor((now.getTime() - new Date(record.entrada_at).getTime()) / 60000) - Number(shift?.refrigerio_minutos || 0));
       const extraHours = Math.floor(Math.max(0, worked - Number(shift?.minutos_jornada || 480)) / 60);
       const { data: updated, error } = await admin.from('asistencia_registros').update({
         salida_at: now.toISOString(), salida_lat: lat, salida_lon: lon, salida_precision_m: accuracy,
