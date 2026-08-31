@@ -63,6 +63,12 @@ const EQUIPOS_MANTENIMIENTO = [
     { sede: 'primavera', codigo: 'TPA2FULL JAPIBICI', nombre: 'Cajero automatico Full 2 Japibici', tipo: 'Cajero automatico Full', componentes: ['Cajero automatico Full'], preventivoMinutos: 120 },
     { sede: 'primavera', codigo: 'TPA3LITE', nombre: 'Cajero automatico Lite 3', tipo: 'Cajero automatico Lite', componentes: ['Pago con tarjeta'], preventivoMinutos: 120 },
     { sede: 'primavera', codigo: 'TPA4LITE', nombre: 'Cajero automatico Lite 4', tipo: 'Cajero automatico Lite', componentes: ['Pago con tarjeta'], preventivoMinutos: 120 },
+    { sede: 'gama', codigo: 'ENTRADA 1', nombre: 'Carril de entrada 1', tipo: 'Carril de entrada', componentes: ['Ticketero', 'Barrera', 'LPR'], preventivoMinutos: 120 },
+    { sede: 'gama', codigo: 'ENTRADA 2', nombre: 'Carril de entrada 2', tipo: 'Carril de entrada', componentes: ['Ticketero', 'Barrera', 'LPR'], preventivoMinutos: 120 },
+    { sede: 'gama', codigo: 'SALIDA 1', nombre: 'Carril de salida 1', tipo: 'Carril de salida', componentes: ['Lector de tickets', 'Barrera', 'LPR'], preventivoMinutos: 120 },
+    { sede: 'gama', codigo: 'SALIDA 2', nombre: 'Carril de salida 2', tipo: 'Carril de salida', componentes: ['Lector de tickets', 'Barrera', 'LPR'], preventivoMinutos: 120 },
+    { sede: 'gama', codigo: 'CAJA MANUAL 1', nombre: 'Caja manual 1', tipo: 'Caja manual', componentes: ['Caja manual', 'Impresora termica', 'PC'], preventivoMinutos: 120 },
+    { sede: 'gama', codigo: 'CAJA MANUAL 2', nombre: 'Caja manual 2', tipo: 'Caja manual', componentes: ['Caja manual', 'Impresora termica', 'PC'], preventivoMinutos: 120 },
     { sede: 'puruchuco', codigo: 'ENTRADA 1 DE JAVIER PRADO', nombre: 'Carril de entrada 1 Javier Prado', tipo: 'Carril de entrada', componentes: ['Ticketero', 'Barrera', 'LPR'], preventivoMinutos: 120 },
     { sede: 'puruchuco', codigo: 'ENTRADA 2 DE JAVIER PRADO', nombre: 'Carril de entrada 2 Javier Prado', tipo: 'Carril de entrada', componentes: ['Ticketero', 'Barrera', 'LPR'], preventivoMinutos: 120 },
     { sede: 'puruchuco', codigo: 'ENTRADA 3 DE JAVIER PRADO', nombre: 'Carril de entrada 3 Javier Prado', tipo: 'Carril de entrada', componentes: ['Ticketero', 'Barrera', 'LPR'], preventivoMinutos: 120 },
@@ -637,7 +643,7 @@ function obtenerTipoInformeEquipo(equipo) {
     if (texto.includes('CARRIL') || texto.startsWith('ENTRADA') || texto.startsWith('SALIDA') || texto.startsWith('PUMA')) {
         return 'carril';
     }
-    if (texto.includes('TPA') || texto.includes('CAJERO') || texto.includes('PAGO AUTOMATICO')) {
+    if (texto.includes('TPA') || texto.includes('CAJERO') || texto.includes('PAGO AUTOMATICO') || texto.includes('CAJA MANUAL')) {
         return 'tpa';
     }
     return '';
@@ -655,7 +661,7 @@ function obtenerTareasPlantilla() {
                 : tarea);
     }
     if (fields.tipoEquipoInforme.value === 'tpa') {
-        const esLite = /LITE|TARJETA/i.test(`${equipo.codigo} ${equipo.tipo} ${equipo.nombre}`);
+        const esLite = /LITE|TARJETA|CAJA MANUAL/i.test(`${equipo.codigo} ${equipo.tipo} ${equipo.nombre}`);
         return TAREAS_TPA.filter((_tarea, index) => !esLite || !TAREAS_EFECTIVO_TPA.has(index));
     }
     return [];
@@ -1158,7 +1164,9 @@ function getGeneralDetailItems(report) {
         ['Nombre firma tecnico', report.firmaTecnicoNombre],
         ['Supervisor / administrador', report.firmaSupervisorNombre],
         ['Sede', report.sede],
-        ['Tipo de informe', report.tipoEquipoInforme === 'carril' ? 'Carril' : 'Modulo de pago (TPA)'],
+        ['Tipo de informe', getEquipmentInfo(report.equipo)?.tipo === 'Caja manual'
+            ? 'Caja manual'
+            : report.tipoEquipoInforme === 'carril' ? 'Carril' : 'Modulo de pago (TPA)'],
         ['Equipo', report.equipo],
         ['Prioridad', report.prioridad],
         ['Tipo de mantenimiento', report.tipoMantenimiento === 'PreventivoMensual' ? 'Mantenimiento preventivo mensual' : report.tipoMantenimiento],
