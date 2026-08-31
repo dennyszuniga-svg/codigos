@@ -1101,7 +1101,7 @@ function currentPosition() {
   );
 }
 async function markAttendance(token) {
-  status("Validando ubicacion y hora oficial...");
+  status("Validando QR y hora oficial...");
   try {
     const position = await currentPosition();
     const { data, error } = await client.functions.invoke("attendance-qr", {
@@ -1130,7 +1130,7 @@ async function markAttendance(token) {
           ? `Entrada registrada con ${penalty.late} minutos de tardanza. Descuento ${money(penalty.amount)}.`
           : markType === "entrada" && Number(data.realLateMinutes) > 0 && Number(data.toleranceMinutes) > 0
             ? `Entrada registrada. Retraso real: ${data.realLateMinutes} min, dentro de la tolerancia de ${data.toleranceMinutes} min.`
-          : `${markType === "entrada" ? "Entrada" : "Salida"} registrada. Distancia a sede: ${data.distance} m.`,
+          : `${markType === "entrada" ? "Entrada" : "Salida"} registrada correctamente.`,
       penalty.nonWorking,
     );
     await loadWorker();

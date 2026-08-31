@@ -283,7 +283,6 @@ Deno.serve(async req => {
     const { data: site } = await admin.from('asistencia_sedes').select('*').eq('codigo', qr.site).eq('activa', true).single();
     if (!site) return json({ error: 'Sede no configurada.' }, 404);
     const distance = distanceMeters(lat, lon, site.latitud, site.longitud);
-    if (distance > site.radio_metros) return json({ error: `Estas a ${Math.round(distance)} m de la sede. El limite es ${site.radio_metros} m.` }, 403);
     const now = new Date();
     const type = String(body.type || 'entrada');
 
