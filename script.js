@@ -2343,7 +2343,7 @@ function usuarioEsSuperior() {
 }
 
 function usuarioPuedeRestablecerPassword() {
-    return perfilActual?.activo !== false && [ROL_SUPERIOR, 'gdh'].includes(perfilActual?.rol);
+    return perfilActual?.activo !== false && [ROL_SUPERIOR, 'gdh', 'admin'].includes(perfilActual?.rol);
 }
 
 function usuarioPuedeRestablecerCuenta(usuario) {
@@ -2352,6 +2352,10 @@ function usuarioPuedeRestablecerCuenta(usuario) {
     }
     if (usuarioEsSuperior()) {
         return true;
+    }
+    if (perfilActual?.rol === 'admin') {
+        return usuario.sede === obtenerSedeActual()
+            && ['tecnico', 'supervisor', 'fortaleza', 'eco', 'charly', 'anfitrion', 'marcador'].includes(usuario.rol);
     }
     return ['comercial_abonados', 'tecnico', 'supervisor', 'fortaleza', 'eco', 'charly', 'anfitrion', 'marcador'].includes(usuario.rol);
 }

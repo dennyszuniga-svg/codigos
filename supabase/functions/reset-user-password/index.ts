@@ -16,6 +16,15 @@ const rolesRestableciblesPorGdh = new Set([
   'charly',
   'anfitrion',
 ]);
+const rolesRestableciblesPorAdmin = new Set([
+  'tecnico',
+  'supervisor',
+  'marcador',
+  'fortaleza',
+  'eco',
+  'charly',
+  'anfitrion',
+]);
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -48,11 +57,11 @@ Deno.serve(async (req) => {
 
   const { data: requester, error: requesterError } = await supabase
     .from('profiles')
-    .select('rol,activo')
+    .select('rol,activo,sede')
     .eq('id', userData.user.id)
     .maybeSingle();
-  if (requesterError || requester?.activo !== true || !['encargado_ti', 'gdh'].includes(requester?.rol || '')) {
-    return jsonResponse({ error: 'Solo GDH o el Encargado de Mantenimiento y TI pueden restablecer contrasenas' }, 403);
+  if (requesterError || requester?.activo !== true || !['encargado_ti', 'gdh', 'admin'].includes(requester?.rol || '')) {
+    return jsonResponse({ error: 'No tienes permiso para restablecer contrasenas' }, 403);
   }
 
   const body = await req.json().catch(() => ({}));
@@ -74,7 +83,7 @@ Deno.serve(async (req) => {
 
   const { data: target, error: targetError } = await supabase
     .from('profiles')
-    .select('id,nombre,apellidos_nombres,dni,rol,activo')
+    .select('id,nombre,apellidos_nombres,dni,rol,activo,sede')
     .eq('id', userId)
     .maybeSingle();
   if (targetError || !target || target.activo !== true) {
@@ -85,6 +94,10 @@ Deno.serve(async (req) => {
   }
   if (requester.rol === 'gdh' && !rolesRestableciblesPorGdh.has(target.rol)) {
     return jsonResponse({ error: 'GDH no puede restablecer cuentas administrativas o globales' }, 403);
+  }
+  if (requester.rol === 'admin'
+    && (target.sede !== requester.sede || !rolesRestableciblesPorAdmin.has(target.rol))) {
+    return jsonResponse({ error: 'Solo puedes restablecer cuentas operativas activas de tu propia sede' }, 403);
   }
 
   const temporaryPassword = generarPasswordTemporal(target.dni);
