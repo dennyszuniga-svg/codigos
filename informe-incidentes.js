@@ -1587,8 +1587,8 @@ function calculateDuration(start, end) {
     if (!start || !end) return { minutes: null, label: 'Pendiente' };
     const [startHour, startMinute] = start.split(':').map(Number);
     const [endHour, endMinute] = end.split(':').map(Number);
-    const minutes = (endHour * 60 + endMinute) - (startHour * 60 + startMinute);
-    if (minutes < 0) return { minutes, label: 'Hora final menor que inicio' };
+    let minutes = (endHour * 60 + endMinute) - (startHour * 60 + startMinute);
+    if (minutes < 0) minutes += 24 * 60;
     const hours = Math.floor(minutes / 60);
     const rest = minutes % 60;
     return { minutes, label: `${hours} h ${rest} min` };
@@ -1911,6 +1911,13 @@ function obtenerFechaIntervencionISO(report) {
     const hora = report.horaFinal || report.horaInicio || '00:00';
     if (fecha) {
         const valor = new Date(`${fecha}T${hora}:00`);
+        if (report.horaInicio && report.horaFinal) {
+            const [inicioHora, inicioMinuto] = report.horaInicio.split(':').map(Number);
+            const [finalHora, finalMinuto] = report.horaFinal.split(':').map(Number);
+            if ((finalHora * 60 + finalMinuto) < (inicioHora * 60 + inicioMinuto)) {
+                valor.setDate(valor.getDate() + 1);
+            }
+        }
         if (!Number.isNaN(valor.getTime())) return valor.toISOString();
     }
     return report.fechaGuardado?.toISOString?.() || new Date().toISOString();
