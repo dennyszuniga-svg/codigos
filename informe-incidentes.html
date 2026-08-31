@@ -209,6 +209,11 @@
                             <button type="button" class="btn btn-secondary btn-small" id="reloadTaskTemplate">Recargar plantilla</button>
                         </div>
                     </div>
+                    <div class="form-group photo-general-title" id="photoGeneralTitleGroup" hidden>
+                        <label for="photoGeneralTitle" class="required">T&iacute;tulo general de las im&aacute;genes</label>
+                        <input id="photoGeneralTitle" name="photoGeneralTitle" type="text" maxlength="180" placeholder="Ej. Evidencias del mantenimiento preventivo mensual">
+                        <p class="error-message">Coloque un t&iacute;tulo general para las im&aacute;genes.</p>
+                    </div>
                     <div class="task-list" id="taskList"></div>
                     <button type="button" class="btn btn-secondary" id="addAdditionalTask">Agregar tarea adicional</button>
                     <p class="error-message" id="activityTasksError">Complete al menos una tarea con detalle, foto y subt&iacute;tulo.</p>

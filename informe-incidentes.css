@@ -502,6 +502,16 @@ body {
     gap: 10px;
 }
 
+.photo-general-title {
+    margin: 14px 0;
+}
+
+.photo-general-heading {
+    color: var(--text);
+    font-size: 1rem;
+    margin: 4px 0 12px;
+}
+
 .photo-thumb,
 .report-photo {
     overflow: hidden;

@@ -193,7 +193,8 @@ const fields = {
     resultadoFinal: document.getElementById('resultadoFinal'),
     repuestos: document.getElementById('repuestos'),
     observaciones: document.getElementById('observaciones'),
-    conclusiones: document.getElementById('conclusiones')
+    conclusiones: document.getElementById('conclusiones'),
+    photoGeneralTitle: document.getElementById('photoGeneralTitle')
 };
 
 const groups = {
@@ -218,7 +219,8 @@ const groups = {
     inventoryConsumption: document.getElementById('inventoryConsumptionGroup'),
     firmaTecnico: document.getElementById('firmaTecnicoGroup'),
     firmaSupervisor: document.getElementById('firmaSupervisorGroup'),
-    firmaSupervisorNombre: document.getElementById('firmaSupervisorGroup')
+    firmaSupervisorNombre: document.getElementById('firmaSupervisorGroup'),
+    photoGeneralTitle: document.getElementById('photoGeneralTitleGroup')
 };
 
 const preview = {
@@ -312,6 +314,7 @@ Object.entries(fields).forEach(([name, field]) => {
         }
         if (name === 'equipo' || name === 'tipoMantenimiento') {
             actualizarImpactoOperativoSugerido();
+            actualizarModoEvidenciasFotograficas();
         }
         syncSignatureNames();
         updateComputedFields();
@@ -342,6 +345,7 @@ Object.entries(fields).forEach(([name, field]) => {
         }
         if (name === 'equipo' || name === 'tipoMantenimiento') {
             actualizarImpactoOperativoSugerido();
+            actualizarModoEvidenciasFotograficas();
         }
         syncSignatureNames();
         updateComputedFields();
@@ -386,7 +390,7 @@ taskList.addEventListener('change', async (event) => {
                 updateProgress();
                 await saveDraft();
             });
-            setStatus(`${photos.length} foto${photos.length === 1 ? '' : 's'} agregada${photos.length === 1 ? '' : 's'} y protegida${photos.length === 1 ? '' : 's'}. Complete tipo y subtitulo.`);
+            setStatus(`${photos.length} foto${photos.length === 1 ? '' : 's'} agregada${photos.length === 1 ? '' : 's'} y protegida${photos.length === 1 ? '' : 's'}.${esPreventivoMensual() ? ' Complete el subtitulo.' : ' Complete tipo y subtitulo.'}`);
         } catch (error) {
             console.warn('No se pudo proteger una foto del informe.', error);
             tasks.forEach(item => {
@@ -521,6 +525,7 @@ function initForm() {
     }
 
     applyAppContext();
+    actualizarModoEvidenciasFotograficas({ renderizar: false });
     renderTasks();
     actualizarEstadoPlantilla();
     updateEstadoInicialOtroVisibility();
@@ -937,6 +942,7 @@ function resetForm() {
     signaturePads.firmaTecnico.clear();
     signaturePads.firmaSupervisor.clear();
     startNewReport();
+    actualizarModoEvidenciasFotograficas({ renderizar: false });
     renderTasks();
     renderizarUsoInventario();
     updateEstadoInicialOtroVisibility();
@@ -988,6 +994,7 @@ function renderTasks() {
 
 function renderPhotoList(task) {
     const photoList = document.getElementById(`photoList${task.id}`);
+    const preventivoMensual = esPreventivoMensual();
 
     photoList.innerHTML = '';
 
@@ -1001,12 +1008,12 @@ function renderPhotoList(task) {
                     <span>${escapeHtml(photo.name)}</span>
                     <button type="button" class="photo-remove" data-action="remove-photo" data-photo-id="${photo.id}">Quitar</button>
                 </div>
-                <select data-action="photo-stage" data-photo-id="${photo.id}" aria-label="Tipo de foto ${index + 1}">
+                ${preventivoMensual ? '' : `<select data-action="photo-stage" data-photo-id="${photo.id}" aria-label="Tipo de foto ${index + 1}">
                     <option value="">Antes / Durante / Despu&eacute;s</option>
                     <option value="Antes" ${photo.stage === 'Antes' ? 'selected' : ''}>Antes</option>
                     <option value="Durante" ${photo.stage === 'Durante' ? 'selected' : ''}>Durante</option>
                     <option value="Despu&eacute;s" ${photo.stage === 'Despu&eacute;s' ? 'selected' : ''}>Despu&eacute;s</option>
-                </select>
+                </select>`}
                 <input type="text" value="${escapeHtml(photo.caption)}" placeholder="Subtitulo obligatorio de la foto" data-action="photo-caption" data-photo-id="${photo.id}" aria-label="Subtitulo de foto ${index + 1}">
                 <span class="photo-meta">Tomada: ${formatDateTime(new Date(photo.capturedAt))}</span>
             </figcaption>
@@ -1034,7 +1041,21 @@ function isTaskComplete(task) {
     return task.done
         && Boolean(task.description.trim())
         && task.photos.length > 0
-        && task.photos.every((photo) => photo.caption.trim() && photo.stage);
+        && task.photos.every((photo) => photo.caption.trim() && (esPreventivoMensual() || photo.stage));
+}
+
+function esPreventivoMensual() {
+    return fields.tipoMantenimiento.value === 'PreventivoMensual';
+}
+
+function actualizarModoEvidenciasFotograficas({ renderizar = true } = {}) {
+    const preventivoMensual = esPreventivoMensual();
+    groups.photoGeneralTitle.hidden = !preventivoMensual;
+    if (preventivoMensual && !fields.photoGeneralTitle.value.trim()) {
+        const equipo = fields.equipo.value.trim();
+        fields.photoGeneralTitle.value = `Evidencias del mantenimiento preventivo mensual${equipo ? ` - ${equipo}` : ''}`;
+    }
+    if (renderizar) renderTasks();
 }
 
 function isTaskStarted(task) {
@@ -1109,7 +1130,7 @@ function renderPreview() {
         : 'Fecha de guardado: se registrara al guardar el informe';
     renderGeneralDetails(report);
     preview.incidente.textContent = report.incidente;
-    renderReportTasks(report.actividades);
+    renderReportTasks(report.actividades, report.photoGeneralTitle);
     preview.solucion.textContent = report.solucion;
     preview.observaciones.textContent = report.observaciones || 'No especificado';
     preview.conclusiones.textContent = report.conclusiones;
@@ -1152,8 +1173,14 @@ function getGeneralDetailItems(report) {
     ];
 }
 
-function renderReportTasks(activityTasks) {
+function renderReportTasks(activityTasks, photoGeneralTitle = '') {
     preview.actividades.innerHTML = '';
+    if (photoGeneralTitle) {
+        const title = document.createElement('h3');
+        title.className = 'photo-general-heading';
+        title.textContent = photoGeneralTitle;
+        preview.actividades.append(title);
+    }
     activityTasks.forEach((task, index) => {
         const article = document.createElement('article');
         article.className = 'report-task';
@@ -1166,7 +1193,7 @@ function renderReportTasks(activityTasks) {
             figure.className = 'report-photo';
             figure.innerHTML = `
                 <img src="${photo.dataUrl}" alt="Foto ${photoIndex + 1} de tarea ${index + 1}">
-                <figcaption>${escapeHtml(photo.stage)} - ${escapeHtml(photo.caption)}<br><small>${formatDateTime(new Date(photo.capturedAt))}</small></figcaption>
+                <figcaption>${escapeHtml(formatearEtiquetaFoto(photo))}<br><small>${formatDateTime(new Date(photo.capturedAt))}</small></figcaption>
             `;
             photoList.append(figure);
         });
@@ -1204,6 +1231,7 @@ function getReportData() {
 
     return {
         ...Object.fromEntries(Object.entries(fields).map(([name, field]) => [name, field.value.trim()])),
+        photoGeneralTitle: esPreventivoMensual() ? fields.photoGeneralTitle.value.trim() : '',
         repuestos: repuestosTexto,
         firmaTecnicoNombre: fields.personal.value.trim(),
         estadoInicialTexto,
@@ -1222,7 +1250,7 @@ function getCompletedTasks() {
             photos: task.photos.map((photo) => ({
                 name: photo.name,
                 caption: photo.caption.trim(),
-                stage: photo.stage,
+                stage: esPreventivoMensual() ? '' : photo.stage,
                 capturedAt: photo.capturedAt,
                 dataUrl: photo.dataUrl
             }))
@@ -1257,6 +1285,11 @@ function validateReport(report) {
         isValid = isValid && hasValue;
     });
 
+    const photoTitleRequired = report.tipoMantenimiento === 'PreventivoMensual';
+    const photoTitleValid = !photoTitleRequired || Boolean(report.photoGeneralTitle);
+    setFieldError('photoGeneralTitle', !photoTitleValid);
+    isValid = isValid && photoTitleValid;
+
     const needsEstadoOtro = report.estadoInicial === 'Otro';
     setFieldError('estadoInicialOtro', needsEstadoOtro && !report.estadoInicialOtro);
     isValid = isValid && (!needsEstadoOtro || Boolean(report.estadoInicialOtro));
@@ -1279,6 +1312,7 @@ function validateReport(report) {
 
     if (!isValid) {
         const firstInvalid = requiredFields.find((name) => !report[name])
+            || (!photoTitleValid ? 'photoGeneralTitle' : null)
             || (needsEstadoOtro && !report.estadoInicialOtro ? 'estadoInicialOtro' : null)
             || (!taskValidation.isValid ? 'actividades' : null)
             || (!inventoryValidation.isValid ? 'inventoryConsumption' : null)
@@ -1294,7 +1328,10 @@ function validateReport(report) {
             const inventoryGroup = document.getElementById('inventoryConsumptionGroup');
             inventoryGroup?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        setStatus(inventoryValidation.message || taskValidation.message || 'Complete todos los campos obligatorios, firmas y tiempos antes de guardar.', true);
+        setStatus(inventoryValidation.message
+            || taskValidation.message
+            || (!photoTitleValid ? 'Coloque un título general para las imágenes.' : '')
+            || 'Complete todos los campos obligatorios, firmas y tiempos antes de guardar.', true);
         return false;
     }
 
@@ -1310,7 +1347,9 @@ function validateTasks() {
 
     const incompleteTask = startedTasks.find((task) => !isTaskComplete(task));
     if (!completedTasks.length && !incompleteTask) {
-        return { isValid: false, message: 'Complete al menos una tarea con check, detalle, foto, tipo y subtítulo.' };
+        return { isValid: false, message: esPreventivoMensual()
+            ? 'Complete al menos una tarea con check, detalle, foto y subtítulo.'
+            : 'Complete al menos una tarea con check, detalle, foto, tipo y subtítulo.' };
     }
 
     if (incompleteTask) {
@@ -1332,7 +1371,7 @@ function getTaskValidationMessage(task, taskNumber) {
     if (!task.description.trim()) return `Falta describir lo realizado en Tarea ${taskNumber}.`;
     if (!task.photos.length) return `Falta tomar foto en Tarea ${taskNumber}.`;
     const missingStage = task.photos.findIndex((photo) => !photo.stage);
-    if (missingStage >= 0) return `Falta seleccionar Antes/Durante/Después en foto ${missingStage + 1} de Tarea ${taskNumber}.`;
+    if (!esPreventivoMensual() && missingStage >= 0) return `Falta seleccionar Antes/Durante/Después en foto ${missingStage + 1} de Tarea ${taskNumber}.`;
     const missingCaption = task.photos.findIndex((photo) => !photo.caption.trim());
     if (missingCaption >= 0) return `Falta subtítulo en foto ${missingCaption + 1} de Tarea ${taskNumber}.`;
     return `Tarea ${taskNumber} está incompleta.`;
@@ -1352,6 +1391,7 @@ function buildReportText() {
         report.incidente,
         '',
         'ACTIVIDADES REALIZADAS',
+        report.photoGeneralTitle || '',
         formatActivityTasksAsText(report.actividades),
         '',
         'SOLUCION REALIZADA',
@@ -1369,8 +1409,12 @@ function formatActivityTasksAsText(activityTasks) {
     return activityTasks.map((task, index) => [
         `Tarea ${index + 1}:`,
         task.description,
-        ...task.photos.map((photo, photoIndex) => `Foto ${photoIndex + 1}: ${photo.stage} - ${photo.caption} (${formatDateTime(new Date(photo.capturedAt))})`)
+        ...task.photos.map((photo, photoIndex) => `Foto ${photoIndex + 1}: ${formatearEtiquetaFoto(photo)} (${formatDateTime(new Date(photo.capturedAt))})`)
     ].join('\n')).join('\n\n');
+}
+
+function formatearEtiquetaFoto(photo) {
+    return [photo.stage, photo.caption].filter(Boolean).join(' - ');
 }
 
 async function copyReport() {
@@ -1453,6 +1497,7 @@ function buildReportHtml(report) {
         .header img { display: block; flex: 0 0 280px; height: auto; max-height: 86px; max-width: 280px; object-fit: contain; width: 280px; }
         h1 { color: #179bd7; margin: 0 0 6px; }
         h2 { border-bottom: 1px solid #d8e5eb; color: #0b74a9; font-size: 13px; margin: 14px 0 8px; padding-bottom: 5px; text-transform: uppercase; }
+        .photo-title { color: #1f2a2e; font-size: 14px; margin: 10px 0 8px; }
         p { line-height: 1.38; margin: 0 0 8px; white-space: pre-wrap; }
         .text-block { background: #f4f8fb; border-left: 4px solid #f15a24; padding: 8px 10px; }
         .details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 12px; }
@@ -1479,7 +1524,7 @@ function buildReportHtml(report) {
     </section>
     <section class="details">${getGeneralDetailItems(report).map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</section>
     <h2>Informe del incidente / requerimiento</h2><p>${escapeHtml(report.incidente)}</p>
-    <h2>Actividades realizadas</h2>${buildActivityTasksHtml(report.actividades)}
+    <h2>Actividades realizadas</h2>${buildActivityTasksHtml(report.actividades, report.photoGeneralTitle)}
     <h2>Solucion realizada</h2><p>${escapeHtml(report.solucion)}</p>
     <h2>Resultado final</h2><p class="text-block">${escapeHtml(report.resultadoFinal)}</p>
     <h2>Repuestos utilizados</h2><p class="text-block">${escapeHtml(report.repuestos || 'No especificado')}</p>
@@ -1494,8 +1539,8 @@ function buildReportHtml(report) {
 </html>`;
 }
 
-function buildActivityTasksHtml(activityTasks) {
-    return activityTasks.map((task, index) => `
+function buildActivityTasksHtml(activityTasks, photoGeneralTitle = '') {
+    return `${photoGeneralTitle ? `<h3 class="photo-title">${escapeHtml(photoGeneralTitle)}</h3>` : ''}${activityTasks.map((task, index) => `
         <section class="task">
             <h3>Tarea ${index + 1}</h3>
             <p>${escapeHtml(task.description)}</p>
@@ -1503,12 +1548,12 @@ function buildActivityTasksHtml(activityTasks) {
                 ${task.photos.map((photo, photoIndex) => `
                     <figure>
                         <img src="${photo.dataUrl}" alt="Foto ${photoIndex + 1} de tarea ${index + 1}">
-                        <figcaption>${escapeHtml(photo.stage)} - ${escapeHtml(photo.caption)}<br><small>${formatDateTime(new Date(photo.capturedAt))}</small></figcaption>
+                        <figcaption>${escapeHtml(formatearEtiquetaFoto(photo))}<br><small>${formatDateTime(new Date(photo.capturedAt))}</small></figcaption>
                     </figure>
                 `).join('')}
             </div>
         </section>
-    `).join('');
+    `).join('')}`;
 }
 
 function updateEstadoInicialOtroVisibility() {
