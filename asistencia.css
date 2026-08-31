@@ -29,6 +29,21 @@ button {
   font-weight: 800;
   cursor: pointer;
 }
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  padding: 9px 14px;
+  background: #1596ce;
+  color: #fff;
+  font-weight: 800;
+  text-decoration: none;
+}
+.button-link.secondary {
+  background: #dce6ee;
+  color: #263b50;
+}
 .secondary {
   background: #dce6ee;
   color: #263b50;
@@ -210,6 +225,24 @@ select {
   gap: 12px;
   margin: 14px 0;
   min-width: 0;
+}
+.shift-creator {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, 0.55fr)) auto;
+  align-items: end;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid #cbd8e1;
+  border-left: 4px solid #ef4b23;
+  border-radius: 6px;
+  background: #f7fafc;
+}
+.shift-creator[hidden] {
+  display: none;
+}
+.shift-creator h3 {
+  margin: 3px 0 0;
 }
 .schedule-person {
   min-width: 0;
@@ -422,6 +455,9 @@ a:focus-visible {
   }
   .inline-fields button {
     grid-column: 1/-1;
+  }
+  .shift-creator {
+    grid-template-columns: 1fr;
   }
   .qr-stage #qrCode {
     width: 240px;

@@ -75,8 +75,15 @@
         <div class="mark-actions"><button id="startQr" type="button">Iniciar QR</button><button id="stopQr" type="button" class="secondary">Detener</button><button id="disableQrFallback" type="button" class="secondary" hidden>Volver a marcación facial</button></div>
       </div>
       <div data-attendance-view="schedule" hidden>
-        <div class="section-heading"><div><p class="eyebrow">TURNOS</p><h2>Programación semanal</h2></div><div class="inline-fields"><label>Sede<select id="scheduleSite"></select></label><label>Semana<input id="scheduleWeek" type="date"></label><button id="loadSchedule" type="button">Cargar</button></div></div>
+        <div class="section-heading"><div><p class="eyebrow">TURNOS</p><h2>Programación semanal</h2></div><div class="inline-fields"><a id="createUserShortcut" class="button-link secondary" href="index.html?panel=usuarios">Crear usuario</a><label>Sede<select id="scheduleSite"></select></label><label>Semana<input id="scheduleWeek" type="date"></label><button id="loadSchedule" type="button">Cargar</button></div></div>
         <p class="helper">Asigna un turno, descanso o libre para cada día. Los turnos nocturnos quedan identificados.</p>
+        <form id="shiftCreator" class="shift-creator" hidden>
+          <div><p class="eyebrow">NUEVA OPCIÓN</p><h3>Añadir horario</h3></div>
+          <label>Inicio<input id="newShiftStart" type="time" required></label>
+          <label>Fin<input id="newShiftEnd" type="time" required></label>
+          <label>Refrigerio (min)<input id="newShiftBreak" type="number" min="0" max="180" step="5" value="60" required></label>
+          <button type="submit">Agregar horario</button>
+        </form>
         <div id="scheduleGrid" class="schedule-grid"></div><button id="saveSchedule" type="button">Guardar programación</button>
       </div>
       <div data-attendance-view="summary" hidden>

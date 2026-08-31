@@ -202,6 +202,7 @@ async function init() {
       .forEach((button) => (button.hidden = !isManager()));
     if (isManager()) {
       $("adminPanel").hidden = false;
+      $("shiftCreator").hidden = false;
       $("scheduleWeek").value = dateIso(schedulingMonday());
       $("summaryMonth").value = dateIso(new Date()).slice(0, 7);
       await loadSchedule();
@@ -456,6 +457,46 @@ async function loadSchedule() {
     grid.appendChild(card);
   });
   status(`Semana cargada: ${people.length} trabajadores.`);
+}
+async function reloadShifts() {
+  const { data, error } = await client
+    .from("asistencia_turnos")
+    .select("*")
+    .eq("activo", true)
+    .order("hora_inicio");
+  if (error) throw error;
+  shifts = data || [];
+}
+async function createShift(event) {
+  event.preventDefault();
+  if (!isManager()) return;
+  const start = $("newShiftStart").value;
+  const end = $("newShiftEnd").value;
+  const breakMinutes = Number($("newShiftBreak").value);
+  if (!start || !end || !Number.isInteger(breakMinutes) || breakMinutes < 0 || breakMinutes > 180) {
+    status("Completa inicio, fin y un refrigerio entre 0 y 180 minutos.", true);
+    return;
+  }
+  const button = $("shiftCreator").querySelector('button[type="submit"]');
+  button.disabled = true;
+  status("Agregando horario...");
+  try {
+    const { error } = await client.rpc("crear_turno_asistencia", {
+      hora_inicio_arg: start,
+      hora_fin_arg: end,
+      refrigerio_arg: breakMinutes,
+    });
+    if (error) throw error;
+    await reloadShifts();
+    await loadSchedule();
+    $("newShiftStart").value = "";
+    $("newShiftEnd").value = "";
+    status(`Horario ${start} a ${end} agregado y listo para elegir.`);
+  } catch (error) {
+    status(error.message || "No se pudo agregar el horario.", true);
+  } finally {
+    button.disabled = false;
+  }
 }
 async function saveSchedule() {
   const site = $("scheduleSite").value;
@@ -1409,6 +1450,7 @@ $("qrSite")?.addEventListener("change", () => {
   if (qrTimer) generateQr();
 });
 $("loadSchedule")?.addEventListener("click", loadSchedule);
+$("shiftCreator")?.addEventListener("submit", createShift);
 $("saveSchedule")?.addEventListener("click", saveSchedule);
 $("loadSummary")?.addEventListener("click", loadSummary);
 $("exportSummaryExcel")?.addEventListener(

@@ -40,7 +40,7 @@ const MODULOS_POR_SEDE = new Set(['mantenimiento', 'caja', 'ronda']);
 const ROL_SUPERIOR = 'encargado_ti';
 const ROLES_OPERACION_GLOBAL = ['jefe_operaciones', 'coordinador_operaciones', 'gdh'];
 const ROLES_GLOBALES = [ROL_SUPERIOR, 'comercial_abonados', ...ROLES_OPERACION_GLOBAL];
-const ROLES_CREABLES_POR_ADMIN = ['supervisor', 'fortaleza', 'eco', 'charly', 'anfitrion'];
+const ROLES_CREABLES_POR_ADMIN = ['tecnico', 'supervisor', 'fortaleza', 'eco', 'charly', 'anfitrion', 'marcador'];
 const ROLES_USUARIO = [
     ROL_SUPERIOR,
     'admin',
@@ -1291,7 +1291,15 @@ async function eliminarTareaMantenimiento(id) {
 }
 
 function aplicarModuloSolicitadoDesdeURL() {
-    const modulo = new URLSearchParams(window.location.search).get('module');
+    const parametros = new URLSearchParams(window.location.search);
+    const panel = parametros.get('panel');
+    if (panel === 'usuarios' && usuarioEsAdmin()) {
+        const panelUsuarios = obtenerElemento('adminUsersPanel');
+        if (panelUsuarios?.hidden) alternarPanelAdmin('usuarios');
+        window.history.replaceState(window.history.state, '', window.location.pathname);
+        return;
+    }
+    const modulo = parametros.get('module');
     if (!modulo || !obtenerElemento(`module-${modulo}`)) {
         return;
     }

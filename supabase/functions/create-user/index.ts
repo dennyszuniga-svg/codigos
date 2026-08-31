@@ -21,7 +21,7 @@ const rolesPermitidos = new Set([
   'marcador',
 ]);
 const rolesGlobales = new Set(['comercial_abonados', 'jefe_operaciones', 'coordinador_operaciones', 'gdh']);
-const rolesCreablesPorAdmin = new Set(['supervisor', 'fortaleza', 'eco', 'charly', 'anfitrion']);
+const rolesCreablesPorAdmin = new Set(['tecnico', 'supervisor', 'fortaleza', 'eco', 'charly', 'anfitrion', 'marcador']);
 const sedesPermitidas = new Set(['general', 'puruchuco', 'salaverry', 'primavera', 'civico', 'gama']);
 const dominioInterno = 'usuarios.urbapark.pe';
 
