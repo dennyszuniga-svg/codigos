@@ -1662,6 +1662,13 @@ function createSignaturePad(canvas) {
         const point = getPoint(event);
         context.beginPath();
         context.moveTo(point.x, point.y);
+        context.lineTo(point.x + 0.1, point.y + 0.1);
+        context.stroke();
+        empty = false;
+        setFieldError(canvas.id, false);
+        if (event.pointerId !== undefined && canvas.setPointerCapture) {
+            canvas.setPointerCapture(event.pointerId);
+        }
     };
     const move = (event) => {
         if (!drawing) return;
@@ -1671,9 +1678,12 @@ function createSignaturePad(canvas) {
         context.stroke();
         empty = false;
     };
-    const stop = () => {
+    const stop = (event) => {
         const completedStroke = drawing && !empty;
         drawing = false;
+        if (event?.pointerId !== undefined && canvas.hasPointerCapture?.(event.pointerId)) {
+            canvas.releasePointerCapture(event.pointerId);
+        }
         if (completedStroke && canvas.id === 'firmaSupervisor') {
             setFinalTimeFromSignature();
         }
@@ -1681,12 +1691,20 @@ function createSignaturePad(canvas) {
         updateProgress();
     };
 
-    canvas.addEventListener('mousedown', start);
-    canvas.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', stop);
-    canvas.addEventListener('touchstart', start, { passive: false });
-    canvas.addEventListener('touchmove', move, { passive: false });
-    canvas.addEventListener('touchend', stop);
+    if (window.PointerEvent) {
+        canvas.addEventListener('pointerdown', start);
+        canvas.addEventListener('pointermove', move);
+        canvas.addEventListener('pointerup', stop);
+        canvas.addEventListener('pointercancel', stop);
+    } else {
+        canvas.addEventListener('mousedown', start);
+        canvas.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', stop);
+        canvas.addEventListener('touchstart', start, { passive: false });
+        canvas.addEventListener('touchmove', move, { passive: false });
+        canvas.addEventListener('touchend', stop);
+        canvas.addEventListener('touchcancel', stop);
+    }
 
     return {
         clear() {
