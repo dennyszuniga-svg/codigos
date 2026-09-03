@@ -521,6 +521,7 @@ let comunicadoObligatorioActual = null;
 let checklistOperacionesActual = null;
 let historialChecklistsOperaciones = [];
 let ultimoChecklistOperacionesFinalizado = null;
+const cachePdfChecklistOperaciones = new WeakMap();
 let informeGeneralOperaciones = [];
 let temporizadorChecklistOperaciones = null;
 let temporizadorVentanaChecklistOperaciones = null;
@@ -4968,7 +4969,7 @@ async function adjuntarFotosChecklistOperaciones(seccionId, archivos) {
             const estadoVistaPrevia = document.querySelector(`[data-operations-photo-status="${seccionId}"]`);
             if (estadoVistaPrevia) estadoVistaPrevia.textContent = 'Preparando y subiendo la foto...';
 
-            dataUrl = await comprimirFoto(archivo, 960, 0.65);
+            dataUrl = await comprimirFoto(archivo, 800, 0.60);
             fotoTemporal.dataUrl = dataUrl;
             try {
                 await guardarMediaLocal(localKey, dataUrl, obtenerScopeEvidenciasOperaciones(), {
@@ -5755,6 +5756,14 @@ async function crearPdfChecklistOperaciones(registro) {
     return pdf.save();
 }
 
+async function obtenerPdfChecklistOperaciones(registro) {
+    const almacenado = cachePdfChecklistOperaciones.get(registro);
+    if (almacenado) return almacenado;
+    const bytes = await crearPdfChecklistOperaciones(registro);
+    cachePdfChecklistOperaciones.set(registro, bytes);
+    return bytes;
+}
+
 function formatearFechaHoraReporte(valor) {
     if (!valor) return '-';
     return new Intl.DateTimeFormat('es-PE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(valor));
@@ -5771,7 +5780,7 @@ async function compartirPdfChecklistOperaciones(registro) {
     const estado = obtenerElemento('operationsChecklistStatus') || obtenerElemento('operationsDashboardStatus');
     try {
         if (estado) estado.textContent = 'Generando PDF...';
-        const bytes = await crearPdfChecklistOperaciones(registro);
+        const bytes = await obtenerPdfChecklistOperaciones(registro);
         const nombre = `Checklist-${nombreArchivoSeguro(obtenerNombreSede(registro.sede))}-${registro.fecha}.pdf`;
         const archivo = new File([bytes], nombre, { type: 'application/pdf' });
         if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [archivo] }))) {
@@ -5793,7 +5802,7 @@ async function descargarPdfChecklistOperaciones(registro) {
     const estado = obtenerElemento('operationsChecklistStatus') || obtenerElemento('operationsDashboardStatus');
     try {
         if (estado) estado.textContent = 'Generando PDF para descargar...';
-        const bytes = await crearPdfChecklistOperaciones(registro);
+        const bytes = await obtenerPdfChecklistOperaciones(registro);
         const nombre = `Checklist-${nombreArchivoSeguro(obtenerNombreSede(registro.sede))}-${registro.fecha}.pdf`;
         descargarBlob(new Blob([bytes], { type: 'application/pdf' }), nombre);
         if (estado) {
