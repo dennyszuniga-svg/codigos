@@ -22,13 +22,27 @@ function limaNow() {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
+    minute: '2-digit',
     hourCycle: 'h23',
   }).formatToParts(new Date());
   const value = (type: string) => parts.find((part) => part.type === type)?.value || '';
   return {
     date: `${value('year')}-${value('month')}-${value('day')}`,
     hour: Number(value('hour')),
+    minute: Number(value('minute')),
   };
+}
+
+function addDays(date: string, days: number) {
+  const value = new Date(`${date}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function evidenceExpiresAt(date: string, turno: string | null) {
+  if (turno === 'apertura') return `${date}T13:00`;
+  if (turno === 'intermedio') return `${date}T17:00`;
+  return `${addDays(date, 1)}T04:00`;
 }
 
 function evidencePaths(evidencias: Record<string, unknown> | null) {
@@ -51,14 +65,12 @@ Deno.serve(async (req) => {
   if (userError || !userData.user) return jsonResponse({ error: 'No autorizado' }, 401);
 
   const now = limaNow();
-  if (now.hour < 3) {
-    return jsonResponse({ cleaned: false, deferred: true, nextCleanupHour: '03:00' });
-  }
+  const nowStamp = `${now.date}T${String(now.hour).padStart(2, '0')}:${String(now.minute).padStart(2, '0')}`;
 
   const { data: registros, error: selectError } = await supabase
     .from('operaciones_checklists')
-    .select('id,evidencias,observaciones,respuestas')
-    .lt('fecha', now.date)
+    .select('id,fecha,turno,evidencias,observaciones,respuestas')
+    .lte('fecha', now.date)
     .order('fecha', { ascending: true })
     .limit(1000);
 
@@ -70,19 +82,27 @@ Deno.serve(async (req) => {
     const hasResponses = Object.keys(registro.respuestas || {}).length > 0;
     const hasObservations = Object.keys(registro.observaciones || {}).some((key) => key !== '__estado_horario');
     const paths = evidencePaths(registro.evidencias);
-    if (!hasResponses && !hasObservations && !paths.length) continue;
+    const removeEvidence = paths.length > 0 && nowStamp >= evidenceExpiresAt(registro.fecha, registro.turno);
+    const compactDetails = (hasResponses || hasObservations)
+      && nowStamp >= `${addDays(registro.fecha, 1)}T03:00`;
+    if (!removeEvidence && !compactDetails) continue;
 
-    if (paths.length) {
+    if (removeEvidence) {
       const { error: storageError } = await supabase.storage.from(BUCKET).remove(paths);
       if (storageError) return jsonResponse({ error: storageError.message, checklistId: registro.id }, 500);
       removedImages += paths.length;
     }
 
-    const estadoHorario = registro.observaciones?.__estado_horario;
-    const observaciones = estadoHorario ? { __estado_horario: estadoHorario } : {};
+    const updates: Record<string, unknown> = {};
+    if (removeEvidence) updates.evidencias = {};
+    if (compactDetails) {
+      const estadoHorario = registro.observaciones?.__estado_horario;
+      updates.respuestas = {};
+      updates.observaciones = estadoHorario ? { __estado_horario: estadoHorario } : {};
+    }
     const { error: updateError } = await supabase
       .from('operaciones_checklists')
-      .update({ respuestas: {}, observaciones, evidencias: {} })
+      .update(updates)
       .eq('id', registro.id);
     if (updateError) return jsonResponse({ error: updateError.message, checklistId: registro.id }, 500);
     cleanedRecords += 1;
@@ -90,9 +110,10 @@ Deno.serve(async (req) => {
 
   return jsonResponse({
     cleaned: true,
-    cutoffDate: now.date,
+    checkedAt: nowStamp,
     cleanedRecords,
     removedImages,
+    imageRetention: { apertura: '13:00', intermedio: '17:00', cierre: '04:00 del dia siguiente' },
     preserved: ['sede', 'responsable', 'turno', 'inicio', 'fin', 'tardanza', 'totales', 'cumplimiento'],
   });
 });

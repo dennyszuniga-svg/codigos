@@ -4157,12 +4157,18 @@ function usuarioPuedeVerChecklistOperaciones() {
 
 async function limpiarEvidenciasOperacionesVencidas() {
     if (!supabaseClient || !sesionActual?.user) return;
-    const clave = `urbapark-operations-image-cleanup-${fechaLocalISO()}`;
+    const ahora = new Date();
+    const minutos = minutosDelDia(ahora);
+    const fase = minutos >= 17 * 60 ? '17'
+        : minutos >= 13 * 60 ? '13'
+        : minutos >= 4 * 60 ? '04'
+        : minutos >= 3 * 60 ? '03'
+        : '00';
+    const clave = `urbapark-operations-image-cleanup-${fechaLocalISO(ahora)}-${fase}`;
     try {
         if (localStorage.getItem(clave)) return;
         const { data, error } = await supabaseClient.functions.invoke('cleanup-operations-images', { body: {} });
         if (error) throw error;
-        if (data?.deferred) return;
         localStorage.setItem(clave, 'ok');
     } catch (error) {
         console.warn('La limpieza diaria del checklist operativo quedo pendiente:', error);
@@ -14091,6 +14097,7 @@ document.addEventListener('DOMContentLoaded', () => {
     actualizarResumenUI();
     actualizarProgresoCapacitacionUI();
     inicializarAutenticacion();
+    window.setInterval(limpiarEvidenciasOperacionesVencidas, 5 * 60 * 1000);
 });
 
 window.addEventListener('popstate', event => {

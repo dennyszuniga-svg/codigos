@@ -73,6 +73,31 @@ function status(message, error = false) {
   $("attendanceStatus").textContent = message;
   $("attendanceStatus").style.color = error ? "#b42318" : "#607184";
 }
+async function cleanupExpiredChecklistPhotos() {
+  if (!session?.user) return;
+  const now = new Date();
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const phase =
+    minutes >= 17 * 60
+      ? "17"
+      : minutes >= 13 * 60
+        ? "13"
+        : minutes >= 4 * 60
+          ? "04"
+          : minutes >= 3 * 60
+            ? "03"
+            : "00";
+  const key = `urbapark-operations-image-cleanup-${dateIso(now)}-${phase}`;
+  if (localStorage.getItem(key)) return;
+  try {
+    const { error } = await client.functions.invoke("cleanup-operations-images", {
+      body: {},
+    });
+    if (!error) localStorage.setItem(key, "ok");
+  } catch (error) {
+    console.warn("La depuracion por turno quedo pendiente:", error);
+  }
+}
 function tardinessInfo(minutes, discount = null, state = "") {
   const late = Math.max(0, Number(minutes) || 0);
   const amount =
@@ -195,6 +220,7 @@ async function init() {
   ].includes(profile.rol);
   $("faceTest").hidden = false;
   if (profile.rol !== "marcador") await loadBiometric();
+  cleanupExpiredChecklistPhotos();
   if (canGenerateQr()) {
     ["qrSite", "scheduleSite", "summarySite"].forEach((id) =>
       fillSiteSelect($(id), isGlobalRole() ? "puruchuco" : profile.sede),
@@ -1481,4 +1507,5 @@ window.addEventListener("pagehide", () => {
   closeScanner();
   closeFace();
 });
+window.setInterval(cleanupExpiredChecklistPhotos, 5 * 60 * 1000);
 init();
