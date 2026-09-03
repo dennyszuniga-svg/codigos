@@ -193,7 +193,7 @@ async function init() {
     "encargado_ti",
     "admin",
   ].includes(profile.rol);
-  $("faceTest").hidden = !isManager();
+  $("faceTest").hidden = false;
   if (profile.rol !== "marcador") await loadBiometric();
   if (canGenerateQr()) {
     ["qrSite", "scheduleSite", "summarySite"].forEach((id) =>
