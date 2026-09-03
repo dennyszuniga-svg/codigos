@@ -10,6 +10,9 @@ const client = window.supabase.createClient(CONFIG.url, CONFIG.key, {
   },
 });
 const $ = (id) => document.getElementById(id);
+const FACE_MARK_SAMPLE_COUNT = 5;
+const FACE_MARK_MAX_ATTEMPTS = 8;
+const FACE_MARK_SAMPLE_DELAY_MS = 75;
 let session = null,
   profile = null,
   sites = [],
@@ -1254,16 +1257,22 @@ const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, mill
 async function readStableFaceDescriptor() {
   const samples = [];
   let lastError = null;
-  for (let attempt = 0; attempt < 6 && samples.length < 3; attempt += 1) {
-    $("faceModalStatus").textContent = `Analizando rostro: lectura ${samples.length + 1} de 3...`;
+  for (
+    let attempt = 0;
+    attempt < FACE_MARK_MAX_ATTEMPTS && samples.length < FACE_MARK_SAMPLE_COUNT;
+    attempt += 1
+  ) {
+    $("faceModalStatus").textContent =
+      `Analizando rostro: lectura ${samples.length + 1} de ${FACE_MARK_SAMPLE_COUNT}...`;
     try {
       samples.push(await readFaceDescriptor());
     } catch (error) {
       lastError = error;
     }
-    if (samples.length < 3) await wait(180);
+    if (samples.length < FACE_MARK_SAMPLE_COUNT) await wait(FACE_MARK_SAMPLE_DELAY_MS);
   }
-  if (samples.length < 3) throw lastError || new Error("No se logró obtener una lectura facial estable.");
+  if (samples.length < FACE_MARK_SAMPLE_COUNT)
+    throw lastError || new Error("No se logró obtener una lectura facial estable.");
   return averageFaceSamples(samples);
 }
 function averageFaceSamples(samples) {
