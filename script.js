@@ -4565,7 +4565,7 @@ async function hidratarEvidenciasChecklistOperaciones(registro) {
     if (supabaseClient && registro.evidencias) {
         const fotos = Object.values(registro.evidencias).flat().filter(foto => foto?.path);
         await Promise.all(fotos.map(async foto => {
-            if (foto.url && Number(foto.urlExpiresAt || 0) > Date.now()) return;
+            if (foto.dataUrl || (foto.url && Number(foto.urlExpiresAt || 0) > Date.now())) return;
             const { data, error } = await supabaseClient.storage
                 .from(OPERATIONS_CHECKLIST_BUCKET)
                 .createSignedUrl(foto.path, 60 * 60 * 24);
@@ -4968,7 +4968,7 @@ async function adjuntarFotosChecklistOperaciones(seccionId, archivos) {
             const estadoVistaPrevia = document.querySelector(`[data-operations-photo-status="${seccionId}"]`);
             if (estadoVistaPrevia) estadoVistaPrevia.textContent = 'Preparando y subiendo la foto...';
 
-            dataUrl = await comprimirFoto(archivo, 1280, 0.74);
+            dataUrl = await comprimirFoto(archivo, 960, 0.65);
             fotoTemporal.dataUrl = dataUrl;
             try {
                 await guardarMediaLocal(localKey, dataUrl, obtenerScopeEvidenciasOperaciones(), {
@@ -5000,6 +5000,10 @@ async function adjuntarFotosChecklistOperaciones(seccionId, archivos) {
             });
             if (rpcError) throw rpcError;
             checklistOperacionesActual.evidencias = evidenciasActualizadas || checklistOperacionesActual.evidencias || {};
+            const fotoSubida = Object.values(checklistOperacionesActual.evidencias)
+                .flat()
+                .find(foto => foto?.path === ruta);
+            if (fotoSubida) fotoSubida.dataUrl = dataUrl;
             if (respaldoLocal) {
                 try {
                     await eliminarMediaLocal(localKey);
