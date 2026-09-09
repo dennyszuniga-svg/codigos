@@ -136,6 +136,70 @@ button {
 .mark-actions .exit {
   background: #142236;
 }
+.primary-face-mark {
+  width: 100%;
+  min-height: 72px;
+  margin-top: 12px;
+  font-size: 1.18rem;
+  box-shadow: 0 8px 18px rgba(21, 150, 206, 0.22);
+}
+.primary-face-hint {
+  margin: 9px 0 0;
+  text-align: center;
+  color: #486174;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.audited-qr {
+  margin: 18px 0;
+  overflow: hidden;
+  border: 1px solid #e2c879;
+  border-left: 5px solid #d79b00;
+  border-radius: 7px;
+  background: #fffaf0;
+}
+.audited-qr summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+.audited-qr summary::-webkit-details-marker {
+  display: none;
+}
+.audited-qr summary::after {
+  content: "+";
+  color: #8b6200;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+.audited-qr[open] summary::after {
+  content: "\2212";
+}
+.audited-qr summary span {
+  font-weight: 900;
+}
+.audited-qr summary small {
+  margin-left: auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f4e5b5;
+  color: #765300;
+  font-weight: 800;
+}
+.audited-qr > p {
+  margin: 0;
+  padding: 0 14px 4px;
+  color: #5f5a4d;
+  font-size: 0.86rem;
+}
+.audited-qr .mark-actions {
+  margin: 0;
+  padding: 10px 14px 14px;
+}
 .week-list,
 .summary-list {
   display: grid;
@@ -428,6 +492,15 @@ a:focus-visible {
   font-size: 0.88rem;
 }
 @media (max-width: 600px) {
+  .audited-qr summary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .audited-qr summary small {
+    order: 3;
+    width: fit-content;
+    margin-left: 0;
+  }
   .attendance-header {
     grid-template-columns: auto 1fr;
   }

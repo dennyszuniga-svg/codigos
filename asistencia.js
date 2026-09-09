@@ -206,18 +206,10 @@ async function init() {
   )
     $("workerPanel").hidden = false;
   const markerMode = profile.rol === "marcador";
-  $("workerQrActions").hidden = profile.rol === "anfitrion";
-  $("markerKioskPanel").hidden = false;
+  $("workerQrFallback").hidden = profile.rol === "anfitrion";
+  $("markerKioskPanel").hidden = !markerMode;
   $("enableQrFallback").hidden = !canGenerateQr() || profile.rol === "anfitrion";
   $("biometricPanel").hidden = markerMode;
-  $("faceOfficialActions").hidden = ![
-    "anfitrion",
-    "tecnico",
-    "supervisor",
-    "fortaleza",
-    "encargado_ti",
-    "admin",
-  ].includes(profile.rol);
   $("faceTest").hidden = false;
   if (profile.rol !== "marcador") await loadBiometric();
   cleanupExpiredChecklistPhotos();
@@ -343,8 +335,14 @@ async function loadWorker() {
   );
   $("markEntry").disabled = !canEnter;
   $("markExit").disabled = !canExit;
-  if ($("faceEntry")) $("faceEntry").disabled = !canEnter || !biometric;
-  if ($("faceExit")) $("faceExit").disabled = !canExit || !biometric;
+  const primaryFace = $("primaryFaceMark");
+  const primaryFaceHint = $("primaryFaceHint");
+  const nextFaceType = canExit ? "salida" : "entrada";
+  primaryFace.dataset.markType = nextFaceType;
+  primaryFace.disabled = !biometric || (!canEnter && !canExit) || Boolean(todayPenalty?.nonWorking);
+  primaryFaceHint.textContent = biometric
+    ? `Siguiente marcación: ${nextFaceType}. Se validarán rostro, GPS y hora oficial.`
+    : "Primero registra tu rostro en Prueba controlada, al final de esta página.";
   const help = $("markHelp");
   help.className = "mark-help";
   if (todayPenalty?.nonWorking) {
@@ -352,12 +350,12 @@ async function loadWorker() {
     help.classList.add("warning");
   } else if (canEnter)
     help.textContent =
-      profile.rol === "anfitrion"
-        ? "Usa Entrada con rostro para registrar tu marcación."
-        : "Pulsa Marcar entrada para escanear el QR o usa el registro facial.";
+      biometric
+        ? "La marcación facial está lista para registrar tu entrada."
+        : "Registra tu rostro en Prueba controlada para habilitar la marcación principal.";
   else if (canExit)
     help.textContent =
-      "Entrada registrada. Pulsa Marcar salida al terminar tu jornada.";
+      "Entrada registrada. Usa Marcar con rostro al terminar tu jornada.";
   else
     help.textContent =
       "Marcación actualizada. Puedes iniciar un nuevo ciclo de entrada y salida.";
@@ -1183,17 +1181,10 @@ async function loadBiometric() {
     ? "Volver a registrar mi rostro"
     : "Registrar mi rostro";
   $("faceTest").disabled = !biometric;
-  if (!$("faceOfficialActions").hidden) {
-    $("faceHelp").textContent = biometric
-      ? profile.rol === "anfitrion"
-        ? "Tu cuenta registra entrada y salida únicamente con reconocimiento facial."
-        : "Puedes marcar con rostro o continuar usando el QR como respaldo."
-      : "Primero registra tu rostro para habilitar la marcacion facial.";
-    await loadWorker();
-  } else
-    $("faceHelp").textContent = biometric
-      ? "Tu rostro esta listo. Usa el boton de prueba para validar este celular."
-      : "Registra tu rostro y enviaremos una marcacion de prueba sin afectar el reporte laboral.";
+  $("faceHelp").textContent = biometric
+    ? "Tu rostro está listo. Puedes probar el reconocimiento o volver a registrarlo."
+    : "Registra tu rostro y luego realiza una prueba sin afectar el reporte laboral.";
+  await loadWorker();
 }
 async function loadFaceModels() {
   if (faceModelsReady) return;
@@ -1456,13 +1447,14 @@ document.querySelector(".admin-tabs")?.addEventListener("click", (event) => {
   if (button) switchTab(button.dataset.attendanceTab);
 });
 $("refreshWorker")?.addEventListener("click", loadWorker);
+$("primaryFaceMark")?.addEventListener("click", (event) =>
+  openFace("mark", event.currentTarget.dataset.markType || "entrada"),
+);
 $("markEntry")?.addEventListener("click", () => openScanner("entrada"));
 $("markExit")?.addEventListener("click", () => openScanner("salida"));
 $("closeScanner")?.addEventListener("click", closeScanner);
 $("enrollFace")?.addEventListener("click", () => openFace("enroll"));
 $("deleteFace")?.addEventListener("click", deleteBiometric);
-$("faceEntry")?.addEventListener("click", () => openFace("mark", "entrada"));
-$("faceExit")?.addEventListener("click", () => openFace("mark", "salida"));
 $("faceTest")?.addEventListener("click", () => openFace("test"));
 $("kioskFaceMark")?.addEventListener("click", () => openFace("kiosk"));
 $("enableQrFallback")?.addEventListener("click", async () => {

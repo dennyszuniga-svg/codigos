@@ -26,11 +26,17 @@
     <section id="workerPanel" class="attendance-panel" hidden>
       <div class="section-heading"><div><p class="eyebrow">MI TURNO</p><h2>Marcación de hoy</h2></div><button id="refreshWorker" type="button" class="secondary">Actualizar</button></div>
       <div id="todayShift" class="shift-card"></div>
-      <div id="workerQrActions" class="mark-actions">
-        <button id="markEntry" type="button">Marcar entrada</button>
-        <button id="markExit" type="button" class="exit">Marcar salida</button>
-      </div>
+      <button id="primaryFaceMark" type="button" class="primary-face-mark">Marcar con rostro</button>
+      <p id="primaryFaceHint" class="primary-face-hint">El sistema determinará si corresponde registrar entrada o salida.</p>
       <p id="markHelp" class="mark-help" role="status"></p>
+      <details id="workerQrFallback" class="audited-qr">
+        <summary><span>Marcación con QR auditado</span><small>Solo para contingencias autorizadas</small></summary>
+        <p>Úsalo únicamente cuando la marcación facial no esté disponible. La marcación queda asociada a tu usuario, sede, hora y ubicación.</p>
+        <div id="workerQrActions" class="mark-actions">
+          <button id="markEntry" type="button" class="secondary">Entrada con QR</button>
+          <button id="markExit" type="button" class="secondary">Salida con QR</button>
+        </div>
+      </details>
       <h3>Programación semanal</h3><div id="workerWeek" class="week-list"></div>
     </section>
 
@@ -43,24 +49,6 @@
       <button id="kioskFaceMark" type="button" class="kiosk-face-button">Marcar con rostro</button>
       <button id="enableQrFallback" type="button" class="secondary kiosk-fallback-button">Habilitar QR de contingencia</button>
       <p id="kioskFaceResult" class="mark-help" role="status" aria-live="polite">Listo para registrar.</p>
-    </section>
-
-    <section id="biometricPanel" class="attendance-panel biometric-panel" hidden>
-      <div class="section-heading">
-        <div><p class="eyebrow">PRUEBA CONTROLADA</p><h2>Marcación facial</h2></div>
-        <span id="biometricBadge" class="biometric-badge">Sin registrar</span>
-      </div>
-      <p class="helper">El teléfono procesa tu rostro y guarda únicamente una plantilla matemática. No se almacena la fotografía.</p>
-      <div class="biometric-actions">
-        <button id="enrollFace" type="button">Registrar mi rostro</button>
-        <button id="deleteFace" type="button" class="secondary" hidden>Eliminar registro facial</button>
-      </div>
-      <div id="faceOfficialActions" class="mark-actions" hidden>
-        <button id="faceEntry" type="button">Entrada con rostro</button>
-        <button id="faceExit" type="button" class="exit">Salida con rostro</button>
-      </div>
-      <button id="faceTest" type="button" class="face-test" hidden>Enviar marcación facial de prueba</button>
-      <p id="faceHelp" class="mark-help" role="status" aria-live="polite"></p>
     </section>
 
     <section id="adminPanel" class="attendance-panel" hidden>
@@ -91,6 +79,20 @@
         <div class="lateness-policy"><strong>Política de tardanzas</strong><span>QR de Administrador o Supervisor: 10 minutos de tolerancia. QR de Marcador y registro facial: sin tolerancia. Luego se aplica S/1 por minuto hasta 15 minutos; si los supera, S/15 y jornada no laborable.</span></div>
         <div id="monthlySummary" class="summary-list"></div><h3>Horas extra pendientes</h3><div id="pendingExtras" class="summary-list"></div>
       </div>
+    </section>
+
+    <section id="biometricPanel" class="attendance-panel biometric-panel" hidden>
+      <div class="section-heading">
+        <div><p class="eyebrow">PRUEBA CONTROLADA</p><h2>Registro y prueba facial</h2></div>
+        <span id="biometricBadge" class="biometric-badge">Sin registrar</span>
+      </div>
+      <p class="helper">Esta sección no registra entrada ni salida laboral. Sirve para probar el reconocimiento o actualizar tu plantilla facial. No se almacena la fotografía.</p>
+      <div class="biometric-actions">
+        <button id="enrollFace" type="button">Registrar mi rostro</button>
+        <button id="deleteFace" type="button" class="secondary" hidden>Eliminar registro facial</button>
+      </div>
+      <button id="faceTest" type="button" class="face-test" hidden>Realizar prueba de reconocimiento</button>
+      <p id="faceHelp" class="mark-help" role="status" aria-live="polite"></p>
     </section>
   </main>
 
