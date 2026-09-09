@@ -13,6 +13,7 @@ const $ = (id) => document.getElementById(id);
 const FACE_MARK_SAMPLE_COUNT = 5;
 const FACE_MARK_MAX_ATTEMPTS = 8;
 const FACE_MARK_SAMPLE_DELAY_MS = 75;
+const HOST_PREVIEW_SESSION_KEY = "urbapark-host-preview";
 let session = null,
   profile = null,
   sites = [],
@@ -155,8 +156,14 @@ function isDennysAccount() {
 function setHostPreview(enabled) {
   if (!isDennysAccount()) return;
   hostPreviewMode = Boolean(enabled);
+  try {
+    if (hostPreviewMode) sessionStorage.setItem(HOST_PREVIEW_SESSION_KEY, "1");
+    else sessionStorage.removeItem(HOST_PREVIEW_SESSION_KEY);
+  } catch (error) {
+    console.warn("No se pudo conservar la vista de anfitrión:", error);
+  }
   const button = $("hostPreviewToggle");
-  button.textContent = hostPreviewMode ? "Volver a mi vista" : "Ver como anfitrión";
+  button.textContent = hostPreviewMode ? "Volver a mi vista" : "Ver app como anfitrión";
   button.classList.toggle("active", hostPreviewMode);
   button.setAttribute("aria-pressed", String(hostPreviewMode));
   $("hostPreviewNotice").hidden = !hostPreviewMode;
@@ -201,6 +208,13 @@ async function init() {
     return;
   }
   profile = data;
+  try {
+    hostPreviewMode = isDennysAccount()
+      && sessionStorage.getItem(HOST_PREVIEW_SESSION_KEY) === "1";
+    if (!isDennysAccount()) sessionStorage.removeItem(HOST_PREVIEW_SESSION_KEY);
+  } catch (error) {
+    hostPreviewMode = false;
+  }
   const [siteResult, shiftResult] = await Promise.all([
     client
       .from("asistencia_sedes")
@@ -261,11 +275,12 @@ async function init() {
     }
     if (profile.rol === "supervisor") $("adminPanel").hidden = false;
   }
+  if (hostPreviewMode) setHostPreview(true);
   const preloadFace = () => loadFaceModels().catch(() => {});
   if ("requestIdleCallback" in window)
     requestIdleCallback(preloadFace, { timeout: 1500 });
   else setTimeout(preloadFace, 500);
-  status("Asistencia lista.");
+  status(hostPreviewMode ? "Vista global de Anfitrión activada." : "Asistencia lista.");
 }
 
 async function loadWorker() {

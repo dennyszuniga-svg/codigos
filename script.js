@@ -88,6 +88,8 @@ let comunicadoObligatorioActual = null;
 let checklistOperacionesActual = null;
 let historialChecklistsOperaciones = [];
 let ultimoChecklistOperacionesFinalizado = null;
+const HOST_PREVIEW_SESSION_KEY = 'urbapark-host-preview';
+let vistaAnfitrionActiva = false;
 const cachePdfChecklistOperaciones = new WeakMap();
 let informeGeneralOperaciones = [];
 let temporizadorChecklistOperaciones = null;
@@ -292,10 +294,11 @@ function aplicarModuloSolicitadoDesdeURL() {
 
 function actualizarSesionUI() {
     const etiqueta = obtenerElemento('authUserLabel');
-    const rolActual = perfilActual?.rol || 'sin-rol';
+    const rolActual = vistaAnfitrionActiva ? 'anfitrion' : (perfilActual?.rol || 'sin-rol');
     const roles = ROLES_USUARIO;
 
     document.body.classList.remove('operational-mode', 'admin-mode', 'technical-mode', ...roles.map(rol => `role-${rol}`));
+    document.body.classList.toggle('host-preview-mode', vistaAnfitrionActiva);
     document.body.dataset.role = rolActual;
 
     if (rolActual === ROL_SUPERIOR) {
@@ -317,28 +320,33 @@ function actualizarSesionUI() {
         return;
     }
 
-    const nombreRol = obtenerEtiquetaRol(perfilActual?.rol);
+    const nombreRol = vistaAnfitrionActiva ? 'Vista previa: Anfitrión' : obtenerEtiquetaRol(perfilActual?.rol);
     const rol = nombreRol ? ` - ${nombreRol}` : '';
     const sede = perfilActual?.sede ? ` - ${obtenerNombreSede(perfilActual.sede)}` : '';
     etiqueta.textContent = `${obtenerNombreUsuarioActivo()}${rol}${sede}`;
+    actualizarControlVistaAnfitrion();
 }
 
 function usuarioEsAdmin() {
-    return [ROL_SUPERIOR, 'admin', ...ROLES_OPERACION_GLOBAL].includes(perfilActual?.rol)
+    return !vistaAnfitrionActiva
+        && [ROL_SUPERIOR, 'admin', ...ROLES_OPERACION_GLOBAL].includes(perfilActual?.rol)
         && perfilActual?.activo !== false;
 }
 
 function usuarioEsAdminGlobal() {
-    return [ROL_SUPERIOR, ...ROLES_OPERACION_GLOBAL].includes(perfilActual?.rol)
+    return !vistaAnfitrionActiva
+        && [ROL_SUPERIOR, ...ROLES_OPERACION_GLOBAL].includes(perfilActual?.rol)
         && perfilActual?.activo !== false;
 }
 
 function usuarioEsSuperior() {
-    return perfilActual?.rol === ROL_SUPERIOR && perfilActual?.activo !== false;
+    return !vistaAnfitrionActiva && perfilActual?.rol === ROL_SUPERIOR && perfilActual?.activo !== false;
 }
 
 function usuarioPuedeRestablecerPassword() {
-    return perfilActual?.activo !== false && [ROL_SUPERIOR, 'gdh', 'admin'].includes(perfilActual?.rol);
+    return !vistaAnfitrionActiva
+        && perfilActual?.activo !== false
+        && [ROL_SUPERIOR, 'gdh', 'admin'].includes(perfilActual?.rol);
 }
 
 function usuarioPuedeRestablecerCuenta(usuario) {
@@ -364,14 +372,60 @@ function usuarioPuedeVerSaludSupabase() {
     return usuarioEsSuperior() && nombre.includes('dennys');
 }
 
-function usuarioEsRolGlobal(rol = perfilActual?.rol) {
+function usuarioEsRolGlobal(rol = vistaAnfitrionActiva ? 'anfitrion' : perfilActual?.rol) {
     return ROLES_GLOBALES.includes(rol);
 }
 
 const MODULOS_RESTRINGIDOS_ANFITRION = new Set(['mantenimiento', 'reporteria']);
 
 function usuarioEsAnfitrion() {
-    return perfilActual?.rol === 'anfitrion' && perfilActual?.activo !== false;
+    return (vistaAnfitrionActiva || perfilActual?.rol === 'anfitrion') && perfilActual?.activo !== false;
+}
+
+function usuarioPuedeUsarVistaAnfitrion() {
+    const identidad = `${perfilActual?.nombre || ''} ${perfilActual?.apellidos_nombres || ''}`
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+    return perfilActual?.activo !== false
+        && perfilActual?.rol === ROL_SUPERIOR
+        && identidad.includes('dennys');
+}
+
+function actualizarControlVistaAnfitrion() {
+    const boton = obtenerElemento('toggleHostPreview');
+    const banner = obtenerElemento('hostPreviewBanner');
+    if (!boton) return;
+    const permitido = usuarioPuedeUsarVistaAnfitrion();
+    boton.hidden = !permitido;
+    boton.setAttribute('aria-pressed', vistaAnfitrionActiva ? 'true' : 'false');
+    const texto = boton.querySelector('span');
+    if (texto) texto.textContent = vistaAnfitrionActiva ? 'Volver a mi vista' : 'Ver app como anfitrión';
+    if (banner) banner.hidden = !vistaAnfitrionActiva;
+}
+
+function establecerVistaAnfitrion(activa) {
+    if (activa && !usuarioPuedeUsarVistaAnfitrion()) return;
+    vistaAnfitrionActiva = Boolean(activa);
+    try {
+        if (vistaAnfitrionActiva) sessionStorage.setItem(HOST_PREVIEW_SESSION_KEY, '1');
+        else sessionStorage.removeItem(HOST_PREVIEW_SESSION_KEY);
+    } catch (error) {
+        console.warn('No se pudo conservar la vista de anfitrión:', error);
+    }
+    seleccionarModulo(null, { desplazar: false });
+    cerrarPanelesAdmin();
+    actualizarSesionUI();
+    actualizarPanelAdminGuias();
+    actualizarAccesoAbonados();
+    configurarAccesoEncuestas();
+    configurarAccesosAnfitrion();
+    configurarSelectSedesOperaciones();
+    renderizarGuiasOperativas();
+    mostrarToast(vistaAnfitrionActiva
+        ? 'Vista global de Anfitrión activada.'
+        : 'Tu vista administrativa fue restaurada.');
 }
 
 function usuarioPuedeAbrirModulo(modulo) {
@@ -678,6 +732,7 @@ async function cargarClienteSupabase() {
 
 async function cargarPerfilActual() {
     perfilActual = null;
+    vistaAnfitrionActiva = false;
 
     if (!supabaseClient || !sesionActual?.user) {
         actualizarSesionUI();
@@ -694,6 +749,13 @@ async function cargarPerfilActual() {
         console.warn('No se pudo cargar perfil:', error);
     } else if (data) {
         perfilActual = data;
+        try {
+            vistaAnfitrionActiva = usuarioPuedeUsarVistaAnfitrion()
+                && sessionStorage.getItem(HOST_PREVIEW_SESSION_KEY) === '1';
+            if (!usuarioPuedeUsarVistaAnfitrion()) sessionStorage.removeItem(HOST_PREVIEW_SESSION_KEY);
+        } catch (errorVista) {
+            vistaAnfitrionActiva = false;
+        }
         migrarDatosLocalesInicialesDeSede();
         historial = cargarHistorial();
         checklistEstado = cargarChecklistEstado();
@@ -952,7 +1014,8 @@ function usuarioPuedeVerGuia(guia) {
         return true;
     }
 
-    return [ROL_SUPERIOR, 'admin', 'supervisor', 'fortaleza', ...ROLES_OPERACION_GLOBAL].includes(perfilActual?.rol);
+    return !usuarioEsAnfitrion()
+        && [ROL_SUPERIOR, 'admin', 'supervisor', 'fortaleza', ...ROLES_OPERACION_GLOBAL].includes(perfilActual?.rol);
 }
 
 function obtenerFuenteFotoGuia(foto) {
@@ -3009,6 +3072,12 @@ async function aplicarSesion(session) {
 
     if (!session?.user) {
         perfilActual = null;
+        vistaAnfitrionActiva = false;
+        try {
+            sessionStorage.removeItem(HOST_PREVIEW_SESSION_KEY);
+        } catch (error) {
+            console.warn('No se pudo limpiar la vista de anfitrión:', error);
+        }
         accesoMantenimientoActivo = false;
         inventarioRepuestos = [];
         intervencionesMantenimiento = [];
@@ -3204,6 +3273,12 @@ async function cerrarSesion() {
         return;
     }
 
+    vistaAnfitrionActiva = false;
+    try {
+        sessionStorage.removeItem(HOST_PREVIEW_SESSION_KEY);
+    } catch (error) {
+        console.warn('No se pudo limpiar la vista de anfitrión:', error);
+    }
     await supabaseClient.auth.signOut();
     await aplicarSesion(null);
 }
@@ -6086,6 +6161,7 @@ function configurarEventos() {
 
     obtenerElemento('authForm').addEventListener('submit', iniciarSesion);
     obtenerElemento('signOutButton').addEventListener('click', cerrarSesion);
+    obtenerElemento('toggleHostPreview')?.addEventListener('click', () => establecerVistaAnfitrion(!vistaAnfitrionActiva));
     obtenerElemento('changePasswordButton')?.addEventListener('click', () => abrirModalCambioPassword(false));
     obtenerElemento('closePasswordModal')?.addEventListener('click', cerrarModalCambioPassword);
     obtenerElemento('passwordChangeForm')?.addEventListener('submit', cambiarPasswordPersonal);

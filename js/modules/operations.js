@@ -22,7 +22,8 @@ function usuarioPuedeGestionarActivosOperaciones() {
 }
 
 function usuarioPuedeElegirSedeActivosOperaciones() {
-    return perfilActual?.activo !== false
+    return !usuarioEsAnfitrion()
+        && perfilActual?.activo !== false
         && [ROL_SUPERIOR, 'jefe_operaciones', 'coordinador_operaciones', 'gdh'].includes(perfilActual?.rol);
 }
 
@@ -1746,11 +1747,12 @@ function obtenerSedeChecklistOperaciones() {
 }
 
 function usuarioPuedeElegirSedeChecklistOperaciones() {
-    return usuarioEsRolGlobal() || perfilActual?.sede === 'general';
+    return !usuarioEsAnfitrion() && (usuarioEsRolGlobal() || perfilActual?.sede === 'general');
 }
 
 function usuarioPuedeVerReporteriaOperaciones() {
-    return perfilActual?.activo !== false
+    return !usuarioEsAnfitrion()
+        && perfilActual?.activo !== false
         && [ROL_SUPERIOR, 'jefe_operaciones', 'coordinador_operaciones', 'gdh'].includes(perfilActual?.rol);
 }
 
@@ -1759,12 +1761,13 @@ function usuarioPuedeVerInformeGeneralOperaciones() {
 }
 
 function usuarioPuedeGestionarChecklistOperaciones() {
-    return perfilActual?.activo !== false
+    return !usuarioEsAnfitrion()
+        && perfilActual?.activo !== false
         && [ROL_SUPERIOR, 'admin', 'supervisor', 'fortaleza'].includes(perfilActual?.rol);
 }
 
 function usuarioPuedeAportarFotosChecklistOperaciones() {
-    return perfilActual?.activo !== false && perfilActual?.rol === 'anfitrion';
+    return perfilActual?.activo !== false && usuarioEsAnfitrion();
 }
 
 function usuarioPuedeVerChecklistOperaciones() {
