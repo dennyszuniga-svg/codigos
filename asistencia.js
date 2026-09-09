@@ -141,6 +141,9 @@ function isManager() {
 function canGenerateQr() {
   return isManager() || ["supervisor", "marcador"].includes(profile?.rol);
 }
+function canSeeMarkerKiosk() {
+  return ["marcador", "supervisor", "admin", "encargado_ti"].includes(profile?.rol);
+}
 function isDennysAccount() {
   const identity = `${profile?.nombre || ""} ${profile?.apellidos_nombres || ""}`
     .normalize("NFD")
@@ -158,6 +161,7 @@ function setHostPreview(enabled) {
   button.setAttribute("aria-pressed", String(hostPreviewMode));
   $("hostPreviewNotice").hidden = !hostPreviewMode;
   $("workerQrFallback").hidden = hostPreviewMode || profile.rol === "anfitrion";
+  $("markerKioskPanel").hidden = hostPreviewMode || !canSeeMarkerKiosk();
   $("adminPanel").hidden = hostPreviewMode || !(isManager() || profile.rol === "supervisor");
   $("attendanceUser").textContent = hostPreviewMode
     ? `${profile.apellidos_nombres || profile.nombre} - Vista previa: Anfitrión`
@@ -234,7 +238,7 @@ async function init() {
     $("workerPanel").hidden = false;
   const markerMode = profile.rol === "marcador";
   $("workerQrFallback").hidden = profile.rol === "anfitrion";
-  $("markerKioskPanel").hidden = !markerMode;
+  $("markerKioskPanel").hidden = !canSeeMarkerKiosk();
   $("enableQrFallback").hidden = !canGenerateQr() || profile.rol === "anfitrion";
   $("biometricPanel").hidden = markerMode;
   $("faceTest").hidden = false;
