@@ -25,6 +25,9 @@ let session = null,
   scannerFrame = null,
   markType = "entrada",
   biometric = null,
+  siteMarkerActive = false,
+  markerPosition = null,
+  markerPositionPromise = null,
   faceStream = null,
   faceMode = "enroll",
   faceMarkType = "entrada",
@@ -145,6 +148,16 @@ function canGenerateQr() {
 function canSeeMarkerKiosk() {
   return ["marcador", "supervisor", "admin", "encargado_ti"].includes(profile?.rol);
 }
+async function loadAttendanceMode() {
+  if (profile?.rol !== "anfitrion") {
+    siteMarkerActive = false;
+    return;
+  }
+  const { data, error } = await client.functions.invoke("attendance-qr", {
+    body: { action: "attendance-mode" },
+  });
+  siteMarkerActive = !error && Boolean(data?.markerActive);
+}
 function isDennysAccount() {
   const identity = `${profile?.nombre || ""} ${profile?.apellidos_nombres || ""}`
     .normalize("NFD")
@@ -173,7 +186,7 @@ function setHostPreview(enabled) {
   button.classList.toggle("active", hostPreviewMode);
   button.setAttribute("aria-pressed", String(hostPreviewMode));
   $("hostPreviewNotice").hidden = !hostPreviewMode;
-  $("workerQrFallback").hidden = hostPreviewMode || profile.rol === "anfitrion";
+  $("workerQrFallback").hidden = false;
   $("markerKioskPanel").hidden = hostPreviewMode || !canSeeMarkerKiosk();
   $("adminPanel").hidden = hostPreviewMode || !(isManager() || profile.rol === "supervisor");
   $("attendanceUser").textContent = hostPreviewMode
@@ -241,6 +254,7 @@ async function init() {
   }
   sites = siteResult.data || [];
   shifts = shiftResult.data || [];
+  await loadAttendanceMode();
   $("attendanceUser").textContent =
     `${profile.apellidos_nombres || profile.nombre}${profile.dni ? ` - DNI ${profile.dni}` : ""} - ${profile.rol}`;
   const previewButton = $("hostPreviewToggle");
@@ -259,11 +273,12 @@ async function init() {
   )
     $("workerPanel").hidden = false;
   const markerMode = profile.rol === "marcador";
-  $("workerQrFallback").hidden = profile.rol === "anfitrion";
+  $("workerQrFallback").hidden = false;
   $("markerKioskPanel").hidden = !canSeeMarkerKiosk();
   $("enableQrFallback").hidden = !canGenerateQr() || profile.rol === "anfitrion";
   $("biometricPanel").hidden = markerMode;
   $("faceTest").hidden = false;
+  if (markerMode) await refreshMarkerPosition().catch(() => {});
   if (profile.rol !== "marcador") await loadBiometric();
   cleanupExpiredChecklistPhotos();
   if (canGenerateQr()) {
@@ -288,7 +303,16 @@ async function init() {
   if ("requestIdleCallback" in window)
     requestIdleCallback(preloadFace, { timeout: 1500 });
   else setTimeout(preloadFace, 500);
-  status(hostPreviewMode ? "Vista global de Anfitrión activada." : "Asistencia lista.");
+  status(
+    hostPreviewMode
+      ? "Vista global de Anfitrión activada."
+      : markerMode
+        ? markerPosition
+          ? "Ubicación del celular validada."
+          : "GPS pendiente. Valida la ubicación antes de marcar."
+        : "Asistencia lista.",
+    markerMode && !markerPosition,
+  );
 }
 
 async function loadWorker() {
@@ -393,8 +417,14 @@ async function loadWorker() {
   const primaryFaceHint = $("primaryFaceHint");
   const nextFaceType = canExit ? "salida" : "entrada";
   primaryFace.dataset.markType = nextFaceType;
-  primaryFace.disabled = !biometric || (!canEnter && !canExit) || Boolean(todayPenalty?.nonWorking);
-  primaryFaceHint.textContent = biometric
+  const personalFaceBlocked = profile.rol === "anfitrion" && siteMarkerActive;
+  primaryFace.disabled = personalFaceBlocked
+    || !biometric
+    || (!canEnter && !canExit)
+    || Boolean(todayPenalty?.nonWorking);
+  primaryFaceHint.textContent = personalFaceBlocked
+    ? "La sede cuenta con un celular Marcador. Realiza allí la marcación facial o usa el QR de contingencia autorizado."
+    : biometric
     ? `Siguiente marcación: ${nextFaceType}. Se validarán rostro, GPS y hora oficial.`
     : "Primero registra tu rostro en Prueba controlada, al final de esta página.";
   const help = $("markHelp");
@@ -402,7 +432,10 @@ async function loadWorker() {
   if (todayPenalty?.nonWorking) {
     help.textContent = `Jornada no laborable: ${todayPenalty.late} minutos de tardanza. Descuento aplicado: ${money(todayPenalty.amount)}.`;
     help.classList.add("warning");
-  } else if (canEnter)
+  } else if (personalFaceBlocked)
+    help.textContent =
+      "La marcación facial personal está desactivada porque la sede tiene un celular Marcador activo.";
+  else if (canEnter)
     help.textContent =
       biometric
         ? "La marcación facial está lista para registrar tu entrada."
@@ -1124,10 +1157,6 @@ async function approveExtra(button, hours) {
 }
 
 function openScanner(type) {
-  if (profile?.rol === "anfitrion") {
-    status("Tu cuenta registra asistencia únicamente mediante reconocimiento facial.", true);
-    return;
-  }
   markType = type;
   $("scannerModal").hidden = false;
   $("scannerStatus").textContent = "Iniciando camara...";
@@ -1172,14 +1201,73 @@ function scanFrame() {
   }
   scannerFrame = requestAnimationFrame(scanFrame);
 }
-function currentPosition() {
+function currentPosition(maximumAge = 15000) {
   return new Promise((resolve, reject) =>
     navigator.geolocation.getCurrentPosition(resolve, reject, {
       enableHighAccuracy: true,
-      maximumAge: 15000,
+      maximumAge,
       timeout: 12000,
     }),
   );
+}
+function distanceMeters(lat1, lon1, lat2, lon2) {
+  const radius = 6371000;
+  const toRadians = (degrees) => (degrees * Math.PI) / 180;
+  const deltaLat = toRadians(lat2 - lat1);
+  const deltaLon = toRadians(lon2 - lon1);
+  const value =
+    Math.sin(deltaLat / 2) ** 2
+    + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(deltaLon / 2) ** 2;
+  return radius * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+}
+async function refreshMarkerPosition() {
+  if (profile?.rol !== "marcador") return currentPosition();
+  if (markerPositionPromise) return markerPositionPromise;
+  const button = $("kioskFaceMark");
+  button.disabled = true;
+  $("kioskFaceResult").textContent = "Validando ubicación del celular...";
+  markerPositionPromise = currentPosition(0)
+    .then((position) => {
+      if (Number(position.coords.accuracy) > 100)
+        throw new Error("La precisión del GPS es insuficiente. Acércate a una zona abierta.");
+      const nearest = sites
+        .map((site) => ({
+          site,
+          distance: distanceMeters(
+            position.coords.latitude,
+            position.coords.longitude,
+            Number(site.latitud),
+            Number(site.longitud),
+          ),
+        }))
+        .sort((first, second) => first.distance - second.distance)[0];
+      if (!nearest)
+        throw new Error("No hay sedes activas configuradas.");
+      if (nearest.distance > Number(nearest.site.radio_metros))
+        throw new Error(
+          `El celular está a ${Math.round(nearest.distance)} m de ${nearest.site.nombre}. Debe estar dentro de la sede.`,
+        );
+      markerPosition = position;
+      $("kioskFaceResult").textContent =
+        `GPS validado en ${nearest.site.nombre}. Listo para reconocer rostros.`;
+      return position;
+    })
+    .catch((error) => {
+      markerPosition = null;
+      const message = error?.message || "No se pudo validar la ubicación del celular.";
+      $("kioskFaceResult").textContent = message;
+      status(message, true);
+      throw error;
+    })
+    .finally(() => {
+      markerPositionPromise = null;
+      button.disabled = false;
+    });
+  return markerPositionPromise;
+}
+function markerPositionForFace() {
+  if (profile?.rol !== "marcador") return currentPosition();
+  return markerPosition ? Promise.resolve(markerPosition) : refreshMarkerPosition();
 }
 async function markAttendance(token) {
   status("Validando QR y hora oficial...");
@@ -1261,6 +1349,10 @@ async function loadFaceModels() {
   return faceModelsPromise;
 }
 async function openFace(mode, type = "entrada") {
+  if (mode === "mark" && profile?.rol === "anfitrion" && siteMarkerActive) {
+    status("Marca tu rostro en el celular de la sede o usa un QR de contingencia autorizado.", true);
+    return;
+  }
   faceMode = mode;
   faceMarkType = type;
   faceSamples = [];
@@ -1375,7 +1467,10 @@ async function captureFace() {
     const captured =
       faceMode === "enroll"
         ? [await readFaceDescriptor(), null]
-        : await Promise.all([readStableFaceDescriptor(), currentPosition()]);
+        : await Promise.all([
+            readStableFaceDescriptor(),
+            faceMode === "kiosk" ? markerPositionForFace() : currentPosition(),
+          ]);
     const [descriptor, position] = captured;
     if (faceMode === "enroll") {
       faceSamples.push(descriptor);
@@ -1559,6 +1654,11 @@ window.addEventListener("pagehide", () => {
   stopQr();
   closeScanner();
   closeFace();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || profile?.rol !== "marcador") return;
+  markerPosition = null;
+  refreshMarkerPosition().catch(() => {});
 });
 window.setInterval(cleanupExpiredChecklistPhotos, 5 * 60 * 1000);
 init();
