@@ -21,7 +21,14 @@
     <div><p>CONTROL DE ASISTENCIA</p><h1>Registro presencial</h1></div>
   </header>
   <main id="attendanceApp" class="attendance-shell" hidden>
-    <section class="session-strip"><strong id="attendanceUser">Usuario</strong><span id="attendanceStatus" role="status" aria-live="polite">Cargando...</span></section>
+    <section class="session-strip">
+      <div class="session-identity"><strong id="attendanceUser">Usuario</strong><span id="attendanceStatus" role="status" aria-live="polite">Cargando...</span></div>
+      <button id="hostPreviewToggle" type="button" class="secondary host-preview-toggle" hidden>Ver como anfitrión</button>
+    </section>
+    <aside id="hostPreviewNotice" class="host-preview-notice" hidden>
+      <strong>Vista previa de Anfitrión</strong>
+      <span>Solo cambió la presentación. Tu cuenta y tus permisos reales siguen intactos.</span>
+    </aside>
 
     <section id="workerPanel" class="attendance-panel" hidden>
       <div class="section-heading"><div><p class="eyebrow">MI TURNO</p><h2>Marcación de hoy</h2></div><button id="refreshWorker" type="button" class="secondary">Actualizar</button></div>

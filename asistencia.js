@@ -29,7 +29,8 @@ let session = null,
   faceMarkType = "entrada",
   faceSamples = [],
   faceModelsReady = false,
-  faceModelsPromise = null;
+  faceModelsPromise = null,
+  hostPreviewMode = false;
 const siteName = (id) => sites.find((site) => site.codigo === id)?.nombre || id;
 const dateIso = (date) => {
   const copy = new Date(date);
@@ -140,6 +141,29 @@ function isManager() {
 function canGenerateQr() {
   return isManager() || ["supervisor", "marcador"].includes(profile?.rol);
 }
+function isDennysAccount() {
+  const identity = `${profile?.nombre || ""} ${profile?.apellidos_nombres || ""}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  return profile?.activo !== false && profile?.rol === "encargado_ti" && identity.includes("dennys");
+}
+function setHostPreview(enabled) {
+  if (!isDennysAccount()) return;
+  hostPreviewMode = Boolean(enabled);
+  const button = $("hostPreviewToggle");
+  button.textContent = hostPreviewMode ? "Volver a mi vista" : "Ver como anfitrión";
+  button.classList.toggle("active", hostPreviewMode);
+  button.setAttribute("aria-pressed", String(hostPreviewMode));
+  $("hostPreviewNotice").hidden = !hostPreviewMode;
+  $("workerQrFallback").hidden = hostPreviewMode || profile.rol === "anfitrion";
+  $("adminPanel").hidden = hostPreviewMode || !(isManager() || profile.rol === "supervisor");
+  $("attendanceUser").textContent = hostPreviewMode
+    ? `${profile.apellidos_nombres || profile.nombre} - Vista previa: Anfitrión`
+    : `${profile.apellidos_nombres || profile.nombre}${profile.dni ? ` - DNI ${profile.dni}` : ""} - ${profile.rol}`;
+  status(hostPreviewMode ? "Vista de anfitrión activada." : "Vista personal restaurada.");
+}
 function allowedSites() {
   return isGlobalRole()
     ? sites
@@ -193,6 +217,9 @@ async function init() {
   shifts = shiftResult.data || [];
   $("attendanceUser").textContent =
     `${profile.apellidos_nombres || profile.nombre}${profile.dni ? ` - DNI ${profile.dni}` : ""} - ${profile.rol}`;
+  const previewButton = $("hostPreviewToggle");
+  previewButton.hidden = !isDennysAccount();
+  previewButton.setAttribute("aria-pressed", "false");
   $("attendanceApp").hidden = false;
   if (
     [
@@ -1447,6 +1474,9 @@ document.querySelector(".admin-tabs")?.addEventListener("click", (event) => {
   if (button) switchTab(button.dataset.attendanceTab);
 });
 $("refreshWorker")?.addEventListener("click", loadWorker);
+$("hostPreviewToggle")?.addEventListener("click", () =>
+  setHostPreview(!hostPreviewMode),
+);
 $("primaryFaceMark")?.addEventListener("click", (event) =>
   openFace("mark", event.currentTarget.dataset.markType || "entrada"),
 );

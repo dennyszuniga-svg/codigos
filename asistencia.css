@@ -92,12 +92,41 @@ button {
 }
 .session-strip {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 12px;
 }
+.session-identity {
+  display: grid;
+  gap: 4px;
+}
 .session-strip span {
   color: #607184;
+}
+.host-preview-toggle {
+  flex: 0 0 auto;
+}
+.host-preview-toggle.active {
+  background: #ef4b23;
+  color: #fff;
+}
+.host-preview-notice {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #f2a28e;
+  border-left: 5px solid #ef4b23;
+  border-radius: 7px;
+  background: #fff5f2;
+  color: #71301f;
+}
+.host-preview-notice[hidden] {
+  display: none;
+}
+.host-preview-notice span {
+  font-size: 0.86rem;
 }
 .section-heading {
   display: flex;
@@ -492,6 +521,13 @@ a:focus-visible {
   font-size: 0.88rem;
 }
 @media (max-width: 600px) {
+  .session-strip {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .host-preview-toggle {
+    width: 100%;
+  }
   .audited-qr summary {
     align-items: flex-start;
     flex-wrap: wrap;
