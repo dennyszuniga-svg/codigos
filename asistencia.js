@@ -156,12 +156,18 @@ function isDennysAccount() {
 function setHostPreview(enabled) {
   if (!isDennysAccount()) return;
   hostPreviewMode = Boolean(enabled);
+  document.body.classList.toggle("host-preview-mode", hostPreviewMode);
+  document.body.dataset.attendanceRole = hostPreviewMode ? "anfitrion" : profile.rol;
   try {
     if (hostPreviewMode) sessionStorage.setItem(HOST_PREVIEW_SESSION_KEY, "1");
     else sessionStorage.removeItem(HOST_PREVIEW_SESSION_KEY);
   } catch (error) {
     console.warn("No se pudo conservar la vista de anfitrión:", error);
   }
+  const currentUrl = new URL(window.location.href);
+  if (hostPreviewMode) currentUrl.searchParams.set("vista", "anfitrion");
+  else currentUrl.searchParams.delete("vista");
+  window.history.replaceState(window.history.state, "", `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
   const button = $("hostPreviewToggle");
   button.textContent = hostPreviewMode ? "Volver a mi vista" : "Ver app como anfitrión";
   button.classList.toggle("active", hostPreviewMode);
@@ -208,9 +214,11 @@ async function init() {
     return;
   }
   profile = data;
+  document.body.dataset.attendanceRole = profile.rol;
   try {
+    const requestedHostPreview = new URLSearchParams(window.location.search).get("vista") === "anfitrion";
     hostPreviewMode = isDennysAccount()
-      && sessionStorage.getItem(HOST_PREVIEW_SESSION_KEY) === "1";
+      && (requestedHostPreview || sessionStorage.getItem(HOST_PREVIEW_SESSION_KEY) === "1");
     if (!isDennysAccount()) sessionStorage.removeItem(HOST_PREVIEW_SESSION_KEY);
   } catch (error) {
     hostPreviewMode = false;

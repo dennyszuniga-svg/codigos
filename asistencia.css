@@ -419,6 +419,10 @@ a:focus-visible {
   gap: 16px;
   text-align: center;
 }
+body.host-preview-mode #markerKioskPanel,
+body[data-attendance-role="anfitrion"] #markerKioskPanel {
+  display: none !important;
+}
 .marker-kiosk-panel .section-heading,
 .marker-kiosk-panel .helper {
   text-align: left;

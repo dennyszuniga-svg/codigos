@@ -396,6 +396,7 @@ function usuarioPuedeUsarVistaAnfitrion() {
 function actualizarControlVistaAnfitrion() {
     const boton = obtenerElemento('toggleHostPreview');
     const banner = obtenerElemento('hostPreviewBanner');
+    const enlaceAsistencia = document.querySelector('.attendance-open-link');
     if (!boton) return;
     const permitido = usuarioPuedeUsarVistaAnfitrion();
     boton.hidden = !permitido;
@@ -403,6 +404,11 @@ function actualizarControlVistaAnfitrion() {
     const texto = boton.querySelector('span');
     if (texto) texto.textContent = vistaAnfitrionActiva ? 'Volver a mi vista' : 'Ver app como anfitrión';
     if (banner) banner.hidden = !vistaAnfitrionActiva;
+    if (enlaceAsistencia) {
+        enlaceAsistencia.href = vistaAnfitrionActiva
+            ? 'asistencia.html?vista=anfitrion'
+            : 'asistencia.html';
+    }
 }
 
 function establecerVistaAnfitrion(activa) {
