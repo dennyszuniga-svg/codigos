@@ -10,7 +10,7 @@ const client = window.supabase.createClient(CONFIG.url, CONFIG.key, {
   },
 });
 const $ = (id) => document.getElementById(id);
-const FACE_MARK_SAMPLE_COUNT = 5;
+const FACE_MARK_SAMPLE_COUNT = 3;
 const FACE_MARK_MAX_ATTEMPTS = 8;
 const FACE_MARK_SAMPLE_DELAY_MS = 75;
 const HOST_PREVIEW_SESSION_KEY = "urbapark-host-preview";
