@@ -1477,9 +1477,13 @@ $("refreshWorker")?.addEventListener("click", loadWorker);
 $("hostPreviewToggle")?.addEventListener("click", () =>
   setHostPreview(!hostPreviewMode),
 );
-$("primaryFaceMark")?.addEventListener("click", (event) =>
-  openFace("mark", event.currentTarget.dataset.markType || "entrada"),
-);
+$("primaryFaceMark")?.addEventListener("click", (event) => {
+  if (hostPreviewMode) {
+    status("Vista previa: no se registró ninguna marcación.");
+    return;
+  }
+  openFace("mark", event.currentTarget.dataset.markType || "entrada");
+});
 $("markEntry")?.addEventListener("click", () => openScanner("entrada"));
 $("markExit")?.addEventListener("click", () => openScanner("salida"));
 $("closeScanner")?.addEventListener("click", closeScanner);
