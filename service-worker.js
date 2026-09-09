@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codigos-urbapark-v188';
+const CACHE_NAME = 'codigos-urbapark-v197';
 const APP_SHELL = [
     './',
     './index.html',
@@ -9,6 +9,16 @@ const APP_SHELL = [
     './assets/jszip.min.js',
     './assets/reporte-checklist-por-sede.xlsx',
     './assets/pptxgen.min.js',
+    './js/core-config.js',
+    './js/maintenance-catalog.js',
+    './js/emergency-codes.js',
+    './js/operations-config.js',
+    './js/modules/maintenance.js',
+    './js/modules/operations.js',
+    './js/modules/subscribers.js',
+    './js/modules/admin.js',
+    './js/modules/reporting.js',
+    './js/modules/permissions.js',
     './informe-incidentes.html',
     './informe-incidentes.css',
     './informe-incidentes.js',

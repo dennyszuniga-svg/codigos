@@ -370,6 +370,31 @@ body.dark-theme .theme-icon-moon {
     opacity: 0.75;
 }
 
+.session-actions .permission-btn[data-permission-state="granted"] {
+    border-color: #75c89a;
+    background: #e8f7ee;
+    color: #147a43;
+    opacity: 1;
+}
+
+.session-actions .permission-btn[data-permission-state="denied"] {
+    border-color: #f5a7a3;
+    background: #fff0ef;
+    color: #b42318;
+}
+
+body.dark-theme .session-actions .permission-btn[data-permission-state="granted"] {
+    border-color: #28784d;
+    background: #123d29;
+    color: #9be1b8;
+}
+
+body.dark-theme .session-actions .permission-btn[data-permission-state="denied"] {
+    border-color: #8e3a35;
+    background: #461d1a;
+    color: #ffb4ae;
+}
+
 .global-search-panel {
     display: grid;
     grid-template-columns: minmax(220px, 0.9fr) minmax(260px, 1.1fr);

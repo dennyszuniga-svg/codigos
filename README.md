@@ -52,6 +52,10 @@ Cada codigo tiene ficha con guia paso a paso, checklist de controles, imagen de 
 | [`informe-incidentes.html`](informe-incidentes.html) | Registro de informes de intervencion con fotos, borradores locales y exportacion. |
 | [`asistencia.html`](asistencia.html) | Control de asistencia presencial por turnos mediante QR. |
 
+### Carga semanal de OTs en Real Plaza
+
+El Centro de control incluye una vista exclusiva para el encargado de TI que relaciona los informes PDF de una carpeta con los preventivos terminados de una semana. El complemento local `urbapark-real-plaza-extension/` utiliza la sesion ya iniciada en Chrome, procesa una sola OT a la vez y nunca completa la tarifa. No guarda credenciales ni sube los PDF a Supabase.
+
 ### Modulos del menu principal
 `Mantenimiento` · `Operaciones` · `Caja` · `Ronda` · `Codigos` · `Capacitacion` · `Abonados` · `Registro`
 
@@ -146,7 +150,19 @@ El proyecto de Supabase vinculado es `uibiwhkxlyxdfytvudbn`. La app usa la **pub
 ```
 codigos/
 ├── index.html                    # App principal
-├── script.js                     # Logica principal (codigos, guias, modulos, admin)
+├── script.js                     # Estado compartido, autenticacion, guias y codigos
+├── js/
+│   ├── core-config.js            # Sedes, roles, Supabase y configuracion comun
+│   ├── maintenance-catalog.js    # Catalogo de equipos por sede
+│   ├── emergency-codes.js        # Protocolos de los nueve codigos
+│   ├── operations-config.js      # Estructura del checklist operativo
+│   └── modules/
+│       ├── maintenance.js        # Tareas, inventario e indicadores
+│       ├── operations.js         # Activos, ocupabilidad y checklists
+│       ├── reporting.js          # Lectura y exportacion de reportes
+│       ├── subscribers.js        # Solicitudes de abonados
+│       ├── permissions.js        # Permisos de GPS, camara y estado del dispositivo
+│       └── admin.js              # Guias, usuarios y salud del sistema
 ├── styles.css                    # Estilos globales y tema claro/oscuro
 ├── mantenimiento-control.{html,css,js}
 ├── informe-incidentes.{html,css,js}

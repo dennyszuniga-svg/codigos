@@ -40,4 +40,8 @@ await cp(new URL("./assets/", import.meta.url), new URL("assets/", outputDirecto
   recursive: true
 });
 
+await cp(new URL("./js/", import.meta.url), new URL("js/", outputDirectory), {
+  recursive: true
+});
+
 console.log("Aplicacion URBAPARK preparada en dist/");
