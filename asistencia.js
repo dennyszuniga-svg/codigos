@@ -25,7 +25,6 @@ let session = null,
   scannerFrame = null,
   markType = "entrada",
   biometric = null,
-  siteMarkerActive = false,
   markerPosition = null,
   markerPositionPromise = null,
   faceStream = null,
@@ -148,16 +147,6 @@ function canGenerateQr() {
 function canSeeMarkerKiosk() {
   return ["marcador", "supervisor", "admin", "encargado_ti"].includes(profile?.rol);
 }
-async function loadAttendanceMode() {
-  if (profile?.rol !== "anfitrion") {
-    siteMarkerActive = false;
-    return;
-  }
-  const { data, error } = await client.functions.invoke("attendance-qr", {
-    body: { action: "attendance-mode" },
-  });
-  siteMarkerActive = !error && Boolean(data?.markerActive);
-}
 function isDennysAccount() {
   const identity = `${profile?.nombre || ""} ${profile?.apellidos_nombres || ""}`
     .normalize("NFD")
@@ -254,7 +243,6 @@ async function init() {
   }
   sites = siteResult.data || [];
   shifts = shiftResult.data || [];
-  await loadAttendanceMode();
   $("attendanceUser").textContent =
     `${profile.apellidos_nombres || profile.nombre}${profile.dni ? ` - DNI ${profile.dni}` : ""} - ${profile.rol}`;
   const previewButton = $("hostPreviewToggle");
@@ -417,14 +405,10 @@ async function loadWorker() {
   const primaryFaceHint = $("primaryFaceHint");
   const nextFaceType = canExit ? "salida" : "entrada";
   primaryFace.dataset.markType = nextFaceType;
-  const personalFaceBlocked = profile.rol === "anfitrion" && siteMarkerActive;
-  primaryFace.disabled = personalFaceBlocked
-    || !biometric
+  primaryFace.disabled = !biometric
     || (!canEnter && !canExit)
     || Boolean(todayPenalty?.nonWorking);
-  primaryFaceHint.textContent = personalFaceBlocked
-    ? "La sede cuenta con un celular Marcador. Realiza allí la marcación facial o usa el QR de contingencia autorizado."
-    : biometric
+  primaryFaceHint.textContent = biometric
     ? `Siguiente marcación: ${nextFaceType}. Se validarán rostro, GPS y hora oficial.`
     : "Primero registra tu rostro en Prueba controlada, al final de esta página.";
   const help = $("markHelp");
@@ -432,10 +416,7 @@ async function loadWorker() {
   if (todayPenalty?.nonWorking) {
     help.textContent = `Jornada no laborable: ${todayPenalty.late} minutos de tardanza. Descuento aplicado: ${money(todayPenalty.amount)}.`;
     help.classList.add("warning");
-  } else if (personalFaceBlocked)
-    help.textContent =
-      "La marcación facial personal está desactivada porque la sede tiene un celular Marcador activo.";
-  else if (canEnter)
+  } else if (canEnter)
     help.textContent =
       biometric
         ? "La marcación facial está lista para registrar tu entrada."
@@ -1349,10 +1330,6 @@ async function loadFaceModels() {
   return faceModelsPromise;
 }
 async function openFace(mode, type = "entrada") {
-  if (mode === "mark" && profile?.rol === "anfitrion" && siteMarkerActive) {
-    status("Marca tu rostro en el celular de la sede o usa un QR de contingencia autorizado.", true);
-    return;
-  }
   faceMode = mode;
   faceMarkType = type;
   faceSamples = [];

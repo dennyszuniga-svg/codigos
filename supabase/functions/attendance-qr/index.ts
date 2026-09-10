@@ -90,13 +90,6 @@ Deno.serve(async req => {
     if (!profile?.activo) return json({ error: 'Usuario inactivo.' }, 403);
     const body = await req.json();
 
-    if (body.action === 'attendance-mode') {
-      const { data: marker } = await admin.from('profiles')
-        .select('id').eq('rol', 'marcador').eq('sede', profile.sede).eq('activo', true)
-        .limit(1).maybeSingle();
-      return json({ markerActive: Boolean(marker), site: profile.sede });
-    }
-
     if (body.action === 'kiosk-face-mark') {
       if (!['marcador', 'supervisor', 'admin', 'encargado_ti'].includes(profile.rol))
         return json({ error: 'Tu cuenta no está autorizada para usar el celular de marcación.' }, 403);
@@ -185,13 +178,6 @@ Deno.serve(async req => {
     }
 
     if (body.action === 'face-test' || body.action === 'face-mark') {
-      if (body.action === 'face-mark' && profile.rol === 'anfitrion') {
-        const { data: marker } = await admin.from('profiles')
-          .select('id').eq('rol', 'marcador').eq('sede', profile.sede).eq('activo', true)
-          .limit(1).maybeSingle();
-        if (marker)
-          return json({ error: 'Esta sede usa un celular Marcador. Marca allí con tu rostro o solicita un QR de contingencia.' }, 403);
-      }
       const { data: enrolled } = await admin.from('asistencia_biometria').select('descriptor,activa').eq('user_id', user.id).maybeSingle();
       if (!enrolled?.activa) return json({ error: 'Primero registra tu rostro en la aplicacion.' }, 409);
       const matchDistance = facialDistance(enrolled.descriptor, body.descriptor);
